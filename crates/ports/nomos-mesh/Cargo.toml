@@ -4,6 +4,7 @@ description = "Mesh port: node enrollment, identity and reachability on the cont
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 repository.workspace = true
 publish.workspace = true
 

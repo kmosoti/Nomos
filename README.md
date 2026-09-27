@@ -61,3 +61,12 @@ Everything technical lives in [`docs/`](docs/):
 - [Architecture](docs/architecture/): how the system and the code are organised
 - [Formal](docs/formal/): the algorithms and the invariants Nomos must never break
 - [Decision records](docs/adr/): why it is organised that way
+
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).

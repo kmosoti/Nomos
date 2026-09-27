@@ -17,13 +17,15 @@ Nomos describes how machines should be, observes how they are, computes the diff
 
 Its fundamental control relationship is:
 
-```
-DesiredState --compare--> ObservedState
-Variance = DesiredState - ObservedState
-Plan     = compile(Variance)
-```
+$$
+\begin{aligned}
+&\mathit{DesiredState} \xrightarrow{\text{compare}} \mathit{ObservedState} \\
+&\mathit{Variance} = \mathit{DesiredState} - \mathit{ObservedState} \\
+&\mathit{Plan} = \mathrm{compile}(\mathit{Variance})
+\end{aligned}
+$$
 
-applied until `ObservedState ≈ DesiredState`.
+applied until $\mathit{ObservedState} \approx \mathit{DesiredState}$.
 
 Nomos is not intended to be "Salt rewritten in Rust." It uses Salt as one source of lessons, while deliberately incorporating ideas from reconciliation systems, workflow engines, schedulers, operating systems, databases, formal methods, security systems, and distributed-systems research.
 
@@ -33,19 +35,17 @@ The objective is a smaller and more principled model.
 
 ## 2. Core Architecture
 
-```
-                      NOMOS
-              ordering and protocol
-                       │
-       ┌───────────────┴───────────────┐
-       │                               │
-      LOOM                            CELL
- coordinator / compiler          node executor
-       │                               │
-       │ compiles                      │ operates through
-       ▼                               ▼
-      WARP                         SUBSTRATE
- dependency graph              operating-system layer
+```mermaid
+flowchart TB
+    N["<b>NOMOS</b><br/>ordering and protocol"]
+    L["<b>LOOM</b><br/>coordinator / compiler"]
+    C["<b>CELL</b><br/>node executor"]
+    W["<b>WARP</b><br/>dependency graph"]
+    S["<b>SUBSTRATE</b><br/>operating-system layer"]
+    N --> L
+    N --> C
+    L -- compiles --> W
+    C -- operates through --> S
 ```
 
 ### Nomos (`nomos`)
@@ -100,7 +100,7 @@ The node-resident executor. A Cell:
 
 A Cell is intentionally autonomous enough to operate locally without Loom:
 
-```
+```sh
 nomos-cell trace --canon local.yaml
 nomos-cell enforce --canon local.yaml
 ```
@@ -129,14 +129,16 @@ Substrate is the operating-system boundary. It converts strongly typed Nomos ope
 
 Substrate should prefer native APIs over shell execution:
 
-```
-Nomos → SystemdResource → zbus → systemd D-Bus API → PID 1
+```mermaid
+flowchart LR
+    A["Nomos"] --> B["SystemdResource"] --> C["zbus"] --> D["systemd D-Bus API"] --> E["PID 1"]
 ```
 
 rather than:
 
-```
-Nomos → "systemctl restart nginx" → shell → systemctl → D-Bus → PID 1
+```mermaid
+flowchart LR
+    A["Nomos"] --> B["systemctl restart nginx"] --> C["shell"] --> D["systemctl"] --> E["D-Bus"] --> F["PID 1"]
 ```
 
 systemd exposes units, jobs, state and operations through its D-Bus object model, making that interface a considerably stronger substrate contract than parsing CLI output.
@@ -164,9 +166,9 @@ Alternative names are intentionally discarded. There is no simultaneous "Pattern
 
 A Trait is not necessarily immutable. `architecture = x86_64` is extremely stable; `kernel`, `ip_address`, `package_version`, `memory_available` can change. Therefore:
 
-```
-Trait = Value + Provenance + ObservationTime + Stability
-```
+$$
+\mathit{Trait} = \mathit{Value} + \mathit{Provenance} + \mathit{ObservationTime} + \mathit{Stability}
+$$
 
 ```rust
 struct Trait<T> {
@@ -244,15 +246,18 @@ Canon should not initially contain an embedded general-purpose programming langu
 
 Human-readable Canon is not the execution representation.
 
-```
-YAML → Parser → Typed AST → Validation → Canonical IR (→ hash) → Warp → Plan DAG
+```mermaid
+flowchart LR
+    Y[/"YAML"/] --> P["Parser"] --> A["Typed AST"] --> V["Validation"] --> IR["Canonical IR"]
+    IR --> H(["hash"])
+    IR --> W["Warp"] --> D(["Plan DAG"])
 ```
 
 The canonical IR must serialize deterministically, allowing:
 
-```
-CanonID = H(CanonicalEncoding(Canon))
-```
+$$
+\mathit{CanonID} = H(\mathit{CanonicalEncoding}(\mathit{Canon}))
+$$
 
 Content-derived identity borrows the useful part of Nix's content-addressing model. Nomos does not need to reproduce the Nix store; the transferable lesson is deterministic identity.
 
@@ -289,7 +294,7 @@ The central abstraction is a level-triggered reconciliation loop (as in Kubernet
 
 For resource `r`:
 
-```
+```text
 O_r = observe(r)
 V_r = diff(D_r, O_r)
 if V_r = ∅: nothing happens
@@ -319,12 +324,11 @@ trait ResourceDriver {
 }
 ```
 
-```
-              Resource contract
-                     │
-       ┌─────────────┼──────────────┐
-       ▼             ▼              ▼
- Linux backend    Mock backend   Future BSD backend
+```mermaid
+flowchart TB
+    RC["Resource contract"] --> L["Linux backend"]
+    RC --> M["Mock backend"]
+    RC --> B["Future BSD backend"]
 ```
 
 The mock implementation is not optional scaffolding. It is a first-class backend enabling deterministic testing of reconciliation.
@@ -345,8 +349,9 @@ Do not begin by reproducing Salt's execution-module surface. Prove the resource 
 
 Avoid `open → truncate → write`. Preferred:
 
-```
-write temporary file → fsync → set metadata → atomic rename → fsync parent directory → verify
+```mermaid
+flowchart LR
+    A["write temporary file"] --> B["fsync"] --> C["set metadata"] --> D["atomic rename"] --> E["fsync parent directory"] --> F["verify"]
 ```
 
 Observed content should ordinarily be compared using hashes.
@@ -363,8 +368,13 @@ systemd is the authoritative service manager on the initial platform. Substrate 
 
 Nomos should be cgroup-v2-native. Bounded Actions may run as:
 
-```
-Action → transient systemd scope → delegated cgroup (CPU / memory / I/O / process limits)
+```mermaid
+flowchart LR
+    A["Action"] --> S["transient systemd scope"] --> G["delegated cgroup"]
+    G --> CPU["CPU limit"]
+    G --> MEM["memory limit"]
+    G --> IO["I/O limit"]
+    G --> PID["process limit"]
 ```
 
 Nomos cooperates with systemd (`Delegate=`) rather than fighting PID 1 for ownership of the cgroup hierarchy.
@@ -396,17 +406,19 @@ Nomos cooperates with systemd (`Delegate=`) rather than fighting PID 1 for owner
 
 An internal compiled artifact:
 
-```
-Plan
-├── ID
-├── Canon ID
-├── target snapshot
-├── Actions
-├── dependency edges
-├── constraints
-├── concurrency policy
-├── creation generation
-└── expiry / lease information
+```mermaid
+classDiagram
+    class Plan {
+        ID
+        Canon ID
+        target snapshot
+        Actions
+        dependency edges
+        constraints
+        concurrency policy
+        creation generation
+        expiry / lease information
+    }
 ```
 
 Plan identity derives from canonical content where practical. Plans are immutable after acceptance; changing a Plan produces a new Plan.
@@ -421,19 +433,21 @@ Following Nomad: evaluation → plan → validation → execution. Loom compiles
 
 ## 18. Action
 
-```
-Action
-├── ID
-├── type
-├── target
-├── inputs
-├── preconditions
-├── operation
-├── postconditions
-├── timeout
-├── retry policy
-├── conflict keys
-└── idempotency key
+```mermaid
+classDiagram
+    class Action {
+        ID
+        type
+        target
+        inputs
+        preconditions
+        operation
+        postconditions
+        timeout
+        retry policy
+        conflict keys
+        idempotency key
+    }
 ```
 
 Lifecycle: `Prepared → Dispatched → Accepted → Running → Verifying → Succeeded`, with terminal alternatives `Failed`, `TimedOut`, `Cancelled`, `Rejected`.
@@ -456,7 +470,7 @@ Plans receive monotonically increasing generations/fencing tokens. If a Cell has
 
 ## 21. Loom Targeting
 
-```
+```sh
 nomos-loom trace --target 'traits.os == "debian" && traits.tier == "edge"' --canon telemetry-stack
 ```
 
@@ -483,21 +497,13 @@ v0 needs: bounded concurrency, dependency readiness, per-node exclusivity, confl
 
 ## 23. Cell Architecture
 
-```
-                CELL
-                 │
-     ┌───────────┼────────────┐
-     ▼           ▼            ▼
- protocol     observer     event spool
-     │           │
-     ▼           ▼
- validator     Traits
-     │
-     ▼
- executor
-     │
-     ▼
- Substrate
+```mermaid
+flowchart TB
+    CELL["CELL"] --> P["protocol"]
+    CELL --> O["observer"]
+    CELL --> ES["event spool"]
+    P --> V["validator"] --> X["executor"] --> S["Substrate"]
+    O --> T["Traits"]
 ```
 
 The Cell owns execution semantics and establishes whether the local operation achieved its postcondition.
@@ -587,19 +593,11 @@ Nomos uses `NodeID`, `CanonID`, `PlanID`, `ActionID`, `EventID`. Cell identity s
 
 The Cell is effectively a remote root-management system. It should be privilege-separated:
 
-```
-        network
-           │
-           ▼
-   unprivileged Cell
-           │
-     typed local IPC
-           │
-           ▼
-  privileged executor
-           │
-           ▼
-       Substrate
+```mermaid
+flowchart TB
+    N(("network")) --> U["unprivileged Cell"]
+    U -- "typed local IPC" --> P["privileged executor"]
+    P --> S["Substrate"]
 ```
 
 The privileged side accepts typed operations only, over a root-owned Unix-domain socket with peer-credential validation.
@@ -628,7 +626,7 @@ Polkit may serve local human → CLI → privileged local operation, but remote 
 
 Trace guarantees non-mutation and uses exactly the same parse/observe/diff/compile pipeline as Enforce; only execution is omitted.
 
-```
+```text
 FILE /etc/example.conf
   content:
     observed: sha256:abc
@@ -648,8 +646,9 @@ SYSTEMD example.service
 
 ## 38. Enforce
 
-```
-Canon → Observe → Variance → Warp → Plan → Actions → Verify → Observe again
+```mermaid
+flowchart LR
+    C[/"Canon"/] --> O["Observe"] --> V["Variance"] --> W["Warp"] --> P["Plan"] --> A["Actions"] --> VF["Verify"] --> O2["Observe again"]
 ```
 
 Terminates when `Variance = ∅` or a defined failure condition is reached. Reconciliation loops are bounded; oscillation is detected as non-convergence.
@@ -694,8 +693,9 @@ Nomos Events are control-plane records, not an observability pipeline. High-volu
 
 ## 45. Testing Architecture
 
-```
-Unit → Property → Graph → Concurrency → Crash → Integration → Distributed failure
+```mermaid
+flowchart LR
+    U["Unit"] --> P["Property"] --> G["Graph"] --> C["Concurrency"] --> CR["Crash"] --> I["Integration"] --> D["Distributed failure"]
 ```
 
 ---
@@ -755,7 +755,7 @@ See `docs/ARCHITECTURE.md` for the hexagonal mapping of the workspace. Crates be
 
 Loom:
 
-```
+```sh
 nomos-loom compile --canon base-system.yaml
 nomos-loom trace   --target 'traits.os == "debian"'   --canon hardened-host.yaml
 nomos-loom enforce --target 'traits.tier == "edge"'   --canon telemetry-stack.yaml
@@ -763,7 +763,7 @@ nomos-loom enforce --target 'traits.tier == "edge"'   --canon telemetry-stack.ya
 
 Cell:
 
-```
+```sh
 nomos-cell traits
 nomos-cell trace   --canon /etc/nomos/local.yaml
 nomos-cell enforce --canon /etc/nomos/local.yaml
@@ -828,9 +828,11 @@ Reference problem: *reliably describe, inspect, change and verify Linux host sta
 
 Use Nomos to deploy FabricO11y Cell/Agent software onto Debian hosts (system user, directories, binary artifact, configuration, systemd service, resource limits, enablement, health):
 
-```
-fresh Debian VM → nomos trace → Variance shown → nomos enforce → FabricO11y installed
-→ service running → postcondition verified → Event Log complete → nomos enforce again → 0 mutating Actions
+```mermaid
+flowchart TB
+    A["fresh Debian VM"] --> B["nomos trace"] --> C["Variance shown"] --> D["nomos enforce"]
+    D --> E["FabricO11y installed"] --> F["systemd service running"] --> G["postcondition verified"]
+    G --> H["Event Log complete"] --> I["nomos enforce again"] --> J(["0 mutating Actions"])
 ```
 
 Then break the host (delete config, stop service, change permissions, alter sysctl): Trace must identify the Variance and Enforce must restore Canon.
@@ -868,38 +870,18 @@ These invariants are more important than individual implementation technologies.
 
 `Canon + Traits + Observation` produce `Variance`; Variance produces `Warp`; Warp produces `Actions`; Actions operate through `Substrate`; every meaningful transition produces `Events`.
 
-```
-                   CANON
-             desired state
-                   │
-                   ▼
-                 LOOM
-          targeting / planning
-                   │
-                   ▼
-                 WARP
-              Action DAG
-                   │
-                   ▼
-                 CELL
-          validated execution
-                   │
-                   ▼
-              SUBSTRATE
-               Linux
-                   │
-                   ▼
-              OBSERVATION
-                   │
-             ┌─────┴─────┐
-             ▼           ▼
-          TRAITS       VARIANCE
-             │           │
-             └─────┬─────┘
-                   ▼
-                 LOOM
-
-Every transition → EVENT → EVENT LOG
+```mermaid
+flowchart TB
+    CANON[/"<b>CANON</b><br/>desired state"/] --> LOOM["<b>LOOM</b><br/>targeting / planning"]
+    LOOM --> WARP["<b>WARP</b><br/>Action DAG"]
+    WARP --> CELL["<b>CELL</b><br/>validated execution"]
+    CELL --> SUB["<b>SUBSTRATE</b><br/>Linux"]
+    SUB --> OBS(["OBSERVATION"])
+    OBS --> TR(["TRAITS"])
+    OBS --> VAR(["VARIANCE"])
+    TR --> LOOM
+    VAR --> LOOM
+    X["every transition"] --> EV["EVENT"] --> EL[("EVENT LOG")]
 ```
 
 > Observe reality, compare it with Canon, derive the smallest valid change, apply that change under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
@@ -908,11 +890,12 @@ Every transition → EVENT → EVENT LOG
 
 ## 60. Relationship to Moiric
 
-```
-MOIRIC
-├── FabricO11y — Observe distributed systems.        (What is happening?)
-├── Nomos      — Reconcile and control them.          (What should be happening, and how do we safely get there?)
-└── Metron     — Bound and govern computation.        (Within what boundaries may computation happen?)
+```mermaid
+flowchart TB
+    M["<b>MOIRIC</b>"]
+    M --> F["<b>FabricO11y</b><br/>Observe distributed systems.<br/><i>What is happening?</i>"]
+    M --> N["<b>Nomos</b><br/>Reconcile and control them.<br/><i>What should be happening,<br/>and how do we safely get there?</i>"]
+    M --> T["<b>Metron</b><br/>Bound and govern computation.<br/><i>Within what boundaries<br/>may computation happen?</i>"]
 ```
 
 They remain independently useful systems with narrow integration surfaces.

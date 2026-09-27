@@ -21,19 +21,24 @@ and implemented by an adapter.
 
 ### 2. Directory layout mirrors the hexagon
 
-```
-crates/
-├── core/       domain model and pure domain services
-├── ports/      driven-port contracts (one crate per port)
-├── app/        application use cases; driving ports
-├── adapters/   driven adapters: nomos-<port>-<technology>
-└── bin/        driving adapters and composition roots
-docs/
-├── architecture/  system, hexagon and runtime views (Mermaid)
-├── formal/        algorithms, invariants, proof sketches
-└── adr/           architecture decision records
-formal/tla/     machine-checked TLA+ models of the control protocol
-tests/          integration, failure and fixtures
+```mermaid
+flowchart LR
+    root["nomos/"]
+    root --> crates["crates/"]
+    root --> docs["docs/"]
+    root --> formal["formal/tla/<br/>machine-checked TLA+ models"]
+    root --> tests["tests/<br/>integration · failure · fixtures"]
+    root --> meta["README · LICENSE · CONTRIBUTING<br/>SECURITY · AGENTS"]
+
+    crates --> core["core/<br/>domain model and pure domain services"]
+    crates --> ports["ports/<br/>driven-port contracts, one crate per port"]
+    crates --> app["app/<br/>application use cases; driving ports"]
+    crates --> adapters["adapters/<br/>driven adapters: nomos-&lt;port&gt;-&lt;technology&gt;"]
+    crates --> bin["bin/<br/>driving adapters and composition roots"]
+
+    docs --> arch["architecture/<br/>system, hexagon, runtime views"]
+    docs --> fdocs["formal/<br/>algorithms, invariants, proof sketches"]
+    docs --> adr["adr/<br/>architecture decision records"]
 ```
 
 A crate's layer can be read from its path. A new crate belongs in exactly one
