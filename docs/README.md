@@ -3,7 +3,8 @@
 | Document | Contents |
 |---|---|
 | [PROJECT-SPEC.md](PROJECT-SPEC.md) | The full specification: model, semantics, invariants, phases |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Workspace layout, crates, ports and adapters, dependency rule |
+| [architecture/](architecture/) | System components, hexagonal layout, runtime flows (Mermaid diagrams) |
+| [formal/](formal/) | Algorithms, invariants and proof sketches |
 | [adr/](adr/) | Architecture Decision Records |
 | [CANON.md](CANON.md) | Canon language reference (to be written) |
 | [PROTOCOL.md](PROTOCOL.md) | Loom/Cell control protocol (to be written) |

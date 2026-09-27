@@ -7,3 +7,6 @@ Planned models of the control protocol (not of Linux):
 - `Fencing.tla`
 
 See `docs/PROJECT-SPEC.md` §48.
+
+Written statements and proof sketches of the same properties live in
+[`docs/formal/`](../../docs/formal/).

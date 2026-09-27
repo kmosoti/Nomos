@@ -58,5 +58,6 @@ place. The implementation starts with Phase 0: deterministic Canon → Variance
 Everything technical lives in [`docs/`](docs/):
 
 - [Project specification](docs/PROJECT-SPEC.md): the model, semantics and safety invariants
-- [Architecture](docs/ARCHITECTURE.md): how the code is organised
+- [Architecture](docs/architecture/): how the system and the code are organised
+- [Formal](docs/formal/): the algorithms and the invariants Nomos must never break
 - [Decision records](docs/adr/): why it is organised that way

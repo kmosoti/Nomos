@@ -28,8 +28,11 @@ crates/
 ├── app/        application use cases; driving ports
 ├── adapters/   driven adapters: nomos-<port>-<technology>
 └── bin/        driving adapters and composition roots
-docs/           specification, architecture, ADRs
-formal/tla/     TLA+ models of the control protocol
+docs/
+├── architecture/  system, hexagon and runtime views (Mermaid)
+├── formal/        algorithms, invariants, proof sketches
+└── adr/           architecture decision records
+formal/tla/     machine-checked TLA+ models of the control protocol
 tests/          integration, failure and fixtures
 ```
 
