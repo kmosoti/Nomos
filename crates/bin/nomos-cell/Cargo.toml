@@ -1,0 +1,17 @@
+[package]
+name = "nomos-cell"
+description = "Nomos Cell: node-resident executor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-app.workspace = true
+nomos-substrate-linux.workspace = true
+nomos-cipher-vault.workspace = true
+nomos-mesh-headscale.workspace = true

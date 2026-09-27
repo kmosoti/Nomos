@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = [
+    # Hexagon core: domain model and pure domain services.
+    "crates/core/nomos-core",
+    "crates/core/nomos-canon",
+    "crates/core/nomos-warp",
+    # Driven ports: contracts the application depends on.
+    "crates/ports/nomos-substrate",
+    "crates/ports/nomos-store",
+    "crates/ports/nomos-cipher",
+    "crates/ports/nomos-mesh",
+    "crates/ports/nomos-protocol",
+    # Application: use cases orchestrating domain through ports.
+    "crates/app/nomos-app",
+    # Driven adapters: concrete implementations of ports.
+    "crates/adapters/nomos-substrate-linux",
+    "crates/adapters/nomos-substrate-mock",
+    "crates/adapters/nomos-cipher-vault",
+    "crates/adapters/nomos-mesh-headscale",
+    # Driving adapters and composition roots.
+    "crates/bin/nomos-cell",
+    "crates/bin/nomos-loom",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98.1"
+repository = "https://github.com/kmosoti/nomos"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.dependencies]
+# Core
+nomos-core = { path = "crates/core/nomos-core" }
+nomos-canon = { path = "crates/core/nomos-canon" }
+nomos-warp = { path = "crates/core/nomos-warp" }
+# Ports
+nomos-substrate = { path = "crates/ports/nomos-substrate" }
+nomos-store = { path = "crates/ports/nomos-store" }
+nomos-cipher = { path = "crates/ports/nomos-cipher" }
+nomos-mesh = { path = "crates/ports/nomos-mesh" }
+nomos-protocol = { path = "crates/ports/nomos-protocol" }
+# Application
+nomos-app = { path = "crates/app/nomos-app" }
+# Adapters
+nomos-substrate-linux = { path = "crates/adapters/nomos-substrate-linux" }
+nomos-substrate-mock = { path = "crates/adapters/nomos-substrate-mock" }
+nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
+nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }

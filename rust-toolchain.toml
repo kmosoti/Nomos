@@ -1,0 +1,5 @@
+# Pinned toolchain. See docs/adr/0000-foundations.md.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
