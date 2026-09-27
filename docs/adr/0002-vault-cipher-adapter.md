@@ -1,4 +1,4 @@
-# ADR 0003: HashiCorp Vault as the preliminary Cipher adapter
+# ADR 0002: HashiCorp Vault as the preliminary Cipher adapter
 
 - Status: Accepted
 - Date: 2026-09-27

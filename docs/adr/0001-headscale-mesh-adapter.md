@@ -1,4 +1,4 @@
-# ADR 0002: Headscale as the preliminary Mesh adapter
+# ADR 0001: Headscale as the preliminary Mesh adapter
 
 - Status: Accepted
 - Date: 2026-09-27

@@ -38,6 +38,8 @@ transports.
 
 ## Dependency rule
 
+Decided in [ADR 0000](adr/0000-foundations.md).
+
 Dependencies point inward only.
 
 1. `nomos-core` depends on no workspace crate.
