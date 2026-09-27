@@ -1,0 +1,21 @@
+[package]
+name = "nomos-app"
+description = "Nomos application services: trace, enforce, compile, targeting use cases."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-core.workspace = true
+nomos-canon.workspace = true
+nomos-warp.workspace = true
+nomos-substrate.workspace = true
+nomos-store.workspace = true
+nomos-cipher.workspace = true
+nomos-mesh.workspace = true
+nomos-protocol.workspace = true
