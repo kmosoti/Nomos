@@ -105,6 +105,14 @@ On the validated types: normalization, the encoding profile chosen by `canonical
 
 Exit: artifact acceptance cannot bypass domain validation or silently change executable intent, and identical declared inputs produce identical IR bytes with every undeclared input denied or recorded.
 
+*Built 2026-09-28 on branch `milestone/06-canon-artifact`.* [canon-ir.md](../../formal/canon-ir.md) was written first: the restricted data model, schemas 1 and 2, semantic equivalence, both candidate profiles, strict decoding in four stages, readers, archival inspection, migration with lineage, and `CanonID`.
+
+What was built. In `nomos-canon`: the untrusted `RawCanon` and the validated `Canon`, whose only constructor is one validator that the typed builder, the decoder, and the migration all call; deterministic Concise Binary Object Representation (CBOR) and JSON Canonicalization Scheme (JCS) encoders and strict decoders, both without dependencies; SHA-256, from the Secure Hash Algorithm (SHA) 2 family, in the crate because `sha2` reaches `libc`; decoding by readers that name their schemas and kinds; archival inspection; the schema-1 migration. In `nomos-app`: the kernel's Canon from a decoded one. In `nomos-xtask`: `cargo xtask hermeticity`, which builds a Canon authoring crate twice in isolation and records what the jobs touched.
+
+Evidence, in the records: [typed-validation](results/typed-validation.md), [canonical-encoding](results/canonical-encoding.md), [compatibility-matrix](results/compatibility-matrix.md), [build-hermeticity](results/build-hermeticity.md). Golden vectors from independent encoders; four laws on generated Canons; a 78-cell reader matrix; six compile-fail cases; seven new semantic mutants, all caught, one after its test was strengthened; `cargo-mutants` over `nomos-canon` with every survivor classified, one of them a test gap now closed.
+
+Exit, met. Acceptance cannot bypass validation: `no_path_accepts_a_malformed_canon`, with `SM-CANON-001`, and the compile-fail cases. Acceptance cannot silently change executable intent: `every_reader_does_what_the_matrix_says`, `migration_preserves_meaning_and_identity`, `an_unknown_mutating_kind_is_refused_before_any_effect`, and `SM-CANON-002`, `003`, and `007`. Identical declared inputs produce identical IR bytes with every undeclared input denied or recorded: `cargo xtask hermeticity`, for one crate on one machine, with the build job's conditions in its record. ADR 0011 stays Proposed: its evidence is complete and recommends deterministic CBOR, and acceptance is the owner's.
+
 ### 07-substrate-conformance
 
 The first Linux adapter, with one narrowly scoped filesystem operation and the same conformance suite the mock passes, at a composition boundary (`crates/bin/nomos-cell/tests/` first). For `nomos-substrate`: absence differs from denied observation, Trace issues no mutation requests, postconditions are assessed by core, and an unresolved effect keeps its reservation. The first rows of the matrix's environment column.
@@ -192,7 +200,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 | `assessment-algebra` | `03-assessment-kernel` | [results/assessment-algebra.md](results/assessment-algebra.md) |
 | `warp-truth-table` | `04-warp-kernel` | [results/warp-truth-table.md](results/warp-truth-table.md) |
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | [bounded-convergence](results/bounded-convergence.md), [effect-recovery](results/effect-recovery.md), [refresh-recovery](results/refresh-recovery.md), [scheduler-admission](results/scheduler-admission.md), [kernel-conformance](results/kernel-conformance.md) |
-| `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | none |
+| `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | [typed-validation](results/typed-validation.md), [canonical-encoding](results/canonical-encoding.md), [compatibility-matrix](results/compatibility-matrix.md), [build-hermeticity](results/build-hermeticity.md) |
 | `controller-composition` | After `05-transition-kernel`, before `07-substrate-conformance` | none |
 | `substrate-contract` | `07-substrate-conformance` | none |
 

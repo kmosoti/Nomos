@@ -1,0 +1,647 @@
+{
+  "experiment": "build-hermeticity",
+  "provenance": {
+    "toolchain": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "lockfile_sha256": "5afe22af2d1005f08e7a0df6b555827709b86d4a96c18a774f02660889ecbbf9",
+    "nomos_canon_version": "0.0.0",
+    "declared_files": 60,
+    "declared_sha256": "5db216aa5ba983eb991e76fe8b6d364bb8e654b7d84eaacd31e33216fe17f9d2",
+    "ir_sha256": {
+      "cbor": "3fe38598d1e3db833b6926903fa8c68e6da9013216694326426b34cff1d54b76",
+      "jcs": "ebf7cf07014c70f8380a380a78ba0f83b929e4bc2dabe16fc84bfff9dfcc5b8b"
+    }
+  },
+  "build": {
+    "a": {
+      "classes": {
+        "build-output": 386,
+        "declared-source": 76,
+        "descriptor": 264,
+        "descriptor-relative": 14,
+        "job-directory": 53,
+        "kernel-interface": 89,
+        "system": 299,
+        "toolchain": 488,
+        "undeclared": 3
+      },
+      "undeclared": {
+        "/.cargo": [
+          "readlink=err"
+        ],
+        "/.cargo/config": [
+          "openat=err"
+        ],
+        "/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/etc": [
+          "readlink=err"
+        ],
+        "/etc/gitconfig": [
+          "access=err"
+        ],
+        "/etc/malloc.conf": [
+          "readlink=err"
+        ],
+        "/root": [
+          "readlink=err"
+        ],
+        "/root/.rustup": [
+          "readlink=err"
+        ],
+        "/root/.rustup/toolchains": [
+          "readlink=err"
+        ],
+        "/tmp": [
+          "lstat=ok",
+          "readlink=err"
+        ],
+        "/tmp/.cargo": [
+          "readlink=err"
+        ],
+        "/tmp/.cargo/config": [
+          "openat=err"
+        ],
+        "/tmp/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/tmp/nomos-hermeticity": [
+          "lstat=ok",
+          "readlink=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo": [
+          "readlink=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo/config": [
+          "openat=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/usr": [
+          "readlink=err"
+        ],
+        "/usr/local/etc/openssl": [
+          "statx=err"
+        ],
+        "/usr/local/openssl": [
+          "statx=err"
+        ],
+        "/usr/local/share": [
+          "statx=ok"
+        ],
+        "/usr/local/share/CARootCertificates.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/ca-bundle.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/ca-certificates.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/cacert.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/cert.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-bundle.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-certificates.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-root-nss.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/tls-ca-bundle.pem": [
+          "statx=err"
+        ],
+        "/usr/local/ssl": [
+          "statx=err"
+        ],
+        "/usr/local/ssl/openssl.cnf": [
+          "openat=err"
+        ],
+        "/usr/share/ssl": [
+          "statx=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin/x86_64-linux-gnu": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin/x86_64-linux-gnu/13": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/crtn.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/specs": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/crtn.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/specs": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/crtn.o": [
+          "access=err"
+        ],
+        "/var/ssl": [
+          "statx=err"
+        ]
+      },
+      "network": [],
+      "local_ipc": 7,
+      "executed": {
+        "system": [
+          "/usr/bin/cc",
+          "/usr/libexec/gcc/x86_64-linux-gnu/13/collect2"
+        ],
+        "toolchain": [
+          "$SYSROOT/bin/cargo",
+          "$SYSROOT/bin/rustc",
+          "$SYSROOT/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld",
+          "$SYSROOT/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
+        ]
+      },
+      "getrandom": 32,
+      "getcwd": 43,
+      "clock": null
+    },
+    "b": {
+      "classes": {
+        "build-output": 386,
+        "declared-source": 76,
+        "descriptor": 264,
+        "descriptor-relative": 14,
+        "job-directory": 53,
+        "kernel-interface": 89,
+        "system": 299,
+        "toolchain": 488,
+        "undeclared": 3
+      },
+      "undeclared": {
+        "/.cargo": [
+          "readlink=err"
+        ],
+        "/.cargo/config": [
+          "openat=err"
+        ],
+        "/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/etc": [
+          "readlink=err"
+        ],
+        "/etc/gitconfig": [
+          "access=err"
+        ],
+        "/etc/malloc.conf": [
+          "readlink=err"
+        ],
+        "/root": [
+          "readlink=err"
+        ],
+        "/root/.rustup": [
+          "readlink=err"
+        ],
+        "/root/.rustup/toolchains": [
+          "readlink=err"
+        ],
+        "/tmp": [
+          "lstat=ok",
+          "readlink=err"
+        ],
+        "/tmp/.cargo": [
+          "readlink=err"
+        ],
+        "/tmp/.cargo/config": [
+          "openat=err"
+        ],
+        "/tmp/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/tmp/nomos-hermeticity": [
+          "lstat=ok",
+          "readlink=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo": [
+          "readlink=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo/config": [
+          "openat=err"
+        ],
+        "/tmp/nomos-hermeticity/.cargo/config.toml": [
+          "statx=err"
+        ],
+        "/usr": [
+          "readlink=err"
+        ],
+        "/usr/local/etc/openssl": [
+          "statx=err"
+        ],
+        "/usr/local/openssl": [
+          "statx=err"
+        ],
+        "/usr/local/share": [
+          "statx=ok"
+        ],
+        "/usr/local/share/CARootCertificates.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/ca-bundle.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/ca-certificates.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/cacert.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/cert.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs.pem": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-bundle.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-certificates.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/certs/ca-root-nss.crt": [
+          "statx=err"
+        ],
+        "/usr/local/share/tls-ca-bundle.pem": [
+          "statx=err"
+        ],
+        "/usr/local/ssl": [
+          "statx=err"
+        ],
+        "/usr/local/ssl/openssl.cnf": [
+          "openat=err"
+        ],
+        "/usr/share/ssl": [
+          "statx=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin/x86_64-linux-gnu": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/bin/x86_64-linux-gnu/13": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/crtn.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/specs": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13": [
+          "newfstatat=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/crtn.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/13/specs": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/Scrt1.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/crti.o": [
+          "access=err"
+        ],
+        "/usr/x86_64-linux-gnu/lib/x86_64-linux-gnu/crtn.o": [
+          "access=err"
+        ],
+        "/var/ssl": [
+          "statx=err"
+        ]
+      },
+      "network": [],
+      "local_ipc": 7,
+      "executed": {
+        "system": [
+          "/usr/bin/cc",
+          "/usr/libexec/gcc/x86_64-linux-gnu/13/collect2"
+        ],
+        "toolchain": [
+          "$SYSROOT/bin/cargo",
+          "$SYSROOT/bin/rustc",
+          "$SYSROOT/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld",
+          "$SYSROOT/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld"
+        ]
+      },
+      "getrandom": 31,
+      "getcwd": 43,
+      "clock": null
+    }
+  },
+  "generators": {
+    "leaky": {
+      "ir": {
+        "cbor": {
+          "a": "38a09f21899787bdf72f4b227f291e863ae2801b3734eb0e0134d1e32387e4eb",
+          "b": "743849e90320f1173420738ca54a7cecdcfc9fc3882cfca762e05a5aa1d00f2c"
+        },
+        "jcs": {
+          "a": "28591d2e4e3782e3063702472eaab5b2b936ffc026b053f2d879bc442511dc4e",
+          "b": "186f21beabbc701e84106c59c10e754b1e12e3413d4ca38a473c4534c6b12f46"
+        }
+      },
+      "identical": {
+        "cbor": false,
+        "jcs": false
+      },
+      "golden": {},
+      "binary_identical": false,
+      "runs": {
+        "a-cbor": {
+          "classes": {
+            "build-output": 1,
+            "descriptor": 1,
+            "kernel-interface": 1,
+            "system": 3,
+            "undeclared": 1
+          },
+          "undeclared": {
+            "/etc/hostname": [
+              "openat=ok"
+            ]
+          },
+          "network": [
+            "socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 3",
+            "connect(3, {sa_family=AF_INET, sin_port=htons(80), sin_addr=inet_addr(\"192.0.2.1\")}, 16) = -1 ENETUNREACH (Network is unreachable)"
+          ],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/leaky"
+            ]
+          },
+          "getrandom": 2,
+          "getcwd": 1,
+          "clock": 1
+        },
+        "a-jcs": {
+          "classes": {
+            "build-output": 1,
+            "descriptor": 1,
+            "kernel-interface": 1,
+            "system": 3,
+            "undeclared": 1
+          },
+          "undeclared": {
+            "/etc/hostname": [
+              "openat=ok"
+            ]
+          },
+          "network": [
+            "socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 3",
+            "connect(3, {sa_family=AF_INET, sin_port=htons(80), sin_addr=inet_addr(\"192.0.2.1\")}, 16) = -1 ENETUNREACH (Network is unreachable)"
+          ],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/leaky"
+            ]
+          },
+          "getrandom": 2,
+          "getcwd": 1,
+          "clock": 1
+        },
+        "b-cbor": {
+          "classes": {
+            "build-output": 1,
+            "descriptor": 1,
+            "kernel-interface": 1,
+            "system": 3,
+            "undeclared": 1
+          },
+          "undeclared": {
+            "/etc/hostname": [
+              "openat=ok"
+            ]
+          },
+          "network": [
+            "socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 3",
+            "connect(3, {sa_family=AF_INET, sin_port=htons(80), sin_addr=inet_addr(\"192.0.2.1\")}, 16) = -1 ENETUNREACH (Network is unreachable)"
+          ],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/leaky"
+            ]
+          },
+          "getrandom": 2,
+          "getcwd": 1,
+          "clock": 1
+        },
+        "b-jcs": {
+          "classes": {
+            "build-output": 1,
+            "descriptor": 1,
+            "kernel-interface": 1,
+            "system": 3,
+            "undeclared": 1
+          },
+          "undeclared": {
+            "/etc/hostname": [
+              "openat=ok"
+            ]
+          },
+          "network": [
+            "socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 3",
+            "connect(3, {sa_family=AF_INET, sin_port=htons(80), sin_addr=inet_addr(\"192.0.2.1\")}, 16) = -1 ENETUNREACH (Network is unreachable)"
+          ],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/leaky"
+            ]
+          },
+          "getrandom": 2,
+          "getcwd": 1,
+          "clock": 1
+        }
+      }
+    },
+    "telemetry": {
+      "ir": {
+        "cbor": {
+          "a": "3fe38598d1e3db833b6926903fa8c68e6da9013216694326426b34cff1d54b76",
+          "b": "3fe38598d1e3db833b6926903fa8c68e6da9013216694326426b34cff1d54b76"
+        },
+        "jcs": {
+          "a": "ebf7cf07014c70f8380a380a78ba0f83b929e4bc2dabe16fc84bfff9dfcc5b8b",
+          "b": "ebf7cf07014c70f8380a380a78ba0f83b929e4bc2dabe16fc84bfff9dfcc5b8b"
+        }
+      },
+      "identical": {
+        "cbor": true,
+        "jcs": true
+      },
+      "golden": {
+        "cbor": true,
+        "jcs": true
+      },
+      "binary_identical": false,
+      "runs": {
+        "a-cbor": {
+          "classes": {
+            "build-output": 1,
+            "kernel-interface": 1,
+            "system": 3
+          },
+          "undeclared": {},
+          "network": [],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/telemetry"
+            ]
+          },
+          "getrandom": 1,
+          "getcwd": 0,
+          "clock": 0
+        },
+        "a-jcs": {
+          "classes": {
+            "build-output": 1,
+            "kernel-interface": 1,
+            "system": 3
+          },
+          "undeclared": {},
+          "network": [],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/telemetry"
+            ]
+          },
+          "getrandom": 1,
+          "getcwd": 0,
+          "clock": 0
+        },
+        "b-cbor": {
+          "classes": {
+            "build-output": 1,
+            "kernel-interface": 1,
+            "system": 3
+          },
+          "undeclared": {},
+          "network": [],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/telemetry"
+            ]
+          },
+          "getrandom": 1,
+          "getcwd": 0,
+          "clock": 0
+        },
+        "b-jcs": {
+          "classes": {
+            "build-output": 1,
+            "kernel-interface": 1,
+            "system": 3
+          },
+          "undeclared": {},
+          "network": [],
+          "local_ipc": 0,
+          "executed": {
+            "build-output": [
+              "$JOB/target/release/telemetry"
+            ]
+          },
+          "getrandom": 1,
+          "getcwd": 0,
+          "clock": 0
+        }
+      }
+    }
+  },
+  "checks": {
+    "build-executes-only-the-toolchain": true,
+    "build-network-attempts-all-denied": true,
+    "build-opens-no-undeclared-file": true,
+    "control-ambient-environment-denied": true,
+    "control-clock-recorded": true,
+    "control-network-attempt-recorded-and-denied": true,
+    "control-output-differs": true,
+    "control-randomness-recorded": true,
+    "control-undeclared-file-recorded": true,
+    "control-working-directory-recorded": true,
+    "telemetry-cbor-identical-across-roots": true,
+    "telemetry-cbor-is-golden": true,
+    "telemetry-jcs-identical-across-roots": true,
+    "telemetry-jcs-is-golden": true,
+    "telemetry-makes-no-network-call": true,
+    "telemetry-reads-no-clock": true,
+    "telemetry-reads-no-working-directory": true,
+    "telemetry-touches-no-undeclared-path": true
+  }
+}
