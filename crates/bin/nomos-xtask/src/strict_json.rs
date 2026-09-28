@@ -138,6 +138,27 @@ mod tests {
         assert_eq!(v["c"]["d"], 2.5);
     }
 
+    // Found by mutation calibration (the 2026-09-28 mutation-calibration record):
+    // the scalar visitors could each return `Null` and no test noticed, because
+    // no test read back a bool, a negative integer, a null, or an owned string.
+    #[test]
+    fn every_scalar_kind_round_trips_through_the_strict_visitor() {
+        let v = parse(
+            r#"{"t": true, "f": false, "n": null, "i": -7, "u": 7, "x": 1.5, "s": "\u00e9"}"#,
+        )
+        .unwrap();
+        assert_eq!(v["t"], true);
+        assert_eq!(v["f"], false);
+        assert!(v["n"].is_null());
+        assert_eq!(v["i"], -7);
+        assert_eq!(v["u"], 7);
+        assert_eq!(v["x"], 1.5);
+        assert_eq!(v["s"], "é");
+        assert_eq!(parse("null").unwrap(), serde_json::Value::Null);
+        assert_eq!(parse("true").unwrap(), true);
+        assert_eq!(parse("-1").unwrap(), -1);
+    }
+
     #[test]
     fn rejects_duplicate_keys_at_any_depth_as_duplicate_keys() {
         assert_eq!(code(r#"{"x": 1, "x": 2}"#), Code::JsonDuplicateKey);

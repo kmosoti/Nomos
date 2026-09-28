@@ -1,0 +1,19 @@
+# cargo-mutants configuration (ADR 0015 §mutation). Calibrated on nomos-xtask
+# in the verification-foundation milestone; see the mutation-calibration
+# record under docs/research/2026-09-28-typed-core/results/.
+#
+# Mutation runs are targeted and scheduled, never a required CI check, and no
+# score is a threshold: every surviving mutant is classified by hand as
+# caught, unviable, equivalent, excluded, survived, or inconclusive.
+
+# `Verified<T>` is an alias of `Result`, so the generated `Verified::new(..)`
+# and `Verified::from(..)` replacements never compile. Skipping them is not a
+# weakening: they are unviable by construction, and the calibration run
+# recorded every one of them as such before this exclusion existed.
+exclude_re = ["with Verified::"]
+
+# Cargo never rewrites the lockfile under a mutant.
+additional_cargo_args = ["--locked"]
+
+# The build is short; the multiplier guards against a mutant that loops.
+timeout_multiplier = 3.0
