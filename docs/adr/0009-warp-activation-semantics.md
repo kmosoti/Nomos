@@ -1,6 +1,6 @@
 # ADR 0009: Warp Prerequisite, Activation, and Reservation Semantics
 
-- **Status.** Proposed
+- **Status.** Accepted, 2026-09-28, by the project owner, on the evidence of milestones `04-warp-kernel` and `05-transition-kernel`
 - **Date.** 2026-09-28
 - **Candidate.** `warp-gates` in the 2026-09-28 research snapshot (recommendations `warp-semantics`, `durable-refresh`, `scheduler`)
 
@@ -81,7 +81,11 @@ The TLA+ model `RefreshRecovery` checks the four properties the grounding plan n
 
 **Evidence.** The second acceptance criterion ran: [refresh-recovery](../research/2026-09-28-typed-core/results/refresh-recovery.md) loses no declared Obligation at any of 22 crash points, while the transient design loses six refreshes and the harness sees each; [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md) finds no conflicting overlap and no budget oversubscription across 256 generated interleavings with crashes, loss, duplication, and supersession. Both criteria are now met by records. The ADR stays Proposed until the project owner accepts it.
 
+## Note, 2026-09-28: Acceptance
+
+The project owner accepted this ADR on 2026-09-28. Both acceptance criteria are met by records: the truth tables of [warp-truth-table](../research/2026-09-28-typed-core/results/warp-truth-table.md), and [refresh-recovery](../research/2026-09-28-typed-core/results/refresh-recovery.md) with [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md). The decision accepted is §1 to §5 as amended by the notes above: a source is met when it Succeeded or was Skipped; an `on_change` group whose source is not met is Blocked; an `after` edge has no Blocked state; a refresh that no Condition can observe is an Obligation, recorded before the change, discharged only by a verified refresh, and planned as an owed vertex until then; a refresh holds the keys of the files it reads; and reservations last until settlement. The working definitions in the notes are no longer working definitions.
+
 ## Consequences
 
-- Spec §62's edge-semantics question closes when this ADR is accepted.
+- Spec §62's edge-semantics question is closed by this ADR's acceptance.
 - **Revisit trigger.** Reopen if a real Canon needs all-sources activation, or if derived footprints for `package` and `systemd_unit` Actions cannot be computed in core.

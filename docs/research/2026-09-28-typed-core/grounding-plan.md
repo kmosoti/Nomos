@@ -33,7 +33,7 @@ A green build is not a verified engine. The milestones exist to change the right
 | Generators are untrusted; oracles are protected and declared; receipts are the evidence; Kani is the bounded verifier | [ADR 0015](../../adr/0015-generator-verifier-development-model.md) | Signed receipts; proof-carrying Plans |
 | Core crates are `no_std`, panic-free outside tests, and allowlisted | [ADR 0016](../../adr/0016-core-purity.md) | The first allowlist entry |
 
-Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 ([ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until `04-warp-kernel` and `05-transition-kernel`).
+Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 ([ADR 0013](../../adr/0013-trust-boundaries.md)), and, until 2026-09-28, edge semantics, which [ADR 0009](../../adr/0009-warp-activation-semantics.md) now decides.
 
 ## Rules
 
@@ -363,6 +363,6 @@ The research snapshot's experiments remain the evidence units, joined by four th
 1. Seven milestones merged, each with its stated exit demonstrated by a named test.
 2. A result record under `results/` for every experiment in the table above, none claiming more than it ran, and a receipt for every command a record cites.
 3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true.
-4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell, and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md), [0015](../../adr/0015-generator-verifier-development-model.md), and [0016](../../adr/0016-core-purity.md) are already accepted.
+4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md) (accepted 2026-09-28), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell (accepted 2026-09-28), and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md), [0015](../../adr/0015-generator-verifier-development-model.md), and [0016](../../adr/0016-core-purity.md) are already accepted.
 5. Spec §62 updated: edge semantics closed, the encoding question closed.
 6. The required CI path is small and green, with `--locked`, the layer checker, the purity checker, the trust-boundary gate, the receipt validator, the semantic mutants, and the snapshot freeze in it; mutation runs stay scheduled and non-blocking.

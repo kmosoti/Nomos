@@ -102,8 +102,8 @@ The bundle groups its 26 recommendations into eight ADR candidates. Each is now 
 | --- | --- | --- | --- |
 | `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | [ADR 0007](../../adr/0007-verification-gates.md) | Accepted |
 | `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed |
-| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Proposed until `04-warp-kernel` and `05-transition-kernel` |
-| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Proposed until `05-transition-kernel` |
+| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Accepted 2026-09-28 on the evidence of `04-warp-kernel` and `05-transition-kernel` |
+| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Accepted for the Cell 2026-09-28; `fence-interleavings` waits for Loom |
 | `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | 0004 accepted; 0011 proposed until `06-canon-artifact` |
 | `event-history` | `log-boundary`, `log-retention` | [ADR 0012](../../adr/0012-event-history.md) | Proposed until Phase 2 |
 | `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |

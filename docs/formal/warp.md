@@ -125,7 +125,7 @@ $v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. 
 
 Skipped means $v$ had no reason to run and every one of its triggers ended well, so it is met, and its dependents see it as they see a satisfaction anchor: a met prerequisite for `requires`, a terminal source for `after`, and an unchanged source for `on_change`. Blocked means $v$ will never run; it is terminal and not met, so it blocks its `requires` and `on_change` dependents and satisfies its `after` dependents.
 
-Milestone `04-warp-kernel` implemented this table in `nomos-warp` and checks it exhaustively, against a reference evaluator and with Kani harnesses. The `after` edge carries its own two-state type there, so it cannot be Blocked even by mistake. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table and stays Proposed until `05-transition-kernel` runs its second acceptance criterion.
+Milestone `04-warp-kernel` implemented this table in `nomos-warp` and checks it exhaustively, against a reference evaluator and with Kani harnesses. The `after` edge carries its own two-state type there, so it cannot be Blocked even by mistake. [ADR 0009](../adr/0009-warp-activation-semantics.md), accepted 2026-09-28, decides this table, which closes spec §62's edge-semantics question.
 
 ## Conflict Keys
 
@@ -182,5 +182,5 @@ The greedy pass optimizes nothing. It is safe and deterministic, which is the jo
 
 Assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
-- **Obligations across runs.** Closed as a working definition by milestone `05-transition-kernel`: the Obligation to refresh is recorded before the configuration file is replaced, survives the run and the crash, and makes the next run plan an owed vertex ([ADR 0009](../adr/0009-warp-activation-semantics.md) note, proposed). A service that exposes the configuration revision it loaded can make that revision a Condition instead, and needs no Obligation.
+- **Obligations across runs.** Closed by milestone `05-transition-kernel`: the Obligation to refresh is recorded before the configuration file is replaced, survives the run and the crash, and makes the next run plan an owed vertex ([ADR 0009](../adr/0009-warp-activation-semantics.md), accepted). A service that exposes the configuration revision it loaded can make that revision a Condition instead, and needs no Obligation.
 - **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived in core from the resource kind, not typed by hand. Milestone `05-transition-kernel` derives one part: a refresh holds the conflict keys of its `on_change` sources, the files it reads. The rest waits for those resource kinds. Experiment `scheduler-admission`.
