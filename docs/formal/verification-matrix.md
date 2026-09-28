@@ -16,7 +16,7 @@ These check the repository, not Nomos semantics. They are here because a semanti
 | Oracle changes declared (ADR 0015 §3) | Implementation conformance | 5 | `cargo xtask check-trust-boundary` | 13 fixture commits asserted by `TrustCode`, including a loosened gate test and a removed CI step | passed | same file, `check-trust-boundary`; [agent-proof-gate](../research/2026-09-28-typed-core/results/agent-proof-gate.md) | Semantic weakening inside a declared commit; a squash merge that drops the declaration |
 | Receipts well formed (ADR 0015 §11) | Implementation conformance | 5 | `cargo xtask receipts validate` | 8 fixture cases asserted by `ReceiptCode`, `passed` without evidence among them | passed | same file, `receipts-validate` | A receipt written by hand with fabricated but well-formed evidence; no signature |
 | Tests notice a wrong tooling implementation | Implementation conformance | 8 | `cargo-mutants` on three `nomos-xtask` modules; seven hand-written breaks of the four new gates | The run itself | passed: every non-equivalent tested mutant is caught, 4 survivors classified equivalent or excluded, and each hand-written break is caught by a named test | [mutation-calibration](../research/2026-09-28-typed-core/results/mutation-calibration.md) | Modules not mutated; mutants the tool does not generate |
-| Semantic mutants caught | Implementation conformance | 8 | `cargo xtask mutants semantic` | The fixture corpus earns every outcome once | not applicable: nine planned mutants, none active | same file, `mutants-semantic` | Everything, until a kernel exists |
+| Semantic mutants caught | Implementation conformance | 8 | `cargo xtask mutants semantic` | The fixture corpus earns every outcome once | passed: `SM-ASSESS-001` to `003` active and caught; six planned | `verification/receipts/2026-09-28-assessment-kernel.ndjson`, `mutants-semantic` | The six planned mutants' kernels |
 
 ## Invariants
 
@@ -24,17 +24,17 @@ These check the repository, not Nomos semantics. They are here because a semanti
 | --- | --- | --- | --- | --- |
 | N1 Trace does not mutate | not run | planned: `07-substrate-conformance` | planned: `07-substrate-conformance` | none |
 | N2 Successful Enforce converges | not run | planned: `05-transition-kernel`, `bounded-convergence` | not run | none |
-| N3 Re-enforcing converged Canon mutates nothing | not run | planned: `05-transition-kernel`; semantic mutant `SM-ASSESS-003` | not run | none |
+| N3 Re-enforcing converged Canon mutates nothing | not run | partial: a matching Observation is Satisfied whatever its age (`SM-ASSESS-003` caught); the fixed point itself is planned for `05-transition-kernel` | not run | [assessment-algebra](../research/2026-09-28-typed-core/results/assessment-algebra.md) |
 | N4 No Action before hard dependencies | not run | planned: `04-warp-kernel`, `warp-truth-table`; `SM-WARP-001` to `SM-WARP-003` | not applicable | none |
 | N5 Stale fenced Plan cannot execute | planned: `05-transition-kernel` TLA+ `Fencing` | planned: `SM-TRANSITION-003` | not run | none |
 | N6 Succeeded requires verified postconditions | planned: `05-transition-kernel` TLA+ `ActionLifecycle` | planned: `SM-TRANSITION-001` | not run | none |
 | N7 Events never mutated after append | not run | planned: `05-transition-kernel` in-memory store | not run | none |
-| N8 Cipher plaintext never persists | not run | planned: `03-assessment-kernel` compile-fail and sentinel tests | not run | none |
+| N8 Cipher plaintext never persists | not run | partial: `Secret` has no `Display` or `Serialize` (compile-fail), redacts `Debug` (sentinel test), and `expose` must be used; every other sink is Phase 6 `secret-nondisclosure` | not run | [assessment-algebra](../research/2026-09-28-typed-core/results/assessment-algebra.md) |
 | N9 Budgets never intentionally exceeded | planned: `05-transition-kernel` model | planned: `scheduler-admission` | not run | none |
 | N10 Unknown outcomes stay unknown | not run | planned: `SM-TRANSITION-002`, `effect-recovery` | not run | none |
 | N11 Losing Loom keeps Observations | not run | not run | not run | none |
-| N12 Canon compilation is deterministic | not run | planned: `06-canon-artifact`, `canonical-encoding`; permutation relation | not applicable | none |
-| N13, proposed: unknown evidence does not imply noncompliance | not run | planned: `03-assessment-kernel`, `assessment-algebra`; `SM-ASSESS-001`, `SM-ASSESS-002`; Indeterminate monotonicity relation | not run | none |
+| N12 Canon compilation is deterministic | not run | planned: `06-canon-artifact`, `canonical-encoding`. The permutation relation holds for the assessment Report (law 4, 512 cases, seed `4e313304`) | not applicable | [assessment-algebra](../research/2026-09-28-typed-core/results/assessment-algebra.md) for the Report only |
+| N13 Unknown evidence does not imply noncompliance | not run | passed for the file family: exhaustive truth table, laws 2 and 3 (512 cases each, seeds `4e313302` and `4e313303`), Kani harness `a_failed_collection_is_indeterminate` (covers satisfied), `SM-ASSESS-001` and `SM-ASSESS-002` caught. The Obligation clause waits for a Plan | not run | [assessment-algebra](../research/2026-09-28-typed-core/results/assessment-algebra.md); receipts `cargo-test`, `mutants-semantic`, `kani` |
 
 ## Formal Claims
 

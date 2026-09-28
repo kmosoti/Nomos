@@ -23,4 +23,4 @@ A mutant is `active` only with a patch that applies and a test that exists. A `s
 
 ## Why the Corpus Exists Before the Kernels
 
-Every entry is `planned`. The Assessment Kernel, Warp Kernel, and Transition Kernel are the next milestones, and each names here the wrong behaviors it must be shown to reject before it is complete. Writing the mutant before the code is the point: it is the invariant's own negative control, chosen from the specification rather than from whatever the implementation happened to make easy to mutate.
+The Assessment Kernel's three entries are `active` and caught; the Warp Kernel's and Transition Kernel's are `planned`. Each milestone names here the wrong behaviors it must be shown to reject before it is complete. Writing the mutant before the code is the point: it is the invariant's own negative control, chosen from the specification rather than from whatever the implementation happened to make easy to mutate.

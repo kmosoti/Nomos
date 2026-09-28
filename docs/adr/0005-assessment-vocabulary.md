@@ -65,3 +65,7 @@ Counterexamples `partial-assessment`, `lost-refresh`, and `fence-race` in the re
 - **Verification.** Milestone `03-assessment-kernel` implements the assessment algebra with exhaustive truth tables and property tests; `05-transition-kernel` exercises Obligations and settlement in the recovery simulator. Until those run, this ADR decides names and meanings, not behavior.
 - **Failure behavior.** An adapter has no channel through which to report "satisfied"; it returns Observations, and core assesses them. A driver that cannot observe a property returns an Observation whose collection failed, which assesses as Indeterminate with that reason.
 - **Revisit trigger.** Reopen if the assessment algebra experiment finds a case that three outcomes cannot express without lying, or if Obligations turn out to be needed for every service, in which case the Condition form should be made mandatory instead.
+
+## Note, 2026-09-28
+
+Milestone `03-assessment-kernel` implemented `Condition`, `Observation`, and `Assessment` with variants `Satisfied`, `Variance`, and `Indeterminate` in `nomos-core` for the file resource family, with the truth tables and property tests this ADR's verification clause named ([record](../research/2026-09-28-typed-core/results/assessment-algebra.md)). Three outcomes were enough for that family; the experiment found no case that needed a fourth. `Obligation` and `Settled` are still names without types until `05-transition-kernel`.

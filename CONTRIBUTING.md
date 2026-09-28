@@ -7,7 +7,7 @@ Thanks for being here. Nomos is at the skeleton stage, so the most valuable cont
 Read these, in order:
 
 1. [README](README.md): what Nomos is for.
-2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary, and safety invariants N1–N12.
+2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary, and safety invariants N1–N13.
 3. [Architecture](docs/architecture/): how the code is organized.
 4. [Architecture decision record (ADR) 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule, and the pinned toolchain.
 5. [Research](docs/research/): what has been questioned, what was corrected, and which experiments come next.
@@ -56,7 +56,7 @@ flowchart LR
 ## Design Rules
 
 - **Vocabulary.** Use the terms from spec §3 exactly: Canon, Condition, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Action, Plan, Trait, Cipher, Trace, Enforce, Event, Event Log. One concept, one name. A failed observation is Indeterminate, never a Variance.
-- **Invariants first.** A change must not weaken N1–N12. If it touches one, say which, and add or extend a test for it.
+- **Invariants first.** A change must not weaken N1–N13. If it touches one, say which, and add or extend a test for it.
 - **Typed operations, not shell.** Substrate uses native interfaces such as D-Bus and syscalls. Arbitrary command execution is not a reconciliation primitive.
 - **No secret plaintext.** Cipher values never appear in Events, Plans, Trace output, errors, or logs.
 - **Deterministic by default.** Nothing that feeds compilation or planning depends on iteration order, hash seeds, or wall-clock time.

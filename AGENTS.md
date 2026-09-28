@@ -68,7 +68,7 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 1. **Never break the dependency rule.** An adapter dependency in `app/`, `core/`, or `ports/` is always wrong.
 2. **New crates, new ports, and changes to the rule need an ADR** in `docs/adr/`, with the next number.
 3. **Use the spec's vocabulary exactly:** Canon, Condition, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Action, Plan, Trait, Cipher, Trace, Enforce, Event, Event Log. No synonyms. A failed observation is Indeterminate, never a Variance. "State" is still the right word for Action lifecycle state, protocol and scheduler state machines, and internal control state; it is the wrong word for a Condition or an Observation.
-4. **Preserve invariants N1–N12** (spec §58). A change that touches one needs a test for it.
+4. **Preserve invariants N1–N13** (spec §58). A change that touches one needs a test for it.
 5. **No shell execution in Substrate.** Use native APIs, for example systemd over D-Bus.
 6. **Never log, serialize, or embed Cipher plaintext.**
 7. **Determinism.** Nothing that feeds compilation or planning may depend on hash iteration order, randomness, or wall-clock time.

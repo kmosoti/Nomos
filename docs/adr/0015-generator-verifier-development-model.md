@@ -72,13 +72,17 @@ A task's completion report lists the branch and the base and final commits, the 
 
 These were considered and are left open on purpose, each with a pointer:
 
-- **Kani or Verus** for the first bounded harness. Decided by the Assessment Kernel milestone's record (ADR 0007 §6).
+- **Kani or Verus** for the first bounded harness. Decided by the Assessment Kernel milestone's record (ADR 0007 §6). *Decided 2026-09-28, see the note below.*
 - **Mutation-score thresholds.** None, by §8. Reopen only with an argument that survives §8's reasoning.
 - **Signed receipts or traces.** Reopen when a gate must trust a receipt produced outside the repository.
 - **Proof-carrying Plans.** ADR 0014's revisit trigger.
 - **Incremental verification** of only what changed. Reopen when the required path is too slow, with a measurement.
 - **Remote attestation** of the environment a check ran in. Out of scope until a Loom exists.
 - **A semantic escape-hatch scan.** The open-questions file names the case that would reopen it.
+
+## Note, 2026-09-28: Kani Is the Bounded Verifier
+
+Milestone `03-assessment-kernel` ran two Kani harnesses with cover checks over the pure assessment predicates, on the pinned toolchain, in under seven seconds, with every cover satisfied ([record](../research/2026-09-28-typed-core/results/assessment-algebra.md)). Verus was not tried: it needs its own toolchain and a specification language beside the Rust, and nothing in the kernel yet needs a proof that Kani's bounded exploration cannot give. Kani is therefore the bounded verifier for the kernels, one harness per pure predicate, each with cover checks. The escape hatches it admits, `kani::assume` and an unwinding bound too small to reach the assertion, are in `verification/trust-boundary.toml` and the unwinding bound is a review item. Reopen if a property needs unbounded induction over a recursive structure.
 
 ## Alternatives
 

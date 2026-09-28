@@ -1,0 +1,23 @@
+diff --git a/crates/core/nomos-core/src/assessment.rs b/crates/core/nomos-core/src/assessment.rs
+index 8d98321..acba3b1 100644
+--- a/crates/core/nomos-core/src/assessment.rs
++++ b/crates/core/nomos-core/src/assessment.rs
+@@ -149,7 +149,17 @@ pub fn assess(condition: &Condition, observations: &[Observation]) -> Assessment
+     }
+     match (seen, evidence, least_failure) {
+         (false, _, _) => Assessment::Indeterminate(Reason::NoObservation),
+-        (true, Some(evidence), _) => assess_evidence(condition.requirement(), &evidence),
++        (true, Some(evidence), _) => {
++            let stale = observations
++                .iter()
++                .filter(|o| o.path() == condition.path())
++                .any(|o| o.provenance().window().end() < crate::observation::Instant(1));
++            if stale {
++                Assessment::Variance(Variance::Missing)
++            } else {
++                assess_evidence(condition.requirement(), &evidence)
++            }
++        }
+         (true, None, Some(failure)) => Assessment::Indeterminate(Reason::CollectionFailed(failure)),
+         // Seen implies evidence or a failure; the arm is unreachable by construction.
+         (true, None, None) => Assessment::Indeterminate(Reason::NoObservation),
