@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-core/src/action.rs b/crates/core/nomos-core/src/action.rs
+index 2a6f9b6..2355f28 100644
+--- a/crates/core/nomos-core/src/action.rs
++++ b/crates/core/nomos-core/src/action.rs
+@@ -224,7 +224,7 @@ pub fn advance(stage: &Stage, signal: Signal) -> Result<Stage, TransitionError>
+         }),
+         (Stage::Accepted | Stage::Running, Signal::Fail) => Ok(Stage::Failed(Failure::Effect)),
+         (Stage::Dispatched | Stage::Accepted, Signal::Refuse) => Ok(Stage::Rejected),
+-        (live, Signal::Deadline) if live.is_live() => Ok(Stage::TimedOut),
++        (live, Signal::Deadline) if live.is_live() => Ok(Stage::Failed(Failure::Effect)),
+         _ => Err(TransitionError::NotEnabled),
+     }
+ }

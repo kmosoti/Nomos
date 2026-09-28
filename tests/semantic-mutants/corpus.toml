@@ -92,7 +92,7 @@ wrong_behavior = "the lifecycle admits Running to Succeeded without passing thro
 crate = "nomos-core"
 patch = "patches/SM-TRANSITION-001.diff"
 test = "action::tests::succeeded_requires_verifying"
-status = "planned"
+status = "active"
 
 [[mutant]]
 id = "SM-TRANSITION-002"
@@ -102,7 +102,7 @@ wrong_behavior = "TimedOut transitions to Failed instead of forcing re-observati
 crate = "nomos-core"
 patch = "patches/SM-TRANSITION-002.diff"
 test = "action::tests::timed_out_stays_unknown"
-status = "planned"
+status = "active"
 
 [[mutant]]
 id = "SM-TRANSITION-003"
@@ -112,4 +112,64 @@ wrong_behavior = "the generation check accepts a Plan whose generation equals th
 crate = "nomos-core"
 patch = "patches/SM-TRANSITION-003.diff"
 test = "plan::tests::a_stale_generation_is_rejected"
-status = "planned"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-004"
+property = "N2"
+threat = "a crash after the configuration is replaced loses the refresh, and a later run reports Converged with the old revision loaded"
+wrong_behavior = "the kernel dispatches an Action with an on_change edge without recording the Obligation first"
+crate = "nomos-cell"
+patch = "patches/SM-TRANSITION-004.diff"
+test = "a_crash_after_replacement_cannot_lose_the_refresh"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-005"
+property = "N10"
+threat = "a timed-out effect that may still be mutating runs beside a conflicting one"
+wrong_behavior = "a reservation is released when its Action stops being live, whether or not its effect is Settled"
+crate = "nomos-cell"
+patch = "patches/SM-TRANSITION-005.diff"
+test = "a_timeout_keeps_its_reservation"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-006"
+property = "N2"
+threat = "the run whose last permitted execution converged the host is reported NonConvergent"
+wrong_behavior = "the loop checks the bound before it checks convergence (counterexample final-check)"
+crate = "nomos-cell"
+patch = "patches/SM-TRANSITION-006.diff"
+test = "the_final_permitted_execution_converges"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-007"
+property = "N9"
+threat = "a disruptive Action is admitted beside a reserved one past the failure-domain budget"
+wrong_behavior = "selection counts only the Actions it chooses, not the disruption already reserved"
+crate = "nomos-warp"
+patch = "patches/SM-TRANSITION-007.diff"
+test = "select::tests::reserved_disruption_counts_against_the_budget"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-008"
+property = "N2"
+threat = "a completed execution suppresses every later repair of the same drift"
+wrong_behavior = "the idempotency key is derived from the Action's content, not its Plan and iteration (counterexample dedup-scope)"
+crate = "nomos-cell"
+patch = "patches/SM-TRANSITION-008.diff"
+test = "a_later_run_repairs_the_same_drift"
+status = "active"
+
+[[mutant]]
+id = "SM-WARP-006"
+property = "N2"
+threat = "a refresh the Obligation still owes is never run, because its trigger changed nothing in this run"
+wrong_behavior = "an owed vertex whose on_change group is Disabled is Skipped"
+crate = "nomos-warp"
+patch = "patches/SM-WARP-006.diff"
+test = "frontier::tests::an_owed_refresh_runs_when_its_group_is_disabled"
+status = "active"

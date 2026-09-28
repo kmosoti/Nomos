@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-warp/src/select.rs b/crates/core/nomos-warp/src/select.rs
+index 201a615..c61474d 100644
+--- a/crates/core/nomos-warp/src/select.rs
++++ b/crates/core/nomos-warp/src/select.rs
+@@ -77,7 +77,7 @@ pub fn select(
+     budgets: &Budgets,
+ ) -> Selection {
+     let mut held = reserved.keys.clone();
+-    let mut nodes = reserved.nodes.clone();
++    let mut nodes: BTreeSet<Node> = BTreeSet::new();
+     let mut chosen = Vec::new();
+     for resource in frontier.ready() {
+         if reserved.count + chosen.len() >= capacity {

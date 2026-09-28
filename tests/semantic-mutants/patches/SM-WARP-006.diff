@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-warp/src/frontier.rs b/crates/core/nomos-warp/src/frontier.rs
+index fcc2942..4ce723f 100644
+--- a/crates/core/nomos-warp/src/frontier.rs
++++ b/crates/core/nomos-warp/src/frontier.rs
+@@ -230,7 +230,7 @@ pub fn resolve_vertex(
+         || group == GroupState::Waiting
+     {
+         Resolution::Waiting
+-    } else if group == GroupState::Disabled && !owed {
++    } else if group == GroupState::Disabled {
+         Resolution::Skipped
+     } else {
+         Resolution::Ready

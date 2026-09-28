@@ -1,0 +1,18 @@
+diff --git a/crates/app/nomos-app/src/kernel/step.rs b/crates/app/nomos-app/src/kernel/step.rs
+index 1eff2ca..ada5f24 100644
+--- a/crates/app/nomos-app/src/kernel/step.rs
++++ b/crates/app/nomos-app/src/kernel/step.rs
+@@ -673,12 +673,7 @@ fn admit(draft: &mut Draft) {
+     for (resource, action, keys, disrupts, targets) in dispatches {
+         // The Obligation is recorded before the change that may create it
+         // (ADR 0009 §4): its Event precedes the effect request.
+-        for target in targets {
+-            draft.emit(Event::ObligationRecorded(Obligation {
+-                target,
+-                cause: action.key.clone(),
+-            }));
+-        }
++        let _ = targets;
+         let discharges: BTreeSet<Obligation> = draft
+             .snapshot
+             .obligations

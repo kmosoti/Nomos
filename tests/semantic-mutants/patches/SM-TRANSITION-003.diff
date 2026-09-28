@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-core/src/plan.rs b/crates/core/nomos-core/src/plan.rs
+index 39de6b3..a7eeb26 100644
+--- a/crates/core/nomos-core/src/plan.rs
++++ b/crates/core/nomos-core/src/plan.rs
+@@ -113,7 +113,7 @@ impl Fence {
+     ) -> Result<(Fence, Acceptance), FenceError> {
+         match &self.accepted {
+             None => Ok((Fence::at(generation, plan), Acceptance::New)),
+-            Some((accepted, _)) if generation < *accepted => Err(FenceError::Stale {
++            Some((accepted, _)) if generation.0 + 1 < accepted.0 => Err(FenceError::Stale {
+                 offered: generation,
+                 accepted: *accepted,
+             }),
