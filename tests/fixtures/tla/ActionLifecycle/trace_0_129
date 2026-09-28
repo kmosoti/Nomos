@@ -1,0 +1,58 @@
+---------------- MODULE /home/user/Nomos/tests/fixtures/tla/ActionLifecycle/trace_0_129 -----------------
+STATE_1 == 
+/\ last = "Init"
+/\ reserved = FALSE
+/\ verified = FALSE
+/\ effect = "None"
+/\ stage = "Prepared"
+
+
+STATE_2 == 
+/\ last = "Dispatch"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Dispatched"
+
+
+STATE_3 == 
+/\ last = "Accept"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Accepted"
+
+
+STATE_4 == 
+/\ last = "Start"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Running"
+
+
+STATE_5 == 
+/\ last = "Complete"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Settled"
+/\ stage = "Verifying"
+
+
+STATE_6 == 
+/\ last = "VerifyHolds"
+/\ reserved = TRUE
+/\ verified = TRUE
+/\ effect = "Settled"
+/\ stage = "Succeeded"
+
+
+STATE_7 == 
+/\ last = "Release"
+/\ reserved = FALSE
+/\ verified = TRUE
+/\ effect = "Settled"
+/\ stage = "Succeeded"
+
+
+=================================================

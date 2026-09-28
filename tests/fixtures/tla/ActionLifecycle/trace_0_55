@@ -1,0 +1,18 @@
+---------------- MODULE /home/user/Nomos/tests/fixtures/tla/ActionLifecycle/trace_0_55 -----------------
+STATE_1 == 
+/\ last = "Init"
+/\ reserved = FALSE
+/\ verified = FALSE
+/\ effect = "None"
+/\ stage = "Prepared"
+
+
+STATE_2 == 
+/\ last = "Cancel"
+/\ reserved = FALSE
+/\ verified = FALSE
+/\ effect = "None"
+/\ stage = "Cancelled"
+
+
+=================================================

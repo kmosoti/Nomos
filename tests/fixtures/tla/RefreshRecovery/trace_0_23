@@ -1,0 +1,290 @@
+---------------- MODULE /home/user/Nomos/tests/fixtures/tla/RefreshRecovery/trace_0_23 -----------------
+STATE_1 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Init"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 1
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_2 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Unsettled"
+/\ obligation = TRUE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "DispatchWrite"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 1
+/\ activated = FALSE
+/\ write = "Dispatched"
+
+
+STATE_3 == 
+/\ writeReceipt = TRUE
+/\ outcome = "Running"
+/\ writeEffect = "Unsettled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "HostWrites"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 1
+/\ activated = FALSE
+/\ write = "Dispatched"
+
+
+STATE_4 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "WriteReceipt"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 1
+/\ activated = TRUE
+/\ write = "Succeeded"
+
+
+STATE_5 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "NewRun"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 2
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_6 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Crash"
+/\ refresh = "Idle"
+/\ crashes = 1
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 2
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_7 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Crash"
+/\ refresh = "Idle"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 2
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_8 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "NewRun"
+/\ refresh = "Idle"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_9 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Running"
+/\ last = "DispatchOther"
+/\ refresh = "Idle"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_10 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "None"
+/\ other = "Done"
+/\ last = "OtherDone"
+/\ refresh = "Idle"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_11 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Unsettled"
+/\ other = "Done"
+/\ last = "DispatchRefresh"
+/\ refresh = "Dispatched"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_12 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Unsettled"
+/\ other = "Done"
+/\ last = "Deadline"
+/\ refresh = "TimedOut"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_13 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Unsettled"
+/\ other = "Done"
+/\ last = "RunFails"
+/\ refresh = "TimedOut"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_14 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Unsettled"
+/\ other = "Done"
+/\ last = "HostRestarts"
+/\ refresh = "TimedOut"
+/\ crashes = 2
+/\ loaded = "new"
+/\ refreshReceipt = TRUE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_15 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Settled"
+/\ other = "Done"
+/\ last = "SettleBy"
+/\ refresh = "TimedOut"
+/\ crashes = 2
+/\ loaded = "new"
+/\ refreshReceipt = TRUE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_16 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "Settled"
+/\ obligation = TRUE
+/\ disk = "new"
+/\ refreshEffect = "Settled"
+/\ other = "Done"
+/\ last = "RefreshReceipt"
+/\ refresh = "TimedOut"
+/\ crashes = 2
+/\ loaded = "new"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+=================================================

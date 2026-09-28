@@ -1,0 +1,18 @@
+diff --git a/crates/app/nomos-app/src/kernel/step.rs b/crates/app/nomos-app/src/kernel/step.rs
+index 1eff2ca..df607db 100644
+--- a/crates/app/nomos-app/src/kernel/step.rs
++++ b/crates/app/nomos-app/src/kernel/step.rs
+@@ -493,9 +493,10 @@ fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Opti
+                 path.clone(),
+                 ActionRecord {
+                     key: EffectKey::new(
+-                        run.plan.id.clone(),
+-                        run.plan.generation,
+-                        run.iteration,
++                        nomos_core::plan::PlanId::new("content")
++                            .unwrap_or_else(|| run.plan.id.clone()),
++                        nomos_core::plan::Generation(0),
++                        0,
+                         path.clone(),
+                     ),
+                     operation: managed.operation(),

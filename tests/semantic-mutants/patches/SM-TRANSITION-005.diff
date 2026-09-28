@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-core/src/action.rs b/crates/core/nomos-core/src/action.rs
+index 2a6f9b6..358ea14 100644
+--- a/crates/core/nomos-core/src/action.rs
++++ b/crates/core/nomos-core/src/action.rs
+@@ -156,7 +156,7 @@ impl Stage {
+ /// unsettled effect still holds its keys. `stage` is `None` for an effect
+ /// whose Action belongs to a run that is over.
+ pub fn holds_reservation(stage: Option<&Stage>, settlement: &Settlement) -> bool {
+-    !settlement.is_settled() || stage.is_some_and(Stage::is_live)
++    stage.map_or(!settlement.is_settled(), Stage::is_live)
+ }
+ 
+ /// Something that happens to an Action.

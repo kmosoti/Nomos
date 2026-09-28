@@ -88,6 +88,8 @@ flowchart LR
     Hs --> P["new state<br/>plan + Warp"] --> X["execute + verify"] --> O
 ```
 
+**As the transition kernel runs it.** Milestone `05-transition-kernel` implements the loop as `step` ([ADR 0006](../adr/0006-kernel-contract.md) note) with three working definitions. The loop observes only when every effect is Settled, so the settlement condition on oscillation holds by construction. An iteration whose Plan dispatched nothing, because every remaining Action is Blocked behind an Indeterminate anchor, ends the run `Indeterminate`, since repeating it would only repeat the same unknown. `Failed` lists known failures and unknown outcomes separately: a Failed or Rejected Action is a known failure, and a TimedOut one is an unknown outcome.
+
 ## Fixed Point (N3)
 
 **Claim.** If $\mathrm{Converged}(C, S')$ holds, then $\mathrm{Enforce}(C, S')$ performs no mutating Action.
@@ -115,7 +117,7 @@ A repeated fingerprint is evidence of oscillation, not proof of it. Two qualific
 
 ## Verification (N6)
 
-An Action reaches `Succeeded` only through `Verifying`. `Verifying` succeeds only if $\mathrm{assess}(C_r, O'_r) = \mathrm{Satisfied}$ on a fresh Observation. An exit code is never evidence, and an Indeterminate Assessment is not a verification.
+An Action reaches `Succeeded` only through `Verifying`. `Verifying` succeeds only if $\mathrm{assess}(C_r, O'_r) = \mathrm{Satisfied}$ on a fresh Observation. An exit code is never evidence, and an Indeterminate Assessment is not a verification. Fresh means the Observation's collection window starts at or after the completion receipt; an Observation collected before the effect finished says nothing about it. An Indeterminate verification leaves the Action in `Verifying` until a fresh Observation decides or its deadline makes it `TimedOut`.
 
 ## Known Gaps
 

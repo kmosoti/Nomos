@@ -1,0 +1,18 @@
+diff --git a/crates/app/nomos-app/src/kernel/step.rs b/crates/app/nomos-app/src/kernel/step.rs
+index 1eff2ca..ed22ba7 100644
+--- a/crates/app/nomos-app/src/kernel/step.rs
++++ b/crates/app/nomos-app/src/kernel/step.rs
+@@ -412,10 +412,10 @@ fn decide(draft: &mut Draft, fresh: &[Observation]) {
+         .effects
+         .values()
+         .all(|e| e.settlement.is_settled());
+-    let outcome = if report.all_satisfied() && owed.is_empty() && settled {
+-        Some(RunOutcome::Converged)
+-    } else if run.iteration >= run.plan.bound {
++    let outcome = if run.iteration >= run.plan.bound {
+         Some(RunOutcome::NonConvergent(Nonconvergence::Bound))
++    } else if report.all_satisfied() && owed.is_empty() && settled {
++        Some(RunOutcome::Converged)
+     } else if report.variances().next().is_none() && owed.is_empty() {
+         Some(RunOutcome::Indeterminate(
+             report

@@ -1,0 +1,212 @@
+---------------- MODULE /home/user/Nomos/tests/fixtures/tla/Fencing/trace_0_27 -----------------
+STATE_1 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 0, id |-> "none"]
+/\ last = "Init"
+/\ executed = {}
+/\ gacc = 0
+/\ planAt = <<"none", "none", "none">>
+
+
+STATE_2 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 2, id |-> "a"]
+/\ last = "Accept"
+/\ executed = {}
+/\ gacc = 2
+/\ planAt = <<"none", "a", "none">>
+
+
+STATE_3 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 2, id |-> "a"]
+/\ last = "Accept"
+/\ executed = {}
+/\ gacc = 2
+/\ planAt = <<"none", "a", "none">>
+
+
+STATE_4 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_5 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_6 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 0 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_7 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 1 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Admit"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_8 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Admit"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_9 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_10 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_11 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_12 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_13 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+STATE_14 == 
+/\ checked = {}
+/\ done = ( [g |-> 1, id |-> "a"] :> 0 @@
+  [g |-> 1, id |-> "b"] :> 0 @@
+  [g |-> 2, id |-> "a"] :> 0 @@
+  [g |-> 2, id |-> "b"] :> 0 @@
+  [g |-> 3, id |-> "a"] :> 0 @@
+  [g |-> 3, id |-> "b"] :> 2 )
+/\ lastPlan = [g |-> 3, id |-> "b"]
+/\ last = "Accept"
+/\ executed = {<<[g |-> 3, id |-> "b"], 3>>}
+/\ gacc = 3
+/\ planAt = <<"none", "a", "b">>
+
+
+=================================================

@@ -2,11 +2,23 @@
 
 Machine-checked models of the control protocol. They model the protocol, not Linux, and not the Rust.
 
-Planned modules, each arriving with milestone `05-transition-kernel` ([grounding plan](../../docs/research/2026-09-28-typed-core/grounding-plan.md#05-transition-kernel)):
+Modules, written for milestone `05-transition-kernel` ([grounding plan](../../docs/research/2026-09-28-typed-core/grounding-plan.md#05-transition-kernel)). Each has a configuration for the model and one per negative control; the constant `Mutation` selects the known-bad transition.
 
-- `ActionLifecycle.tla`: the lifecycle of one Action, for N6.
-- `PlanExecution.tla`: the execution frontier over a small Plan, for N4.
-- `Fencing.tla`: competing authority and generation acceptance, for N5 and N9.
+| Module | Checks | Negative controls |
+| --- | --- | --- |
+| `ActionLifecycle.tla` | N6, N10, and that an unsettled effect or a live Action holds its reservation | `shortcut` (Running to Succeeded), `timeout-fails`, `release-on-timeout` |
+| `Fencing.tla` | N5 at the effect, generation monotonicity, no stale acceptance, one Plan per generation | `split` (the `fence-race` check-then-act gap), `stale-by-one` |
+| `RefreshRecovery.tla` | Admission safety, uncertainty preservation, recovery safety, and completion soundness over a write, its refresh, an Obligation, crashes, and superseding authority | `transient` (the `lost-refresh` design), `release-on-timeout`, `discharge-on-dispatch` |
+
+`PlanExecution.tla`, the frontier over a small Plan for N4, was planned and is not written: the frontier is checked exhaustively by truth tables, laws against a reference, and Kani harnesses in `04-warp-kernel`, and the lifecycle side of N4 is in `ActionLifecycle` and the kernel's tests. A model of the frontier would repeat those at a smaller bound.
+
+Run a model with the TLA+ model checker (TLC) 1.7.4, from `tla2tools.jar` whose `sha256sum` is `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88`, from this directory:
+
+```sh
+java -cp tla2tools.jar tlc2.TLC -config RefreshRecovery.cfg RefreshRecovery.tla
+```
+
+Results, with every run's bounds and state counts, the traces replayed through the kernel, and what the replay does not establish: [kernel-conformance](../../docs/research/2026-09-28-typed-core/results/kernel-conformance.md). The traces are fixtures under [`tests/fixtures/tla/`](../../tests/fixtures/tla/README.md).
 
 ## What a Model Result Is
 

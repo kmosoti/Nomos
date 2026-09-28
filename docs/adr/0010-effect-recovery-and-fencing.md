@@ -49,6 +49,17 @@ A Plan records the Observations its Actions depend on. If one of those changes b
 - **`05-transition-kernel` model.** A TLA+ model of competing authority in which a paused old Action, resumed after a newer Plan is accepted, causes no conflicting unreserved effect.
 - **Before remote execution, `fence-interleavings`.** The same property across Loom transport races.
 
+## Note, 2026-09-28: Working Definitions for the Transition Kernel
+
+Milestone `05-transition-kernel` implements §1, §3, and §4 for one Cell and records these working definitions.
+
+- **§1, the key.** An idempotency key is the Plan's identifier and generation, the reconciliation iteration, and the resource. Retries of one delivery share it; the next iteration or the next run plans the same repair under a new key, so a completed key never suppresses a later repair (counterexample `dedup-scope`).
+- **§3, atomic re-check.** `step` handles one input at a time, so a Cell's admission path is serialized by construction. The fence is re-checked in the same `step` that admits the effect and records its intent, so no acceptance can fall between check and admission.
+- **§3, draining.** A superseding Plan is accepted at once: the fence moves, so the old Plan can admit nothing more, and the old Plan's Actions that were not yet dispatched are Cancelled. Effects already dispatched keep running and keep their reservations. The new Plan observes and plans only once every effect is Settled. That is stricter than §3, which waits only for conflicting effects; it keeps the oscillation rule of [reconciliation.md](../formal/reconciliation.md#oscillation) true by construction and costs latency only when an effect is slow.
+- **§4, the budget predicate.** Selection skips an Action $a$ when some failure domain $f$ has $\lvert U_f \cup R_f \cup D_f(a) \rvert > k_f$, where $U_f$ comes from the budget snapshot in the policy, $R_f$ is the nodes disrupted by every effect still holding a reservation plus every Action already chosen in this selection, and $D_f(a)$ is the nodes $a$ would disrupt. When the budget snapshot is older than the policy's maximum age at the instant of admission, no Action that disrupts a node is admitted. One selection runs per `step`, so admissions are serialized.
+
+**Evidence.** [effect-recovery](../research/2026-09-28-typed-core/results/effect-recovery.md) and [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md) meet the first acceptance criterion for one Cell: no duplicate live effect, no suppressed repair, no unsafe retry, and no budget oversubscription. For the second, the `Fencing` model, checked by the TLA+ model checker (TLC), shows a paused check followed by a late effect violating N5 (the `split` control) and the atomic admission not, and `RefreshRecovery` shows no conflicting unreserved effect under superseding authority with crashes ([kernel-conformance](../research/2026-09-28-typed-core/results/kernel-conformance.md)). The third criterion, `fence-interleavings`, needs Loom. The ADR stays Proposed, for the Cell, until the project owner accepts it.
+
 ## Consequences
 
 - The N5 theorem loses its proviso once §3 is implemented and modeled.

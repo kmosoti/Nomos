@@ -24,6 +24,8 @@ use core::fmt;
 use nomos_core::assessment::Assessment;
 use nomos_core::resource::ResourcePath;
 
+use crate::budget::Node;
+
 /// The three edge kinds of spec §14. An edge `(source, target)` means the
 /// source constrains the target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -91,7 +93,8 @@ impl ConflictKey {
 /// What a vertex is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VertexKind {
-    /// An Action: the resource has a Variance and something must run.
+    /// An Action: the resource has a Variance or an Obligation, or is the
+    /// `on_change` target of an Action, and something may run.
     Action,
     /// A satisfaction anchor: Succeeded on entry, unchanged, no operation.
     Anchor,
@@ -99,12 +102,15 @@ pub enum VertexKind {
     IndeterminateAnchor,
 }
 
-/// One vertex: a resource, what it is, and the keys its Action holds.
+/// One vertex: a resource, what it is, the keys its Action holds, whether
+/// an Obligation is owed on it, and the nodes its Action would disrupt.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Vertex {
     resource: ResourcePath,
     kind: VertexKind,
     keys: BTreeSet<ConflictKey>,
+    owed: bool,
+    disrupts: BTreeSet<Node>,
 }
 
 impl Vertex {
@@ -114,6 +120,19 @@ impl Vertex {
             resource,
             kind: VertexKind::Action,
             keys,
+            owed: false,
+            disrupts: BTreeSet::new(),
+        }
+    }
+
+    /// An owed Action vertex: an Obligation is pending on the resource, so
+    /// the Action runs even when its `on_change` group is Disabled
+    /// (ADR 0009 note). It still waits for its triggers and is still
+    /// Blocked by one that is not met.
+    pub fn owed(resource: ResourcePath, keys: BTreeSet<ConflictKey>) -> Self {
+        Vertex {
+            owed: true,
+            ..Vertex::action(resource, keys)
         }
     }
 
@@ -123,6 +142,8 @@ impl Vertex {
             resource,
             kind: VertexKind::Anchor,
             keys: BTreeSet::new(),
+            owed: false,
+            disrupts: BTreeSet::new(),
         }
     }
 
@@ -132,7 +153,18 @@ impl Vertex {
             resource,
             kind: VertexKind::IndeterminateAnchor,
             keys: BTreeSet::new(),
+            owed: false,
+            disrupts: BTreeSet::new(),
         }
+    }
+
+    /// The same vertex, whose Action would make `nodes` unavailable. An
+    /// anchor runs nothing, so it disrupts nothing and keeps no nodes.
+    pub fn disrupting(mut self, nodes: BTreeSet<Node>) -> Self {
+        if self.kind == VertexKind::Action {
+            self.disrupts = nodes;
+        }
+        self
     }
 
     /// The vertex a resource gets from its Assessment: an Action for a
@@ -162,6 +194,16 @@ impl Vertex {
     /// The keys the Action holds; empty for an anchor.
     pub fn keys(&self) -> &BTreeSet<ConflictKey> {
         &self.keys
+    }
+
+    /// Whether an Obligation is owed on the resource.
+    pub fn is_owed(&self) -> bool {
+        self.owed
+    }
+
+    /// The nodes the Action would make unavailable; empty for an anchor.
+    pub fn disrupts(&self) -> &BTreeSet<Node> {
+        &self.disrupts
     }
 }
 

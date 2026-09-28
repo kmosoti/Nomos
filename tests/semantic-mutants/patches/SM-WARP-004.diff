@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-warp/src/frontier.rs b/crates/core/nomos-warp/src/frontier.rs
+index a5a7019..37fad6b 100644
+--- a/crates/core/nomos-warp/src/frontier.rs
++++ b/crates/core/nomos-warp/src/frontier.rs
+@@ -203,8 +203,6 @@ pub fn resolve_after(state: SourceState) -> AfterState {
+ pub fn resolve_group(sources: &[SourceState]) -> GroupState {
+     if sources.is_empty() {
+         GroupState::Empty
+-    } else if sources.iter().any(|s| s.is_not_met()) {
+-        GroupState::Blocked
+     } else if sources.iter().any(|s| !s.is_terminal()) {
+         GroupState::Waiting
+     } else if sources.iter().any(|s| s.is_changed()) {

@@ -62,3 +62,25 @@ The unviable mutants are `Default::default()`, `Box::leak`, and iterator replace
 ## Decision
 
 The frontier semantics of warp.md are implemented and checked as stated, with the two working definitions above for ADR 0009 to accept or amend. `05-transition-kernel` takes `Frontier::ready` and `select` as the inputs to dispatch.
+
+## Revision, 2026-09-28: On_change Depends on Its Sources Being Met
+
+The two working definitions above were reviewed with the project owner, and the review found a gap behind the first. The kernel counted every terminal `on_change` source that did not change toward Disabled, a failed or timed-out one included. Three consequences followed, each checked against the kernel as it stood: a failed configuration write Skipped its refresh, and because Skipped was met, the refresh's `requires` dependents ran as if nothing had been needed; a timed-out write was read as "no change", which N10 forbids; and a changed source beside a failed one activated the refresh with the failed input. The owner decided the rule, and [ADR 0009](../../../adr/0009-warp-activation-semantics.md) §1 to §3 and [warp.md](../../../formal/warp.md) now state it.
+
+**The rule.** A source is met when it Succeeded or was Skipped, and not met when it Failed, TimedOut, was Cancelled or Rejected, is an Indeterminate anchor, or is Blocked. An `on_change` group is Blocked as soon as one source is not met, Activated only when every source is met and one changed, and Disabled only when every source is met and none changed. Skipped therefore means every trigger ended well, and it stays met. Blocking propagates along `requires` and `on_change` edges and stops at `after` edges. The Indeterminate-anchor `on_change` row moves from "counts toward Disabled" to Blocked. The refresh a changed source owes is an Obligation (ADR 0009 §4), so blocking the vertex delays it without losing it.
+
+**Two holes of the same kind, closed at the API.** `Progress` no longer has a Skipped value: Skipped is met, and a caller able to record it could make dependents run without the frontier checking a trigger. `select` takes the `Frontier` instead of a list, so a Blocked or Waiting Action or an anchor cannot be admitted and Runnable is a subset of Ready by construction (N4). A new unit test, `only_ready_actions_are_selected`, pins it.
+
+**Oracles first.** The group truth table, the vertex table, the reference evaluator's blocking rule, law 3, and the Kani group and vertex harnesses were changed from the amended warp.md before the kernel was touched. Law 3 now requires every `requires` and `on_change` source of a Ready or Skipped vertex to be met. Against the unchanged kernel they failed as they should:
+
+| Oracle | Old kernel | Revised kernel |
+| --- | --- | --- |
+| Unit tests | 25 passed, 6 failed: the group table, the vertex table, the Indeterminate-anchor rows, and the three new trigger cases | 32 passed |
+| Law 3 against the reference | Failed: the reference Blocked what the kernel Skipped | 4 laws passed, 512 cases each |
+| Kani | Group and vertex harnesses failed; edge harness verified | 3 harnesses verified, 10 of 10 covers satisfied, among them a Blocked group with a changed source and a Blocked group with an open one |
+| Semantic mutants | Not applicable | `SM-WARP-004` and `SM-WARP-005` added and caught, with the six earlier ones |
+| `cargo-mutants -p nomos-warp` | Not rerun | 103 mutants in 55 s: 63 caught, 40 unviable, 0 survived |
+
+The reference evaluator was edited in this revision, and the edit is recorded here because ADR 0015 §6 forbids editing a reference to agree with the code. The edit went the other way: the specification changed, the reference was changed to the new specification first, and the code was then changed until it agreed.
+
+**Still unchecked.** Obligations as vertices, budgets, and the lifecycle side of N4 and N10, which `05-transition-kernel` owns. Whether a Blocked refresh is retried once its failed trigger is repaired is a transition-kernel question: this kernel only reports the vertex Blocked.

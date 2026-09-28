@@ -344,6 +344,7 @@ dependencies = [
  "nomos-store",
  "nomos-substrate",
  "nomos-warp",
+ "trybuild",
 ]
 
 [[package]]
@@ -359,8 +360,14 @@ version = "0.0.0"
 dependencies = [
  "nomos-app",
  "nomos-cipher-vault",
+ "nomos-core",
  "nomos-mesh-headscale",
+ "nomos-store",
+ "nomos-substrate",
  "nomos-substrate-linux",
+ "nomos-substrate-mock",
+ "nomos-warp",
+ "proptest",
 ]
 
 [[package]]

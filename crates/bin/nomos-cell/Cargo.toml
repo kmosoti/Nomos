@@ -16,3 +16,11 @@ nomos-app.workspace = true
 nomos-substrate-linux.workspace = true
 nomos-cipher-vault.workspace = true
 nomos-mesh-headscale.workspace = true
+
+[dev-dependencies]
+nomos-core.workspace = true
+nomos-warp.workspace = true
+nomos-store.workspace = true
+nomos-substrate.workspace = true
+nomos-substrate-mock.workspace = true
+proptest.workspace = true

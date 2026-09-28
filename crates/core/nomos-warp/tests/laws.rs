@@ -8,17 +8,19 @@
 //! is a finding about one of them and is never resolved by editing the
 //! reference to agree (ADR 0015 §6). The generators produce graphs of up to
 //! six resources with up to eight edges of every kind, cycles included, and
-//! progress for every Action; they do not produce Obligations, budgets, or
-//! graphs larger than that, which the record states.
+//! progress for every Action, owed vertices for pending Obligations, and
+//! disruption over four nodes with up to two failure-domain budgets; they do
+//! not produce graphs larger than that, which the record states.
 //!
 //! The runner is seeded from a fixed seed bank, as in `nomos-core`.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use nomos_core::resource::ResourcePath;
+use nomos_warp::budget::{Budget, Budgets, Node};
 use nomos_warp::frontier::{Outcome, Progress, Resolution, frontier};
 use nomos_warp::graph::{CompileError, ConflictKey, Edge, EdgeKind, Graph, Vertex, VertexKind};
-use nomos_warp::select::select;
+use nomos_warp::select::{Reserved, select};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngAlgorithm, TestRng, TestRunner};
 
@@ -61,7 +63,18 @@ fn key(n: u8) -> ConflictKey {
     ConflictKey::new(&format!("k{n}")).unwrap()
 }
 
-fn vertex() -> impl Strategy<Value = (VertexKind, BTreeSet<ConflictKey>)> {
+fn node(n: u8) -> Node {
+    Node::new(&format!("n{n}")).unwrap()
+}
+
+fn nodes() -> impl Strategy<Value = BTreeSet<Node>> {
+    prop::collection::btree_set(0u8..4, 0..3).prop_map(|ns| ns.into_iter().map(node).collect())
+}
+
+/// A vertex's kind, keys, whether it is owed, and the nodes it disrupts.
+type RawVertex = (VertexKind, BTreeSet<ConflictKey>, bool, BTreeSet<Node>);
+
+fn vertex() -> impl Strategy<Value = RawVertex> {
     (
         prop_oneof![
             4 => Just(VertexKind::Action),
@@ -69,6 +82,8 @@ fn vertex() -> impl Strategy<Value = (VertexKind, BTreeSet<ConflictKey>)> {
             1 => Just(VertexKind::IndeterminateAnchor),
         ],
         prop::collection::btree_set(0u8..3, 0..3).prop_map(|ks| ks.into_iter().map(key).collect()),
+        prop::bool::weighted(0.3),
+        nodes(),
     )
 }
 
@@ -96,16 +111,11 @@ fn progress() -> impl Strategy<Value = Progress> {
         3 => Just(Progress::Pending),
         1 => Just(Progress::Running),
         3 => outcome().prop_map(Progress::Done),
-        1 => Just(Progress::Skipped),
     ]
 }
 
 /// A graph as lists, possibly cyclic, plus progress for every resource.
-type Raw = (
-    Vec<(VertexKind, BTreeSet<ConflictKey>)>,
-    Vec<(usize, usize, EdgeKind)>,
-    Vec<Progress>,
-);
+type Raw = (Vec<RawVertex>, Vec<(usize, usize, EdgeKind)>, Vec<Progress>);
 
 fn raw() -> impl Strategy<Value = Raw> {
     (
@@ -120,10 +130,14 @@ fn build(raw: &Raw) -> (Vec<Vertex>, Vec<Edge>, BTreeMap<ResourcePath, Progress>
         .0
         .iter()
         .enumerate()
-        .map(|(i, (kind, keys))| match kind {
-            VertexKind::Action => Vertex::action(path(i), keys.clone()),
-            VertexKind::Anchor => Vertex::anchor(path(i)),
-            VertexKind::IndeterminateAnchor => Vertex::indeterminate_anchor(path(i)),
+        .map(|(i, (kind, keys, owed, disrupts))| {
+            match (kind, owed) {
+                (VertexKind::Action, false) => Vertex::action(path(i), keys.clone()),
+                (VertexKind::Action, true) => Vertex::owed(path(i), keys.clone()),
+                (VertexKind::Anchor, _) => Vertex::anchor(path(i)),
+                (VertexKind::IndeterminateAnchor, _) => Vertex::indeterminate_anchor(path(i)),
+            }
+            .disrupting(disrupts.clone())
         })
         .collect();
     let edges = raw
@@ -186,7 +200,7 @@ fn reference_frontier(
             {
                 Progress::Pending | Progress::Running => S::Open,
                 Progress::Done(Outcome::Succeeded { changed: true }) => S::Changed,
-                Progress::Done(Outcome::Succeeded { changed: false }) | Progress::Skipped => S::Met,
+                Progress::Done(Outcome::Succeeded { changed: false }) => S::Met,
                 Progress::Done(_) => S::EndedOtherwise,
             },
         };
@@ -220,13 +234,19 @@ fn reference_frontier(
                 .filter(|e| e.kind() == EdgeKind::OnChange)
                 .map(src)
                 .collect();
-            let blocked = requires.contains(&S::EndedOtherwise);
+            // warp.md: a `requires` edge or an `on_change` group whose source is
+            // not met is Blocked; the group is checked before Waiting.
+            let blocked =
+                requires.contains(&S::EndedOtherwise) || group.contains(&S::EndedOtherwise);
             let waiting = requires
                 .iter()
                 .chain(&after)
                 .chain(&group)
                 .any(|s| *s == S::Open);
-            let disabled = !group.is_empty() && !group.contains(&S::Changed);
+            // Reached only when every group source is met: Disabled when none
+            // changed. A pending Obligation is a reason to run without a change
+            // (ADR 0009 note), so an owed vertex is not Skipped.
+            let disabled = !group.is_empty() && !group.contains(&S::Changed) && !v.is_owed();
             let res = if blocked {
                 Resolution::Blocked
             } else if waiting {
@@ -332,8 +352,10 @@ fn compilation_and_frontier_are_invariant_under_input_permutation() {
 }
 
 /// Law 3 (N4, differential): the frontier agrees with the reference on
-/// every pending vertex, and a Ready vertex has every `requires` source
-/// Succeeded or Skipped.
+/// every pending vertex, and a vertex resolved Ready or Skipped has every
+/// `requires` and `on_change` source met: Succeeded or Skipped. A Skipped
+/// vertex is met to its own dependents, so a failed or unknown trigger must
+/// never produce one (ADR 0009 §1).
 #[test]
 fn the_frontier_agrees_with_the_reference() {
     runner(SEEDS[2])
@@ -356,10 +378,15 @@ fn the_frontier_agrees_with_the_reference() {
                     "ready is in topological order"
                 );
             }
-            for r in f.ready() {
+            let settled_well = f
+                .resolutions()
+                .iter()
+                .filter(|(_, res)| matches!(res, Resolution::Ready | Resolution::Skipped))
+                .map(|(r, _)| r);
+            for r in settled_well {
                 for e in graph
                     .edges_into(r)
-                    .filter(|e| e.kind() == EdgeKind::Requires)
+                    .filter(|e| matches!(e.kind(), EdgeKind::Requires | EdgeKind::OnChange))
                 {
                     let source = graph.vertex(e.source()).unwrap();
                     let met = match source.kind() {
@@ -369,13 +396,14 @@ fn the_frontier_agrees_with_the_reference() {
                             matches!(
                                 progress.get(e.source()),
                                 Some(Progress::Done(Outcome::Succeeded { .. }))
-                                    | Some(Progress::Skipped)
                             ) || f.resolution(e.source()) == Some(Resolution::Skipped)
                         }
                     };
                     prop_assert!(
                         met,
-                        "N4: {r} is Ready with an unmet requirement {}",
+                        "{r} is {:?} with an unmet {:?} source {}",
+                        f.resolution(r),
+                        e.kind(),
                         e.source()
                     );
                 }
@@ -385,10 +413,37 @@ fn the_frontier_agrees_with_the_reference() {
         .unwrap();
 }
 
-/// Law 4 (mutual exclusion and determinism): the chosen set shares no key
-/// with the held set or within itself, never exceeds capacity, is a prefix
-/// choice (every Ready vertex not chosen either conflicts with something
-/// chosen or held before it, or capacity was reached), and is the same on
+/// A domain for the selection law: members among four nodes, and a limit.
+fn budget() -> impl Strategy<Value = (BTreeSet<Node>, usize)> {
+    (nodes(), 0usize..3)
+}
+
+/// The budget predicate read from warp.md by another route: the union of
+/// unavailable, reserved, and disrupted nodes, restricted to each domain.
+fn fits(
+    domains: &[(BTreeSet<Node>, usize)],
+    unavailable: &BTreeSet<Node>,
+    fresh: bool,
+    reserved: &BTreeSet<Node>,
+    disrupts: &BTreeSet<Node>,
+) -> bool {
+    if disrupts.is_empty() {
+        return true;
+    }
+    if !fresh {
+        return false;
+    }
+    let union: BTreeSet<&Node> = unavailable.iter().chain(reserved).chain(disrupts).collect();
+    domains
+        .iter()
+        .all(|(members, limit)| union.iter().filter(|n| members.contains(*n)).count() <= *limit)
+}
+
+/// Law 4 (mutual exclusion, budgets, and determinism): the chosen set shares
+/// no key with the held set or within itself, never exceeds capacity, keeps
+/// every failure-domain budget counting what was reserved and chosen before
+/// it (N9), is a prefix choice (every Ready vertex not chosen conflicts,
+/// breaks a budget, or came after capacity was reached), and is the same on
 /// every call.
 #[test]
 fn selection_is_mutually_exclusive_bounded_and_deterministic() {
@@ -399,19 +454,35 @@ fn selection_is_mutually_exclusive_bounded_and_deterministic() {
                 prop::collection::btree_set(0u8..3, 0..2),
                 0usize..3,
                 0usize..5,
+                (
+                    prop::collection::vec(budget(), 0..3),
+                    nodes(),
+                    prop::bool::weighted(0.8),
+                    nodes(),
+                ),
             ),
-            |(raw, held, reserved, capacity)| {
+            |(raw, held, reserved, capacity, (domains, unavailable, fresh, reserved_nodes))| {
                 let (vertices, edges, progress) = build(&raw);
                 let Ok(graph) = Graph::compile(vertices, edges) else {
                     return Ok(());
                 };
                 let held: BTreeSet<ConflictKey> = held.into_iter().map(key).collect();
-                let ready = frontier(&graph, &progress);
-                let s = select(&graph, ready.ready(), &held, reserved, capacity);
-                prop_assert_eq!(
-                    &s,
-                    &select(&graph, ready.ready(), &held, reserved, capacity)
+                let budgets = Budgets::new(
+                    domains
+                        .iter()
+                        .map(|(m, k)| Budget::new(m.clone(), *k))
+                        .collect(),
+                    unavailable.clone(),
+                    fresh,
                 );
+                let before = Reserved {
+                    keys: held.clone(),
+                    nodes: reserved_nodes.clone(),
+                    count: reserved,
+                };
+                let ready = frontier(&graph, &progress);
+                let s = select(&graph, &ready, &before, capacity, &budgets);
+                prop_assert_eq!(&s, &select(&graph, &ready, &before, capacity, &budgets));
                 prop_assert!(reserved + s.chosen().len() <= capacity.max(reserved));
                 let mut seen = held.clone();
                 for c in s.chosen() {
@@ -424,22 +495,27 @@ fn selection_is_mutually_exclusive_bounded_and_deterministic() {
                 }
                 prop_assert_eq!(&seen, s.held());
                 let mut running = held.clone();
+                let mut disrupted = reserved_nodes.clone();
                 let mut count = reserved;
                 for r in ready.ready() {
-                    let keys = graph.vertex(r).unwrap().keys();
+                    let v = graph.vertex(r).unwrap();
                     let chosen = s.chosen().contains(r);
                     if count >= capacity {
                         prop_assert!(!chosen, "chosen past capacity");
                         continue;
                     }
-                    if keys.is_disjoint(&running) {
+                    let free = v.keys().is_disjoint(&running);
+                    let within = fits(&domains, &unavailable, fresh, &disrupted, v.disrupts());
+                    if free && within {
                         prop_assert!(chosen, "{r} fits and was not chosen");
-                        running.extend(keys.iter().cloned());
+                        running.extend(v.keys().iter().cloned());
+                        disrupted.extend(v.disrupts().iter().cloned());
                         count += 1;
                     } else {
-                        prop_assert!(!chosen, "{r} conflicts and was chosen");
+                        prop_assert!(!chosen, "{r} conflicts or breaks a budget and was chosen");
                     }
                 }
+                prop_assert_eq!(&disrupted, s.nodes());
                 Ok(())
             },
         )

@@ -1,0 +1,11 @@
+error[E0599]: no method named `apply` found for mutable reference `&mut impl Observe` in the current scope
+ --> tests/compile-fail/trace-mutates.rs:7:23
+  |
+7 |     let _ = substrate.apply(request);
+  |                       ^^^^^ method not found in `&mut impl Observe`
+  |
+  = help: items from traits can only be used if the type parameter is bounded by the trait
+help: the following trait defines an item `apply`, perhaps you need to restrict type parameter `impl Observe` with it:
+  |
+6 | fn trace_that_mutates(substrate: &mut (impl Observe + Mutate), request: &Apply) {
+  |                                       +             +++++++++

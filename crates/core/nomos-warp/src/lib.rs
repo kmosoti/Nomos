@@ -13,8 +13,9 @@
 //! - [`frontier`] — per-edge and per-group resolution, the Ready set
 //! - [`select`]   — greedy conflict-aware selection over the reserved set
 //!
-//! Obligations as vertices, failure-domain budgets, and derived footprints
-//! arrive with `05-transition-kernel`.
+//! Added, milestone `05-transition-kernel`:
+//! - owed vertices for pending Obligations, Ready when their group is Disabled
+//! - [`budget`]   — failure-domain budgets over admission (N9)
 #![no_std]
 // Core purity (ADR 0016, `crates/core/PURITY.toml`): a panic is not an
 // Assessment. Failure is a value in the domain; these lints keep it one.
@@ -29,6 +30,7 @@
 
 extern crate alloc;
 
+pub mod budget;
 pub mod frontier;
 pub mod graph;
 pub mod select;

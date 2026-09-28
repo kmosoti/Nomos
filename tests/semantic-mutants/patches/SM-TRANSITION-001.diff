@@ -1,0 +1,22 @@
+diff --git a/crates/core/nomos-core/src/action.rs b/crates/core/nomos-core/src/action.rs
+index 2a6f9b6..f04938a 100644
+--- a/crates/core/nomos-core/src/action.rs
++++ b/crates/core/nomos-core/src/action.rs
+@@ -213,7 +213,16 @@ pub fn advance(stage: &Stage, signal: Signal) -> Result<Stage, TransitionError>
+         (Stage::Prepared, Signal::Cancel) => Ok(Stage::Cancelled),
+         (Stage::Dispatched, Signal::Accept) => Ok(Stage::Accepted),
+         (Stage::Accepted, Signal::Start) => Ok(Stage::Running),
+-        (Stage::Running, Signal::Complete { changed }) => Ok(Stage::Verifying { changed }),
++        (Stage::Running, Signal::Complete { changed }) => match ResourcePath::new("/") {
++            Ok(resource) => Ok(Stage::Succeeded {
++                changed,
++                verified: Verified {
++                    resource,
++                    since: Instant(0),
++                },
++            }),
++            Err(_) => Err(TransitionError::NotEnabled),
++        },
+         (Stage::Verifying { changed }, Signal::Verify(verdict)) => Ok(match verdict {
+             Verdict::Holds(verified) => Stage::Succeeded {
+                 changed: *changed,

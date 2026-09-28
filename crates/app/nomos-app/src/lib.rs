@@ -12,3 +12,14 @@
 //!
 //! Depends only on `nomos-core`, domain services and port crates — never on
 //! adapters.
+//!
+//! Implemented, milestone `05-transition-kernel`:
+//! - [`kernel`] — `step(snapshot, input) = decision`, the transition kernel
+//! - [`driver`] — the production driver: step, append, then effect
+//! - [`trace`]  — Trace, with the observe capability only
+
+extern crate alloc;
+
+pub mod driver;
+pub mod kernel;
+pub mod trace;
