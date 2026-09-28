@@ -14,7 +14,9 @@ $G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from A
 | $E_{after}$ | `after` | $u$ is terminal (any outcome) | Always |
 | $E_{chg}$ | `on_change` | $u$ is terminal | Some `on_change` source of $v$ succeeded and produced a verified change |
 
-**Failure propagation.** If $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}, \mathrm{Indeterminate}\}$ and $(u, v) \in E_{req}$, then $v$ never becomes ready. This propagates transitively along $E_{req}$. Every one of these outcomes is terminal, so an `after` edge from $u$ is met; the last is the outcome of an Indeterminate anchor, defined below.
+**Met and not met.** A source $u$ is met, $\mathrm{Met}(u)$, when $\sigma(u) = \mathrm{Succeeded}$, changed or not, or when $u$ was Skipped (defined below). It is not met when it is terminal and not met: $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}, \mathrm{Indeterminate}\}$, the last being the outcome of an Indeterminate anchor, or $u$ is Blocked.
+
+**Failure propagation.** If $u$ is not met and $(u, v) \in E_{req} \cup E_{chg}$, then $v$ never becomes ready and is Blocked. This propagates transitively along $E_{req}$ and $E_{chg}$, because both edges depend on what $u$ did: `requires` on its result, `on_change` on its change. It stops at $E_{after}$: every one of these outcomes is terminal, so an `after` edge from $u$ is met.
 
 **Well-formedness.** The whole edge set $E$ must be acyclic. A cycle in any edge kind is a compilation error.
 
@@ -30,7 +32,7 @@ An anchor for a resource whose Assessment is Indeterminate is an *Indeterminate 
 | --- | --- | --- |
 | `requires` | Blocked, and it propagates | A prerequisite that might be missing is not a prerequisite that is met |
 | `after` | Satisfied | `after` is ordering, not success. The anchor is terminal, so anything ordered after it may start |
-| `on_change` | Terminal without a verified change | The edge waits for a change Nomos made and verified, and an anchor made none. It never activates the group, and it counts toward Disabled like any unchanged source |
+| `on_change` | Blocked, and it propagates | Whether the resource changed is unknown. A refresh that might be owed is neither run nor reported as unnecessary; a Skipped refresh would let its `requires` dependents run as if nothing had been needed |
 
 An Indeterminate source does not make the dependent's own Condition uncertain. If the dependent needs a refresh because of drift nobody observed, that is a Variance or an Obligation of the dependent, not an activation.
 
@@ -79,7 +81,7 @@ $$
 
 $$
 \mathrm{Startable}(v) \iff
-\underbrace{\forall (u,v) \in E_{req}: \sigma(u) = \mathrm{Succeeded}}_{\text{hard prerequisites satisfied}}
+\underbrace{\forall (u,v) \in E_{req}: \mathrm{Met}(u)}_{\text{hard prerequisites satisfied}}
 \ \wedge\
 \underbrace{\forall (u,v) \in E_{after} \cup E_{chg}: \mathrm{terminal}(u)}_{\text{ordering predecessors settled}}
 $$
@@ -90,12 +92,16 @@ $$
 \mathrm{Activated}(v) \iff
 \mathrm{chg}(v) = \varnothing
 \ \vee\
+\bigl(\forall (u,v) \in E_{chg}: \mathrm{Met}(u)\bigr)
+\wedge
 \exists (u,v) \in E_{chg}: \sigma(u) = \mathrm{Succeeded} \wedge \mathrm{changed}(u)
 $$
 
 Here $\mathrm{chg}(v)$ is the set of `on_change` edges into $v$, and $\mathrm{changed}(u)$ means the verification of $u$ observed a state change. $\mathrm{changed}$ is defined only for $\sigma(u) = \mathrm{Succeeded}$: a failed partial write is terminal and may have altered bytes, but it did not produce the change the edge waits for.
 
-Consider a service refresh with two `on_change` sources, configuration A and configuration B. A succeeded and changed; B succeeded and did not. The refresh is Activated: one changed source is a reason to run. B's unchanged outcome is not a "disabled edge" that vetoes the group. Activation is decided over the group, and the group is Disabled only when every source is terminal and none changed. The earlier table in this document said the dependent runs when every edge is Satisfied, which contradicted the formula for exactly this case, and the formula is the definition.
+Consider a service refresh with two `on_change` sources, configuration A and configuration B. A succeeded and changed; B succeeded and did not. The refresh is Activated: one changed source is a reason to run. B's unchanged outcome is not a "disabled edge" that vetoes the group. Activation is decided over the group, and the group is Disabled only when every source is met and none changed. The earlier table in this document said the dependent runs when every edge is Satisfied, which contradicted the formula for exactly this case, and the formula is the definition.
+
+Now let B's write fail instead. The refresh is not Activated: it would load an input whose write failed, and had B timed out, its write might still be running. Nor is it Disabled, which would Skip it and tell its `requires` dependents that nothing was needed. The group is Blocked. The refresh A's change requires is an Obligation, recorded before A's file was replaced ([ADR 0009](../adr/0009-warp-activation-semantics.md) §4), so blocking the vertex delays the refresh without losing it.
 
 $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a service restart run after its configuration Action finished without changing anything, which is the one thing `on_change` exists to prevent (counterexample [`activation-missing`](../research/2026-09-28-typed-core/README.md)). $\mathrm{Ready}$ contains an Action only once every hard dependency has succeeded, which gives **N4**.
 
@@ -104,15 +110,20 @@ $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a ser
 | Unit | State | Meaning |
 | --- | --- | --- |
 | `requires` edge | Waiting | $u$ is not terminal |
-| `requires` edge | Satisfied | $\sigma(u) = \mathrm{Succeeded}$ |
-| `requires` edge | Blocked | $u$ ended other than `Succeeded`, an Indeterminate anchor included. Propagates |
+| `requires` edge | Satisfied | $u$ is met |
+| `requires` edge | Blocked | $u$ is not met, an Indeterminate anchor included. Propagates |
 | `after` edge | Waiting | $u$ is not terminal |
 | `after` edge | Satisfied | $u$ is terminal, any outcome, an Indeterminate anchor included |
-| `on_change` group | Waiting | Some source is not terminal |
-| `on_change` group | Activated | Some source succeeded and changed |
-| `on_change` group | Disabled | Every source is terminal and none changed; an Indeterminate anchor is a source that did not change |
+| `on_change` group | Blocked | Some source is not met, an Indeterminate anchor included. Checked first, so one failed source blocks the group while others still run. Propagates |
+| `on_change` group | Waiting | No source is known not met, and some source is not terminal |
+| `on_change` group | Activated | Every source is met, and some source succeeded and changed |
+| `on_change` group | Disabled | Every source is met and none changed |
 
-$v$ runs when every `requires` and `after` edge is Satisfied and its `on_change` group is Activated or empty. $v$ is Skipped when no edge is Blocked and the group is Disabled: not failed, terminal without change, so its own dependents see it that way: a met prerequisite for `requires`, a terminal source for `after`, and a source without a change for `on_change` (working definition, recorded in [ADR 0009](../adr/0009-warp-activation-semantics.md)'s note of 2026-09-28). $v$ is Blocked when any `requires` edge is, and a Blocked vertex is terminal to its dependents: it blocks its `requires` dependents, satisfies its `after` dependents, and counts as an unchanged source. Milestone `04-warp-kernel` implemented this table in `nomos-warp` and checked it exhaustively; the `after` edge carries its own two-state type there, so it cannot be Blocked even by mistake. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table, and milestone 1 pull request 3 produces the truth table that ADR records.
+$v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. Otherwise it is Waiting while any unit is Waiting, Skipped when its group is Disabled, and Ready otherwise: every `requires` and `after` edge Satisfied, and its group Activated or empty.
+
+Skipped means $v$ had no reason to run and every one of its triggers ended well, so it is met, and its dependents see it as they see a satisfaction anchor: a met prerequisite for `requires`, a terminal source for `after`, and an unchanged source for `on_change`. Blocked means $v$ will never run; it is terminal and not met, so it blocks its `requires` and `on_change` dependents and satisfies its `after` dependents.
+
+Milestone `04-warp-kernel` implemented this table in `nomos-warp` and checks it exhaustively, against a reference evaluator and with Kani harnesses. The `after` edge carries its own two-state type there, so it cannot be Blocked even by mistake. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table and stays Proposed until `05-transition-kernel` runs its second acceptance criterion.
 
 ## Conflict Keys
 

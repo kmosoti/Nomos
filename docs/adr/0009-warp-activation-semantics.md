@@ -14,21 +14,25 @@ Proposed. [warp.md](../formal/warp.md) follows it as a working definition until 
 
 ### 1. Readiness Is Two Questions
 
-A vertex is ready when it is **Startable** and **Activated**. Startable is edge by edge: every `requires` source Succeeded, every `after` and `on_change` source terminal. Activated is decided over the `on_change` sources as a group: the vertex has none, or at least one succeeded with a verified change. Disabled is a group result, when every source is terminal and none changed. A single unchanged source never vetoes a changed one.
+A vertex is ready when it is **Startable** and **Activated**. Startable is edge by edge: every `requires` source met, every `after` and `on_change` source terminal. Activated is decided over the `on_change` sources as a group: the vertex has none, or every source is met and at least one succeeded with a verified change. Disabled is a group result, when every source is met and none changed. A single unchanged source never vetoes a changed one; a source that is not met vetoes the group.
+
+A source is **met** when it Succeeded, changed or not, or was Skipped. It is **not met** when it ended any other way: Failed, TimedOut, Cancelled, Rejected, an Indeterminate anchor, or Blocked. `requires` and `on_change` both ask whether their source is met, because both depend on what the source did: `requires` on its result, `on_change` on its change. `after` asks only whether the source is terminal.
 
 ### 2. Every Edge Resolves to One State
 
 | Unit | States |
 | --- | --- |
 | `requires` edge | Waiting, Satisfied, Blocked |
-| `after` edge | Waiting, Satisfied |
-| `on_change` group | Waiting, Activated, Disabled |
+| `after` edge | Waiting, Satisfied. An `after` edge has no Blocked state: it is ordering, not success |
+| `on_change` group | Waiting, Activated, Disabled, Blocked |
 
-A vertex runs, is Skipped as terminal without change, or is Blocked, with no fallthrough.
+A group is Blocked as soon as one source is not met, even while others are still running, as a `requires` edge is. A vertex runs, is Skipped, or is Blocked, with no fallthrough. It is Blocked when a `requires` edge or its group is Blocked, and Skipped when its group is Disabled.
+
+**Skipped is met; Blocked is not.** A Skipped vertex had no reason to run and every one of its triggers ended well. Its dependents see it as they see a satisfaction anchor: a met `requires` prerequisite, a terminal `after` source, and an unchanged `on_change` source. A Blocked vertex will never run. Its `requires` and `on_change` dependents are Blocked in turn, and its `after` dependents may proceed, because it is terminal. Blocking therefore propagates along `requires` and `on_change` edges and stops at `after` edges.
 
 ### 3. Satisfied Prerequisites Are Anchors
 
-Every resource named by a `requires`, `after`, or `on_change` edge has a vertex. A resource with a Variance or an Obligation gets its Action. A Satisfied resource gets an anchor, Succeeded on entry and unchanged. An Indeterminate resource gets an Indeterminate anchor, terminal on entry, not Succeeded, and unchanged, and its effect is per edge: a `requires` edge from it is Blocked, because a prerequisite that might be missing is not met; an `after` edge from it is Satisfied, because `after` is ordering; and an `on_change` edge from it is a source without a verified change, so it never activates and counts toward Disabled.
+Every resource named by a `requires`, `after`, or `on_change` edge has a vertex. A resource with a Variance or an Obligation gets its Action. A Satisfied resource gets an anchor, Succeeded on entry and unchanged. An Indeterminate resource gets an Indeterminate anchor, terminal on entry, not Succeeded, and unchanged, and its effect is per edge: a `requires` edge from it is Blocked, because a prerequisite that might be missing is not met; an `after` edge from it is Satisfied, because `after` is ordering; and an `on_change` edge from it is a source that is not met, so its group is Blocked: whether the resource changed is unknown, and a refresh that might be owed is neither run nor reported as unnecessary.
 
 ### 4. Change Consumption Survives a Crash
 
@@ -43,6 +47,8 @@ An Action holds its conflict keys from dispatch until its effect is Settled, pas
 - **All-sources activation.** Rejected: no use case yet, and it makes an unchanged file veto a changed one.
 - **Transient triggers only.** Rejected by `lost-refresh`.
 - **Release reservations on timeout.** Rejected: a timed-out effect may still be mutating.
+- **Count a failed or unknown `on_change` source as unchanged.** Rejected. The group would be Disabled and the vertex Skipped, so a failed configuration write would let every `requires` dependent of the refresh run as if the refresh had been unnecessary, and a timed-out write would be converted into "no change" (N10).
+- **Let a changed source activate the group beside a failed one.** Rejected. The refresh would load an input whose write failed or whose outcome is unknown, and a timed-out write may still be running under its reservation (§5). The refresh owed by the changed source is an Obligation (§4), so blocking the vertex delays it without losing it.
 
 ### Acceptance Criteria
 
@@ -51,10 +57,11 @@ An Action holds its conflict keys from dispatch until its effect is Settled, pas
 
 ## Note, 2026-09-28: The Warp Kernel's Truth Tables
 
-Milestone `04-warp-kernel` produced the tables this ADR's first acceptance criterion asks for, against production functions and an independent reference evaluator ([record](../research/2026-09-28-typed-core/results/warp-truth-table.md)). Two points the text above left open are recorded as working definitions and stand until this ADR is accepted or amended:
+Milestone `04-warp-kernel` produced the tables this ADR's first acceptance criterion asks for, against production functions and an independent reference evaluator ([record](../research/2026-09-28-typed-core/results/warp-truth-table.md)). It found two points the text left open and recorded them as working definitions: a Skipped vertex is met, and an `after` edge has no Blocked state. The second came from a Kani harness, which showed that a state type shared with `requires` let an `after` edge marked Blocked reach the vertex predicate and report the vertex Ready.
 
-- **A Skipped vertex is met.** A vertex whose `on_change` group is Disabled is Skipped: terminal without change and, as §2 says, not failed. Its `requires` dependents see a met prerequisite, its `after` dependents see a terminal source, and its `on_change` dependents see a source without a change. The alternative reading, Skipped as "ended other than Succeeded", would block every prerequisite chain through a refresh that had no reason to run.
-- **An `after` edge has no Blocked state.** The kernel gives `after` edges their own two-state type. A Kani harness on the vertex-resolution predicate found that a state type shared with `requires` let an `after` edge marked Blocked reach the predicate, which then reported the vertex Ready with an unmet edge. The type now makes the row unwritable.
+Reviewing those definitions exposed a gap. The text counted every terminal `on_change` source that did not change toward Disabled, a failed or timed-out one included. A failed configuration write therefore Skipped its refresh, and the refresh's `requires` dependents ran as if nothing had been needed. A changed source beside a failed one activated the refresh with the failed input.
+
+The project owner decided both on the same day, and §1 to §3 now carry the decision: a source is met when it Succeeded or was Skipped; an `on_change` group is Blocked when any source is not met; Skipped therefore means every trigger ended well and is met; an `after` edge has no Blocked state; and blocking propagates along `requires` and `on_change` edges, not along `after` edges. The Indeterminate-anchor row for `on_change` in §3 changed with it, from "counts toward Disabled" to Blocked. The kernel, its tables, its reference evaluator, and its harnesses were revised to match, and the record carries the before-and-after runs.
 
 The second acceptance criterion, `refresh-recovery` and `scheduler-admission`, still waits for `05-transition-kernel`; this ADR stays Proposed.
 
