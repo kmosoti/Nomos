@@ -24,9 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nomos_core::action::{
-    Stage, Verdict, advance, holds_reservation, signals_for, verify, Signal,
-};
+use nomos_core::action::{Signal, Stage, Verdict, advance, holds_reservation, signals_for, verify};
 use nomos_core::assessment::{Reason, Variance};
 use nomos_core::condition::{Condition, Content, FileCondition};
 use nomos_core::effect::{Receipt, Settlement};
@@ -200,6 +198,99 @@ fn holding() -> Verdict {
     verify(&condition, &[observation], Instant(0))
 }
 
+/// The lifecycle actions the model enables in a stage, transcribed from the
+/// guards of `ActionLifecycle.tla`.
+fn model_enabled(stage: &str) -> BTreeSet<&'static str> {
+    let actions: &[&'static str] = match stage {
+        "Prepared" => &["Dispatch", "Cancel"],
+        "Dispatched" => &["Accept", "Refuse", "Deadline"],
+        "Accepted" => &["Start", "Fail", "Refuse", "Deadline"],
+        "Running" => &["Complete", "Fail", "Deadline"],
+        "Verifying" => &["VerifyHolds", "VerifyFails", "VerifyUnknown", "Deadline"],
+        _ => &[],
+    };
+    actions.iter().copied().collect()
+}
+
+/// The lifecycle actions the kernel accepts from `stage`.
+fn kernel_enabled(stage: &Stage) -> BTreeSet<&'static str> {
+    let signals: [(&'static str, Signal); 11] = [
+        ("Dispatch", Signal::Dispatch),
+        ("Cancel", Signal::Cancel),
+        ("Accept", Signal::Accept),
+        ("Start", Signal::Start),
+        ("Complete", Signal::Complete { changed: true }),
+        ("VerifyHolds", Signal::Verify(holding())),
+        (
+            "VerifyFails",
+            Signal::Verify(Verdict::Fails(Variance::Missing)),
+        ),
+        (
+            "VerifyUnknown",
+            Signal::Verify(Verdict::Unknown(Reason::NoObservation)),
+        ),
+        ("Fail", Signal::Fail),
+        ("Refuse", Signal::Refuse),
+        ("Deadline", Signal::Deadline),
+    ];
+    signals
+        .into_iter()
+        .filter(|(_, signal)| advance(stage, signal.clone()).is_ok())
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// Whether the kernel's state agrees with the model's `state`: every
+/// variable, the lifecycle actions each enables, and whether a reservation
+/// may be released.
+fn agree_lifecycle(
+    i: usize,
+    state: &State,
+    stage: &Stage,
+    settlement: &Option<Settlement>,
+    reserved: bool,
+) -> Result<(), String> {
+    let action = string(&state["last"]);
+    let agree = [
+        ("stage", stage_name(stage) == string(&state["stage"])),
+        (
+            "verified",
+            matches!(stage, Stage::Succeeded { .. }) == boolean(&state["verified"]),
+        ),
+        (
+            "effect",
+            effect_name(settlement) == string(&state["effect"]),
+        ),
+        ("reserved", reserved == boolean(&state["reserved"])),
+    ];
+    if let Some((name, _)) = agree.iter().find(|(_, ok)| !ok) {
+        return Err(format!("step {i} {action}: the kernel disagrees on {name}"));
+    }
+    let model = model_enabled(string(&state["stage"]));
+    let kernel = kernel_enabled(stage);
+    if model != kernel {
+        return Err(format!(
+            "step {i} {action}: the kernel enables {kernel:?}, the model {model:?}"
+        ));
+    }
+    if let Some(s) = settlement {
+        let held = holds_reservation(Some(stage), s);
+        if held && !reserved {
+            return Err(format!(
+                "step {i} {action}: a held reservation was released"
+            ));
+        }
+        let model_release =
+            reserved && string(&state["effect"]) == "Settled" && stage.is_terminal();
+        if reserved && model_release == held {
+            return Err(format!(
+                "step {i} {action}: the kernel and the model disagree on release"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Replays one lifecycle behavior; `Err` names the first step at which the
 /// kernel disagrees with the model.
 fn replay_lifecycle(states: &[State]) -> Result<(), String> {
@@ -207,6 +298,7 @@ fn replay_lifecycle(states: &[State]) -> Result<(), String> {
     let mut settlement: Option<Settlement> = None;
     let mut reserved = false;
     let settle_by = Instant(100);
+    agree_lifecycle(0, &states[0], &stage, &settlement, reserved)?;
     for (i, state) in states.iter().enumerate().skip(1) {
         let action = string(&state["last"]);
         let mut apply = |signal: Signal| -> Result<(), String> {
@@ -225,7 +317,8 @@ fn replay_lifecycle(states: &[State]) -> Result<(), String> {
             "Start" => apply(Signal::Start)?,
             "Complete" => {
                 apply(Signal::Complete { changed: true })?;
-                settlement = settlement.map(|s| s.on_receipt(&Receipt::Completed { changed: true }));
+                settlement =
+                    settlement.map(|s| s.on_receipt(&Receipt::Completed { changed: true }));
             }
             "VerifyHolds" => apply(Signal::Verify(holding()))?,
             "VerifyFails" => apply(Signal::Verify(Verdict::Fails(Variance::Missing)))?,
@@ -258,23 +351,7 @@ fn replay_lifecycle(states: &[State]) -> Result<(), String> {
             }
             other => return Err(format!("step {i}: unknown action {other}")),
         }
-        let agree = [
-            ("stage", stage_name(&stage) == string(&state["stage"])),
-            (
-                "verified",
-                matches!(stage, Stage::Succeeded { .. }) == boolean(&state["verified"]),
-            ),
-            ("effect", effect_name(&settlement) == string(&state["effect"])),
-            ("reserved", reserved == boolean(&state["reserved"])),
-        ];
-        if let Some((name, _)) = agree.iter().find(|(_, ok)| !ok) {
-            return Err(format!("step {i} {action}: the kernel disagrees on {name}"));
-        }
-        if let Some(s) = &settlement {
-            if holds_reservation(Some(&stage), s) && !reserved {
-                return Err(format!("step {i}: a held reservation was released"));
-            }
-        }
+        agree_lifecycle(i, state, &stage, &settlement, reserved)?;
     }
     Ok(())
 }
@@ -323,7 +400,7 @@ fn plan_of(state: &State) -> (Generation, PlanId) {
 /// Replays one fencing behavior through the production fence.
 fn replay_fencing(states: &[State]) -> Result<(), String> {
     let mut fence = Fence::new();
-    let mut checked: BTreeSet<(Generation, PlanId)> = BTreeSet::new();
+    agree_fencing(0, "Init", &states[0], &fence)?;
     for (i, state) in states.iter().enumerate().skip(1) {
         let action = string(&state["last"]);
         let (g, id) = plan_of(state);
@@ -344,29 +421,62 @@ fn replay_fencing(states: &[State]) -> Result<(), String> {
                 if !fence.permits(g, &id) {
                     return Err(format!("step {i} Check: not permitted"));
                 }
-                checked.insert((g, id));
             }
             // The kernel re-checks where the effect is admitted, whatever an
             // earlier check said (ADR 0010 §3).
             "Effect" => {
-                checked.remove(&(g, id.clone()));
                 if !fence.permits(g, &id) {
                     return Err(format!("step {i} Effect: the re-check refuses it"));
                 }
             }
             other => return Err(format!("step {i}: unknown action {other}")),
         }
-        let gacc: u64 = state["gacc"].trim().parse().unwrap();
-        let plan_at = tuple(&state["planAt"]);
-        let expected = (gacc > 0).then(|| (gacc, plan_at[gacc as usize - 1].clone()));
-        let actual = fence
-            .accepted()
-            .map(|(g, id)| (g.0, id.as_str().to_string()));
-        if expected != actual {
+        agree_fencing(i, action, state, &fence)?;
+    }
+    Ok(())
+}
+
+/// The Plans the model can offer.
+fn plans() -> Vec<(Generation, PlanId)> {
+    (1..=3)
+        .flat_map(|g| ["a", "b"].map(|id| (Generation(g), PlanId::new(id).unwrap())))
+        .collect()
+}
+
+/// Whether the kernel's fence agrees with the model's `state`: the accepted
+/// generation and Plan, which Plans are accepted, and which are permitted
+/// to admit an effect. The model's guards, transcribed from `Fencing.tla`:
+/// Accept(p) needs p.g at least the accepted generation, and no other Plan
+/// at it; Current(p) needs p to be the accepted Plan at the accepted
+/// generation.
+fn agree_fencing(i: usize, action: &str, state: &State, fence: &Fence) -> Result<(), String> {
+    let gacc: u64 = state["gacc"].trim().parse().unwrap();
+    let plan_at = tuple(&state["planAt"]);
+    for (g, id) in plans() {
+        let at = &plan_at[g.0 as usize - 1];
+        let model_accepts = g.0 >= gacc && !(g.0 == gacc && at != "none" && at != id.as_str());
+        if fence.accept(g, &id).is_ok() != model_accepts {
             return Err(format!(
-                "step {i} {action}: the kernel holds {actual:?}, the model {expected:?}"
+                "step {i} {action}: the kernel and the model disagree on accepting {id} at {}",
+                g.0
             ));
         }
+        let model_current = gacc == g.0 && at == id.as_str();
+        if fence.permits(g, &id) != model_current {
+            return Err(format!(
+                "step {i} {action}: the kernel and the model disagree on admitting {id} at {}",
+                g.0
+            ));
+        }
+    }
+    let expected = (gacc > 0).then(|| (gacc, plan_at[gacc as usize - 1].clone()));
+    let actual = fence
+        .accepted()
+        .map(|(g, id)| (g.0, id.as_str().to_string()));
+    if expected != actual {
+        return Err(format!(
+            "step {i} {action}: the kernel holds {actual:?}, the model {expected:?}"
+        ));
     }
     Ok(())
 }

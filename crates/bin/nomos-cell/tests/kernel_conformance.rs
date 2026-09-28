@@ -327,6 +327,9 @@ fn the_discharge_on_dispatch_counterexample_keeps_the_obligation() {
     let labels = labels(&text);
     assert_eq!(labels.last().map(String::as_str), Some("DispatchRefresh"));
     let (r, _) = replay(&labels).expect("the properties hold on the kernel");
-    assert!(r.sim.issued.iter().any(|k| k.resource() == &p(SVC)), "dispatched");
+    assert!(
+        r.sim.issued.iter().any(|k| k.resource() == &p(SVC)),
+        "dispatched"
+    );
     assert_eq!(r.sim.snapshot.obligations().len(), 1, "and still owed");
 }
