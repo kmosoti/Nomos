@@ -69,27 +69,33 @@ fn group_resolution_matches_the_table() {
 }
 
 /// A vertex is Ready only when every `requires` edge is Satisfied (N4),
-/// every `after` edge is Satisfied, and its group is Empty or Activated; it
-/// is Skipped only when every edge is Satisfied and its group is Disabled;
-/// and it is Blocked exactly when a `requires` edge or its group is.
+/// every `after` edge is Satisfied, and its group is Empty or Activated, or
+/// Disabled with an Obligation owed; it is Skipped only when every edge is
+/// Satisfied, its group is Disabled, and nothing is owed; and it is Blocked
+/// exactly when a `requires` edge or its group is, owed or not.
 #[kani::proof]
 fn vertex_resolution_is_ready_only_when_startable_and_activated() {
     let requires: [EdgeState; 2] = kani::any();
     let after: [AfterState; 2] = kani::any();
     let group: GroupState = kani::any();
-    let resolution = resolve_vertex(&requires, &after, group);
+    let owed: bool = kani::any();
+    let resolution = resolve_vertex(&requires, &after, group, owed);
     let any_blocked = requires.contains(&EdgeState::Blocked) || group == GroupState::Blocked;
     let all_met = requires.iter().all(|e| *e == EdgeState::Satisfied)
         && after.iter().all(|e| *e == AfterState::Satisfied);
     assert_eq!(resolution == Resolution::Blocked, any_blocked);
     if resolution == Resolution::Ready {
         assert!(all_met);
-        assert!(matches!(group, GroupState::Empty | GroupState::Activated));
+        assert!(
+            matches!(group, GroupState::Empty | GroupState::Activated)
+                || (owed && group == GroupState::Disabled)
+        );
     }
     if resolution == Resolution::Skipped {
-        assert!(all_met && group == GroupState::Disabled);
+        assert!(all_met && group == GroupState::Disabled && !owed);
     }
     kani::cover!(resolution == Resolution::Ready);
+    kani::cover!(resolution == Resolution::Ready && group == GroupState::Disabled);
     kani::cover!(resolution == Resolution::Skipped);
     kani::cover!(resolution == Resolution::Waiting);
 }

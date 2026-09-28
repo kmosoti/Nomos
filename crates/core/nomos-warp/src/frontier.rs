@@ -214,11 +214,14 @@ pub fn resolve_group(sources: &[SourceState]) -> GroupState {
     }
 }
 
-/// The resolution of a pending vertex from its units.
+/// The resolution of a pending vertex from its units. An `owed` vertex has
+/// a pending Obligation, which is its reason to run, so a Disabled group
+/// makes it Ready instead of Skipped (ADR 0009 note).
 pub fn resolve_vertex(
     requires: &[EdgeState],
     after: &[AfterState],
     group: GroupState,
+    owed: bool,
 ) -> Resolution {
     if requires.contains(&EdgeState::Blocked) || group == GroupState::Blocked {
         Resolution::Blocked
@@ -227,7 +230,7 @@ pub fn resolve_vertex(
         || group == GroupState::Waiting
     {
         Resolution::Waiting
-    } else if group == GroupState::Disabled {
+    } else if group == GroupState::Disabled && !owed {
         Resolution::Skipped
     } else {
         Resolution::Ready
@@ -298,7 +301,12 @@ pub fn frontier(graph: &Graph, progress: &BTreeMap<ResourcePath, Progress>) -> F
                     .filter(|e| e.kind() == EdgeKind::OnChange)
                     .map(|e| source(e.source()))
                     .collect();
-                let resolution = resolve_vertex(&requires, &after, resolve_group(&group_sources));
+                let resolution = resolve_vertex(
+                    &requires,
+                    &after,
+                    resolve_group(&group_sources),
+                    vertex.is_owed(),
+                );
                 resolutions.insert(resource.clone(), resolution);
                 match resolution {
                     Resolution::Ready => {
@@ -449,41 +457,77 @@ mod tests {
         use EdgeState::{Blocked, Satisfied, Waiting};
         let after_met = AfterState::Satisfied;
         assert_eq!(
-            resolve_vertex(&[], &[], GroupState::Empty),
+            resolve_vertex(&[], &[], GroupState::Empty, false),
             Resolution::Ready
         );
         assert_eq!(
-            resolve_vertex(&[Satisfied], &[after_met], GroupState::Activated),
+            resolve_vertex(&[Satisfied], &[after_met], GroupState::Activated, false),
             Resolution::Ready
         );
         assert_eq!(
-            resolve_vertex(&[Blocked, Waiting], &[], GroupState::Waiting),
+            resolve_vertex(&[Blocked, Waiting], &[], GroupState::Waiting, false),
             Resolution::Blocked
         );
         assert_eq!(
-            resolve_vertex(&[Waiting], &[], GroupState::Disabled),
+            resolve_vertex(&[Waiting], &[], GroupState::Disabled, false),
             Resolution::Waiting
         );
         assert_eq!(
-            resolve_vertex(&[], &[AfterState::Waiting], GroupState::Activated),
+            resolve_vertex(&[], &[AfterState::Waiting], GroupState::Activated, false),
             Resolution::Waiting
         );
         assert_eq!(
-            resolve_vertex(&[Satisfied], &[], GroupState::Waiting),
+            resolve_vertex(&[Satisfied], &[], GroupState::Waiting, false),
             Resolution::Waiting
         );
         assert_eq!(
-            resolve_vertex(&[Satisfied], &[after_met], GroupState::Disabled),
+            resolve_vertex(&[Satisfied], &[after_met], GroupState::Disabled, false),
             Resolution::Skipped
         );
         assert_eq!(
-            resolve_vertex(&[Satisfied], &[after_met], GroupState::Blocked),
+            resolve_vertex(&[Satisfied], &[after_met], GroupState::Blocked, false),
             Resolution::Blocked
         );
         assert_eq!(
-            resolve_vertex(&[Waiting], &[AfterState::Waiting], GroupState::Blocked),
+            resolve_vertex(
+                &[Waiting],
+                &[AfterState::Waiting],
+                GroupState::Blocked,
+                false
+            ),
             Resolution::Blocked
         );
+    }
+
+    /// The owed rows of the vertex table (ADR 0009 note): an Obligation
+    /// replaces activation as the reason to run, and nothing else changes.
+    #[test]
+    fn an_owed_vertex_differs_only_where_its_group_is_disabled() {
+        use EdgeState::{Blocked, Satisfied, Waiting};
+        let requires_rows: [&[EdgeState]; 4] = [&[], &[Satisfied], &[Waiting], &[Blocked]];
+        let after_rows: [&[AfterState]; 3] =
+            [&[], &[AfterState::Satisfied], &[AfterState::Waiting]];
+        let groups = [
+            GroupState::Empty,
+            GroupState::Waiting,
+            GroupState::Activated,
+            GroupState::Disabled,
+            GroupState::Blocked,
+        ];
+        for requires in requires_rows {
+            for after in after_rows {
+                for group in groups {
+                    let plain = resolve_vertex(requires, after, group, false);
+                    let owed = resolve_vertex(requires, after, group, true);
+                    let expected = if plain == Resolution::Skipped {
+                        Resolution::Ready
+                    } else {
+                        plain
+                    };
+                    assert_eq!(owed, expected, "{requires:?} {after:?} {group:?}");
+                }
+            }
+        }
     }
 
     fn run(
@@ -495,6 +539,116 @@ mod tests {
         let progress: BTreeMap<ResourcePath, Progress> =
             progress.iter().map(|(p, s)| (r(p), *s)).collect();
         frontier(&graph, &progress)
+    }
+
+    fn owed(text: &str) -> Vertex {
+        Vertex::owed(r(text), BTreeSet::new())
+    }
+
+    /// Semantic mutant `SM-WARP-006`. The run after a crash sees the
+    /// configuration Satisfied, so its trigger is an unchanged anchor and
+    /// the group is Disabled; the pending Obligation makes the refresh Ready,
+    /// and its `requires` dependent waits for it rather than being Skipped
+    /// past it.
+    #[test]
+    fn an_owed_refresh_runs_when_its_group_is_disabled() {
+        let f = run(
+            vec![Vertex::anchor(r("/conf")), owed("/svc"), action("/check")],
+            vec![
+                edge("/conf", "/svc", EdgeKind::OnChange),
+                edge("/svc", "/check", EdgeKind::Requires),
+            ],
+            &[],
+        );
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Ready));
+        assert_eq!(f.resolution(&r("/check")), Some(Resolution::Waiting));
+        assert_eq!(f.ready(), [r("/svc")]);
+        // The same refresh without the Obligation had no reason to run.
+        let f = run(
+            vec![Vertex::anchor(r("/conf")), action("/svc")],
+            vec![edge("/conf", "/svc", EdgeKind::OnChange)],
+            &[],
+        );
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Skipped));
+    }
+
+    /// An owed refresh still waits for its trigger and is still Blocked by
+    /// one that is not met: the Obligation is a reason to run, not
+    /// permission to load a failed input.
+    #[test]
+    fn an_owed_refresh_waits_for_and_is_blocked_by_its_trigger() {
+        let vertices = || vec![action("/conf"), owed("/svc")];
+        let edges = || vec![edge("/conf", "/svc", EdgeKind::OnChange)];
+        let f = run(vertices(), edges(), &[]);
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Waiting));
+        let f = run(vertices(), edges(), &[("/conf", Progress::Running)]);
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Waiting));
+        for outcome in [
+            Outcome::Failed,
+            Outcome::TimedOut,
+            Outcome::Cancelled,
+            Outcome::Rejected,
+        ] {
+            let f = run(vertices(), edges(), &[("/conf", Progress::Done(outcome))]);
+            assert_eq!(
+                f.resolution(&r("/svc")),
+                Some(Resolution::Blocked),
+                "{outcome:?}"
+            );
+        }
+        let f = run(
+            vec![Vertex::indeterminate_anchor(r("/conf")), owed("/svc")],
+            edges(),
+            &[],
+        );
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Blocked));
+    }
+
+    /// The run that repairs the failed trigger: the write succeeds, whether
+    /// or not it changes the file this time, and the refresh the Obligation
+    /// still owes is Ready.
+    #[test]
+    fn a_blocked_refresh_runs_once_its_trigger_is_repaired() {
+        let blocked = run(
+            vec![action("/conf"), action("/svc")],
+            vec![edge("/conf", "/svc", EdgeKind::OnChange)],
+            &[("/conf", Progress::Done(Outcome::Failed))],
+        );
+        assert_eq!(blocked.resolution(&r("/svc")), Some(Resolution::Blocked));
+        for changed in [true, false] {
+            let repaired = run(
+                vec![action("/conf"), owed("/svc")],
+                vec![edge("/conf", "/svc", EdgeKind::OnChange)],
+                &[("/conf", Progress::Done(Outcome::Succeeded { changed }))],
+            );
+            assert_eq!(
+                repaired.resolution(&r("/svc")),
+                Some(Resolution::Ready),
+                "changed: {changed}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_an_action_disrupts() {
+        let nodes: BTreeSet<crate::budget::Node> = [crate::budget::Node::new("n").unwrap()]
+            .into_iter()
+            .collect();
+        assert_eq!(action("/a").disrupting(nodes.clone()).disrupts(), &nodes);
+        assert!(
+            Vertex::anchor(r("/a"))
+                .disrupting(nodes.clone())
+                .disrupts()
+                .is_empty()
+        );
+        assert!(
+            Vertex::indeterminate_anchor(r("/a"))
+                .disrupting(nodes)
+                .disrupts()
+                .is_empty()
+        );
+        assert!(owed("/a").is_owed());
+        assert!(!action("/a").is_owed());
     }
 
     /// N4 (semantic mutant `SM-WARP-001`).
