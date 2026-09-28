@@ -6,7 +6,7 @@ Guidance for automated coding agents in this repository. It applies to any agent
 
 Nomos is a host-state convergence and fleet-control system for Linux, written in Rust. It compares desired state (Canon) with observed state, computes the Variance, plans Actions as a dependency graph (Warp), applies them through the OS boundary (Substrate), verifies the result, and records Events.
 
-The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it.
+The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next step is the Phase 0 grounding phase in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its experiments is such an ask, for the crates that experiment names.
 
 ## Source of Truth
 
@@ -17,6 +17,7 @@ The repository is at the **skeleton stage**. Crates contain module docs only. Do
 | Runtime behavior | `docs/architecture/runtime.md` |
 | Algorithms and proof obligations | `docs/formal/` |
 | Past decisions | `docs/adr/` |
+| Research findings, grounding experiments, and their results | `docs/research/` |
 | Prose style | `docs/style/prose-spec.yaml`, `docs/style/README.md` |
 
 If a task conflicts with these documents, stop and report the conflict. Do not silently diverge.
@@ -57,6 +58,7 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 7. **Determinism.** Nothing that feeds compilation or planning may depend on hash iteration order, randomness, or wall-clock time.
 8. **No `unsafe`.** Workspace lints forbid it.
 9. **Leave the pinned toolchain, the license, and CI alone** unless asked.
+10. **Never weaken a specification to pass a check.** A test, proof, or model that passes because a postcondition was loosened, an `assume`, `admit`, or axiom was added, a test was ignored, or code was moved out of the verifier's view proves nothing. Such changes are trust-boundary changes: make them in their own commit, say what they weaken, and report verifier output as it is. Research snapshots under `docs/research/` are evidence and are never edited; a revision is a new dated snapshot.
 
 ## Documentation Conventions
 
