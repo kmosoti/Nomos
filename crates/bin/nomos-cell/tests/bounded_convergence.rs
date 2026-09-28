@@ -198,4 +198,9 @@ fn converged_holds_nothing() {
     assert_eq!(sim.run(), RunOutcome::Converged);
     assert!(sim.snapshot.effects().is_empty());
     assert!(sim.snapshot.obligations().is_empty());
+    assert_eq!(
+        sim.snapshot.released().len(),
+        2,
+        "the write and the refresh"
+    );
 }

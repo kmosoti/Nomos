@@ -260,3 +260,188 @@ fn recovery_times_out_what_was_in_flight() {
     assert_eq!(recovered.snapshot.obligations().len(), 1, "kept");
     assert_eq!(recovered.snapshot.effects().len(), 1, "still reserved");
 }
+
+// ---------------------------------------------------------------------------
+// Tests the mutation run of the transition kernel found missing.
+
+/// The first two inputs of a run: the Plan, then a fresh observation that
+/// finds the file drifted and the service running, which dispatches the
+/// write at `at`.
+fn dispatched(at: u64) -> (KernelSnapshot, nomos_core::effect::EffectKey) {
+    let (snapshot, log, _) = script(vec![
+        Input::Tick(Instant(at)),
+        Input::Enforce(plan("a", 1)),
+        Input::Observed(vec![seen("/etc/c", d(1), at), seen("/run/s", d(0), at)]),
+    ]);
+    let key = log
+        .iter()
+        .find_map(|e| match e {
+            Event::EffectRequested { key, .. } => Some(key.clone()),
+            _ => None,
+        })
+        .unwrap();
+    (snapshot, key)
+}
+
+fn stage_of(snapshot: &KernelSnapshot, path: &str) -> Option<nomos_core::action::Stage> {
+    snapshot.round().map(|r| r.actions[&p(path)].stage.clone())
+}
+
+/// An Observation collected before the run asked for one says nothing
+/// about the host now, even if it arrives late.
+#[test]
+fn a_stale_observation_decides_nothing() {
+    let (accepted, _, _) = script(vec![Input::Tick(Instant(5)), Input::Enforce(plan("a", 1))]);
+    let stale = step(
+        &accepted,
+        Input::Observed(vec![seen("/etc/c", d(1), 4), seen("/run/s", d(0), 4)]),
+    );
+    assert_eq!(stale.snapshot, accepted);
+    let fresh = step(
+        &accepted,
+        Input::Observed(vec![seen("/etc/c", d(1), 5), seen("/run/s", d(0), 5)]),
+    );
+    assert!(fresh.snapshot.round().is_some());
+}
+
+/// An observation that leaves a managed resource out decides nothing.
+#[test]
+fn a_partial_observation_decides_nothing() {
+    let (accepted, _, _) = script(vec![Input::Enforce(plan("a", 1))]);
+    let partial = step(&accepted, Input::Observed(vec![seen("/etc/c", d(1), 0)]));
+    assert_eq!(partial.snapshot, accepted);
+}
+
+/// An acceptance settles nothing, and an Action accepted and never heard
+/// from again still times out, with its effect unsettled and reserved.
+#[test]
+fn an_accepted_action_still_times_out_and_stays_reserved() {
+    let (snapshot, key) = dispatched(0);
+    let accepted = step(&snapshot, Input::Receipt(key.clone(), Receipt::Accepted));
+    assert!(!accepted.snapshot.effects()[&key].settlement.is_settled());
+    let late = step(&accepted.snapshot, Input::Tick(Instant(6)));
+    assert!(late.events.contains(&Event::ActionAdvanced {
+        resource: p("/etc/c"),
+        stage: nomos_core::action::Stage::TimedOut,
+        deadline: None,
+    }));
+    assert!(!late.snapshot.effects()[&key].settlement.is_settled());
+}
+
+/// A receipt that arrives after the timeout settles the effect, and the
+/// record says so rather than calling it ignored.
+#[test]
+fn a_late_receipt_settles_and_is_not_ignored() {
+    let (snapshot, key) = dispatched(0);
+    let timed_out = step(&snapshot, Input::Tick(Instant(6)));
+    let late = step(
+        &timed_out.snapshot,
+        Input::Receipt(key.clone(), Receipt::Completed { changed: true }),
+    );
+    assert!(late.events.contains(&Event::EffectSettled {
+        key: key.clone(),
+        by: nomos_core::effect::SettledBy::Receipt,
+    }));
+    assert!(
+        !late
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::ReceiptIgnored { .. }))
+    );
+}
+
+/// Verification has its own deadline, counted from the completion: an
+/// effect completed just before its receipt deadline can still be verified
+/// after that deadline.
+#[test]
+fn verification_has_its_own_deadline() {
+    let (snapshot, key) = dispatched(0);
+    let at_four = step(&snapshot, Input::Tick(Instant(4)));
+    let completed = step(
+        &at_four.snapshot,
+        Input::Receipt(key, Receipt::Completed { changed: true }),
+    );
+    let at_six = step(&completed.snapshot, Input::Tick(Instant(6)));
+    assert!(matches!(
+        stage_of(&at_six.snapshot, "/etc/c"),
+        Some(nomos_core::action::Stage::Verifying { .. })
+    ));
+    let verified = step(
+        &at_six.snapshot,
+        Input::Observed(vec![seen("/etc/c", d(2), 6)]),
+    );
+    assert!(verified.events.iter().any(|e| matches!(
+        e,
+        Event::ActionAdvanced {
+            stage: nomos_core::action::Stage::Succeeded { .. },
+            ..
+        }
+    )));
+}
+
+/// A restart loses the verification in flight, not the effect: an Action
+/// that was Verifying is observed again.
+#[test]
+fn recovery_observes_again_what_was_verifying() {
+    let (snapshot, key) = dispatched(0);
+    let completed = step(
+        &snapshot,
+        Input::Receipt(key, Receipt::Completed { changed: true }),
+    );
+    let recovered = step(&completed.snapshot, Input::Recovered);
+    assert!(
+        recovered
+            .effects
+            .contains(&EffectRequest::Observe(vec![p("/etc/c")]))
+    );
+    assert!(matches!(
+        stage_of(&recovered.snapshot, "/etc/c"),
+        Some(nomos_core::action::Stage::Verifying { .. })
+    ));
+}
+
+/// The refresh reads the file its `on_change` source writes, so its
+/// reservation holds the file's key as well as its own (ADR 0009 note).
+#[test]
+fn a_refresh_holds_the_keys_of_what_it_reads() {
+    let key = |k: &str| nomos_warp::graph::ConflictKey::new(k).unwrap();
+    let mut keyed = plan("a", 1);
+    let mut conf = managed("/etc/c", Kind::File, Content::Exactly(d(2)));
+    conf.keys = [key("file:c")].into_iter().collect();
+    let mut svc = managed("/run/s", Kind::Service, Content::Any);
+    svc.keys = [key("svc")].into_iter().collect();
+    keyed.canon = Canon::new(
+        vec![conf, svc],
+        vec![Edge::new(p("/etc/c"), p("/run/s"), EdgeKind::OnChange)],
+    );
+    let (snapshot, log, _) = script(vec![
+        Input::Enforce(keyed),
+        Input::Observed(vec![seen("/etc/c", d(1), 0), seen("/run/s", d(0), 0)]),
+    ]);
+    let write = log
+        .iter()
+        .find_map(|e| match e {
+            Event::EffectRequested { key, .. } => Some(key.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let completed = step(
+        &snapshot,
+        Input::Receipt(write, Receipt::Completed { changed: true }),
+    );
+    let verified = step(
+        &completed.snapshot,
+        Input::Observed(vec![seen("/etc/c", d(2), 0)]),
+    );
+    let refresh = verified
+        .events
+        .iter()
+        .find_map(|e| match e {
+            Event::EffectRequested { key, record } if key.resource() == &p("/run/s") => {
+                Some(record.keys.clone())
+            }
+            _ => None,
+        })
+        .expect("the refresh was dispatched");
+    assert_eq!(refresh, [key("file:c"), key("svc")].into_iter().collect());
+}

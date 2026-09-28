@@ -175,6 +175,7 @@ mod tests {
         assert_eq!(alloc::format!("{n:?}"), "Node(rack-1)");
         assert!(Node::new("").is_none());
         assert_eq!(rack().limit(), 1);
+        assert_eq!(Budget::new(nodes(&["a"]), 3).limit(), 3);
         assert_eq!(rack().members().len(), 3);
         assert_eq!(
             Budgets::new(vec_of(rack()), nodes(&[]), true)

@@ -242,6 +242,7 @@ mod tests {
         assert_ne!(first, later);
         assert_eq!(first.plan(), &plan);
         assert_eq!(first.generation(), Generation(1));
+        assert_eq!(first.iteration(), 0);
         assert_eq!(second.iteration(), 1);
         assert_eq!(first.resource().as_str(), "/etc/app.conf");
     }
