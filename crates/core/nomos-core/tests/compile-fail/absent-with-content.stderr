@@ -1,0 +1,7 @@
+error[E0559]: variant `FileCondition::Absent` has no field named `content`
+ --> tests/compile-fail/absent-with-content.rs:5:37
+  |
+5 |     let _ = FileCondition::Absent { content: Content::Any };
+  |                                     ^^^^^^^ `FileCondition::Absent` does not have this field
+  |
+  = note: all struct fields are already assigned
