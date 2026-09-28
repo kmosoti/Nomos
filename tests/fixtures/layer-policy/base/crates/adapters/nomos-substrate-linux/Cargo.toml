@@ -1,0 +1,10 @@
+# Allowed: adapter -> core and the port it implements.
+[package]
+name = "nomos-substrate-linux"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }

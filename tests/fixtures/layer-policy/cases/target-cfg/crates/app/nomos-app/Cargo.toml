@@ -1,0 +1,15 @@
+# Case target-cfg: forbidden app -> adapter, only on unix targets.
+[package]
+name = "nomos-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-canon = { path = "../../core/nomos-canon" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
+nomos-cipher = { path = "../../ports/nomos-cipher" }
+
+[target.'cfg(unix)'.dependencies]
+nomos-cipher-vault = { path = "../../adapters/nomos-cipher-vault" }

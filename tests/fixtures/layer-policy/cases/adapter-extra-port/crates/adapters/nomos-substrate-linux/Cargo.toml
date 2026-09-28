@@ -1,0 +1,11 @@
+# Case adapter-extra-port: forbidden: an adapter depends on a second port.
+[package]
+name = "nomos-substrate-linux"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
+nomos-cipher = { path = "../../ports/nomos-cipher" }

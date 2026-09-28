@@ -1,0 +1,11 @@
+# Allowed: bin -> app and adapters.
+[package]
+name = "nomos-cell"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-app = { path = "../../app/nomos-app" }
+nomos-substrate-linux = { path = "../../adapters/nomos-substrate-linux" }
+nomos-cipher-vault = { path = "../../adapters/nomos-cipher-vault" }

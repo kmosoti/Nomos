@@ -1,0 +1,10 @@
+# Case direct-core-adapter: forbidden core -> adapter, direct.
+[package]
+name = "nomos-canon"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../nomos-core" }
+nomos-substrate-linux = { path = "../../adapters/nomos-substrate-linux" }

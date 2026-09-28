@@ -18,7 +18,9 @@
 //! - `research frozen --base <ref>`: fail if an accepted snapshot changed
 //!   relative to the merge base with `<ref>`.
 //! - `check-layers [--manifest-path <Cargo.toml>]`: the dependency-policy
-//!   check of ADR 0000 over the declared and resolved graphs.
+//!   check of ADR 0000 over the declared and resolved graphs. Prints the
+//!   report as JSON and one `FORBIDDEN` line per violation, with its stable
+//!   rule code, both packages, both layers, and the dependency kind.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -138,6 +140,9 @@ fn check_layers(rest: &[&str]) -> Result<(), String> {
     })?;
     let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
     print!("{rendered}");
+    for violation in report.violations() {
+        eprintln!("FORBIDDEN {violation}");
+    }
     if report.violations().is_empty() {
         Ok(())
     } else {

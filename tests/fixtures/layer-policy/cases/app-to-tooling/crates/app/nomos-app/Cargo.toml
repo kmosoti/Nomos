@@ -1,0 +1,13 @@
+# Case app-to-tooling: forbidden: a production crate depends on the tooling crate.
+[package]
+name = "nomos-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-canon = { path = "../../core/nomos-canon" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
+nomos-cipher = { path = "../../ports/nomos-cipher" }
+nomos-xtask = { path = "../../bin/nomos-xtask" }

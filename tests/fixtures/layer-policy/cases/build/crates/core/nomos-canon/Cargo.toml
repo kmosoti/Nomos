@@ -1,0 +1,12 @@
+# Case build: forbidden core -> adapter as a build dependency. Policy: no exemption by kind.
+[package]
+name = "nomos-canon"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../nomos-core" }
+
+[build-dependencies]
+nomos-substrate-linux = { path = "../../adapters/nomos-substrate-linux" }

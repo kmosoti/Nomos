@@ -1,0 +1,10 @@
+# Case renamed: forbidden core -> adapter under an alias; the package is what counts.
+[package]
+name = "nomos-canon"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../nomos-core" }
+linux_backend = { package = "nomos-substrate-linux", path = "../../adapters/nomos-substrate-linux" }

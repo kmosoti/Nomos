@@ -1,0 +1,8 @@
+[package]
+name = "nomos-cipher"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }

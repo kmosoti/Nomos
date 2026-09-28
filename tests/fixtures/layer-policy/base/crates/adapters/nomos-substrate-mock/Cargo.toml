@@ -1,0 +1,9 @@
+[package]
+name = "nomos-substrate-mock"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
