@@ -39,7 +39,7 @@ flowchart LR
     bin --> adapters["crates/adapters/<br/>nomos-&lt;port&gt;-&lt;technology&gt;"]
     app --> core["crates/core/<br/>domain"]
     app --> ports["crates/ports/<br/>contracts"]
-    adapters -. implements .-> ports
+    adapters -.-> ports
     ports --> core
 ```
 
@@ -70,6 +70,11 @@ flowchart LR
 - **Diagrams are Mermaid only.** GitHub renders Mermaid. ASCII art and
   box-drawing diagrams break across fonts and viewers, so don't add them.
   Use fenced code blocks only for code, commands, pseudocode and sample output.
+- **No labels on Mermaid arrows or state transitions.** GitHub's renderer can
+  fail on labelled arrows (`A -- text --> B`, `A -->|text| B`, `S1 --> S2: text`)
+  with "Could not find a suitable point for the given distance". Put the text in
+  the node, route the arrow through a small label node (`A --> L(["text"]) --> B`),
+  or explain the transitions in a table under the diagram.
 - Mathematical statements use GitHub math (`$...$`, `$$...$$`).
 - Algorithms and proofs go in `docs/formal/`. Machine-checked TLA+ models go in `formal/tla/`.
 - Decisions go in `docs/adr/`, numbered sequentially. Use the Status, Date,

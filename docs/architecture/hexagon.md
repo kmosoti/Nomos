@@ -37,9 +37,9 @@ flowchart TB
     napp --> ports
     ports --> ncore
     canon & warp --> ncore
-    alinux & amock -. implements .-> psub
-    avault -. implements .-> pcip
-    ahs -. implements .-> pmesh
+    alinux & amock -.-> psub
+    avault -.-> pcip
+    ahs -.-> pmesh
     cell --> alinux & avault & ahs
     loom --> avault & ahs
 ```

@@ -40,12 +40,12 @@ flowchart TB
     N["<b>NOMOS</b><br/>ordering and protocol"]
     L["<b>LOOM</b><br/>coordinator / compiler"]
     C["<b>CELL</b><br/>node executor"]
-    W["<b>WARP</b><br/>dependency graph"]
-    S["<b>SUBSTRATE</b><br/>operating-system layer"]
+    W["<b>WARP</b><br/>dependency graph<br/><i>Loom compiles through it</i>"]
+    S["<b>SUBSTRATE</b><br/>operating-system layer<br/><i>Cell operates through it</i>"]
     N --> L
     N --> C
-    L -- compiles --> W
-    C -- operates through --> S
+    L --> W
+    C --> S
 ```
 
 ### Nomos (`nomos`)
@@ -596,7 +596,7 @@ The Cell is effectively a remote root-management system. It should be privilege-
 ```mermaid
 flowchart TB
     N(("network")) --> U["unprivileged Cell"]
-    U -- "typed local IPC" --> P["privileged executor"]
+    U --> IPC(["typed local IPC"]) --> P["privileged executor"]
     P --> S["Substrate"]
 ```
 

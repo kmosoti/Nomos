@@ -75,6 +75,9 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root
 
 - Diagrams are **Mermaid only**, and must render on GitHub. Never use ASCII or
   box-drawing art.
+- Never put labels on Mermaid arrows or state transitions (`-- text -->`,
+  `-->|text|`, `S1 --> S2: text`). They fail to render on GitHub. Put the text
+  in a node or a label node (`A --> L(["text"]) --> B`) instead.
 - Math uses GitHub math syntax (`$...$`, `$$...$$`).
 - The README is narrative. Technical detail goes under `docs/`.
 - Update the relevant docs and index tables in the same change.

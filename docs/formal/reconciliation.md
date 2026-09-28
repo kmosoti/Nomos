@@ -51,12 +51,12 @@ Trace is the same procedure with `execute` removed and the loop run once
 ```mermaid
 flowchart LR
     O["observe"] --> D{"V = ∅?"}
-    D -- yes --> C(["Converged"])
-    D -- no --> Hs{"H(O) seen?"}
-    Hs -- yes --> N1(["NonConvergent: oscillation"])
-    Hs -- no --> P["plan + Warp"] --> X["execute + verify"] --> B{"i < k?"}
-    B -- yes --> O
-    B -- no --> N2(["NonConvergent: bound"])
+    D --> C(["yes<br/>Converged"])
+    D --> Hs{"no<br/>H(O) seen?"}
+    Hs --> N1(["seen<br/>NonConvergent: oscillation"])
+    Hs --> P["new state<br/>plan + Warp"] --> X["execute + verify"] --> B{"i < k?"}
+    B --> Loop["i < k<br/>next iteration"] --> O
+    B --> N2(["i = k<br/>NonConvergent: bound"])
 ```
 
 ## Fixed point (N3)

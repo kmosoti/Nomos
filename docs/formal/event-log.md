@@ -56,7 +56,7 @@ flowchart LR
     subgraph Cell
         C1["e7 ActionAccepted"] --> C2["e8 ActionSucceeded"]
     end
-    L2 -. causation_id .-> C1
+    L2 -.-> CID(["causation_id"]) -.-> C1
 ```
 
 ## Delivery to Loom

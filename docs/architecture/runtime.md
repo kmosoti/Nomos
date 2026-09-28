@@ -22,11 +22,11 @@ Trace is Enforce with the execution stage removed. It is not a separate
 ```mermaid
 flowchart LR
     C[/"Canon"/] --> Parse --> Observe --> Diff["Variance"] --> Compile["Warp → Plan"]
-    Compile -->|Trace| Report(["Variance report<br/>no mutation"])
-    Compile -->|Enforce| Execute["Execute Actions"] --> Verify --> Observe2["Observe again"]
-    Observe2 -->|"Variance = ∅"| Converged(["converged"])
-    Observe2 -->|"Variance ≠ ∅, within bound"| Compile
-    Observe2 -->|"bound exceeded / oscillation"| NC(["non-convergence"])
+    Compile --> Report(["Trace: Variance report<br/>no mutation"])
+    Compile --> Execute["Enforce: execute Actions"] --> Verify --> Observe2{"Observe again"}
+    Observe2 --> Converged(["Variance = ∅<br/>converged"])
+    Observe2 --> Again["Variance ≠ ∅, within bound<br/>compile again"] --> Compile
+    Observe2 --> NC(["bound exceeded or oscillation<br/>non-convergence"])
 ```
 
 ## Action lifecycle
@@ -36,22 +36,29 @@ stateDiagram-v2
     [*] --> Prepared
     Prepared --> Dispatched
     Dispatched --> Accepted
-    Dispatched --> Rejected: stale generation / unauthorized
+    Dispatched --> Rejected
     Accepted --> Running
     Running --> Verifying
-    Verifying --> Succeeded: postcondition observed
-    Verifying --> Failed: postcondition not observed
+    Verifying --> Succeeded
+    Verifying --> Failed
     Running --> Failed
     Running --> TimedOut
     Prepared --> Cancelled
     Dispatched --> Cancelled
     Accepted --> Cancelled
-    TimedOut --> [*]: outcome unknown, re-observe
+    TimedOut --> [*]
     Succeeded --> [*]
     Failed --> [*]
     Rejected --> [*]
     Cancelled --> [*]
 ```
+
+| Transition | Condition |
+|---|---|
+| `Dispatched → Rejected` | stale generation or unauthorized |
+| `Verifying → Succeeded` | postcondition observed |
+| `Verifying → Failed` | postcondition not observed |
+| `TimedOut → end` | outcome unknown; state is re-observed |
 
 `TimedOut` does not mean the Action failed. The remote side may have completed
 it. The outcome is recorded as unknown and settled by re-observing
@@ -76,7 +83,7 @@ Planned privilege separation (spec §33, Phase 5):
 ```mermaid
 flowchart TB
     net(("network")) --> cell["unprivileged Cell<br/>parsing · protocol · networking"]
-    cell -- "typed local IPC<br/>Unix socket + peer credentials" --> priv["privileged executor"]
+    cell --> ipc(["typed local IPC<br/>Unix socket + peer credentials"]) --> priv["privileged executor"]
     priv --> sub["Substrate"]
 ```
 
@@ -126,6 +133,6 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     E["evaluate<br/>@ generation g"] --> P["Plan<br/>expected_generation = g"] --> V{"generation<br/>still g?"}
-    V -->|yes| X["execute"]
-    V -->|no| R["reject stale Plan"] --> O["observe again"] --> E
+    V --> X["still g<br/>execute"]
+    V --> R["changed<br/>reject stale Plan"] --> O["observe again"] --> E
 ```

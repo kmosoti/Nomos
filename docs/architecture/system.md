@@ -10,14 +10,14 @@ flowchart TB
     N["<b>Nomos</b><br/>semantics · protocol · schemas"]
     L["<b>Loom</b><br/>fleet coordinator / compiler"]
     C["<b>Cell</b><br/>node-resident executor"]
-    W["<b>Warp</b><br/>dependency &amp; execution graph"]
-    S["<b>Substrate</b><br/>operating-system boundary"]
+    W["<b>Warp</b><br/>dependency &amp; execution graph<br/><i>Loom compiles through it</i>"]
+    S["<b>Substrate</b><br/>operating-system boundary<br/><i>Cell operates through it</i>"]
 
     N --- L
     N --- C
-    L -- compiles through --> W
-    C -- operates through --> S
-    L <-- "outbound authenticated stream<br/>(Cell initiates)" --> C
+    L --> W
+    C --> S
+    C --> Stream(["outbound authenticated stream<br/>Cell initiates"]) --> L
 ```
 
 | Component | Binary / crate | Role |
@@ -41,8 +41,8 @@ flowchart TB
     Traits --> Loom
     Var --> Loom
 
-    Cell -. every transition .-> Ev[("Event Log")]
-    Loom -. every transition .-> Ev
+    Cell -.-> Ev[("Event Log<br/>every transition")]
+    Loom -.-> Ev
 ```
 
 A Cell runs the same loop locally, with no Loom involved:
@@ -50,8 +50,8 @@ A Cell runs the same loop locally, with no Loom involved:
 ```mermaid
 flowchart LR
     Canon[/"local Canon"/] --> Observe --> Diff["Variance"]
-    Diff -- "∅" --> Done(["converged"])
-    Diff -- "≠ ∅" --> Plan["Warp → Plan"] --> Apply --> Verify --> Observe
+    Diff --> Done(["Variance = ∅<br/>converged"])
+    Diff --> Plan["Variance ≠ ∅<br/>Warp → Plan"] --> Apply --> Verify --> Observe
 ```
 
 ## Deployment topology (v0)
@@ -64,19 +64,19 @@ resolve at the point of use through the Cipher port (Vault,
 ```mermaid
 flowchart LR
     subgraph Control["control plane"]
-        Loom["nomos-loom"]
-        HS["Headscale"]
-        Vault["Vault"]
+        Loom["nomos-loom<br/>Cells connect outbound over the tailnet"]
+        HS["Headscale<br/>Cells enroll"]
+        Vault["Vault<br/>Cipher resolved at use"]
     end
     subgraph Hosts["Debian hosts"]
         C1["nomos-cell"]
         C2["nomos-cell"]
         C3["nomos-cell"]
     end
-    C1 & C2 & C3 -- enroll --> HS
-    C1 & C2 & C3 -- "outbound stream (tailnet)" --> Loom
-    C1 & C2 & C3 -- "resolve Cipher at use" --> Vault
-    Loom -. "Nomos Events (integration)" .-> F["FabricO11y"]
+    C1 & C2 & C3 --> HS
+    C1 & C2 & C3 --> Loom
+    C1 & C2 & C3 --> Vault
+    Loom -.-> F["FabricO11y<br/>receives Nomos Events"]
 ```
 
 ## Place in Moiric
@@ -86,7 +86,7 @@ flowchart LR
     F["<b>FabricO11y</b><br/>What is happening?"]
     N["<b>Nomos</b><br/>What should be happening,<br/>and how do we safely get there?"]
     M["<b>Metron</b><br/>Within what boundaries<br/>may computation happen?"]
-    N -- "operational Events" --> F
+    N --> E(["operational Events"]) --> F
 ```
 
 They are independent systems with narrow integration surfaces.
