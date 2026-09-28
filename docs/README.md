@@ -22,3 +22,5 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt    --all --check
 cargo test   --workspace
 ```
+
+Development tooling runs as `cargo xtask <command>` ([ADR 0003](adr/0003-xtask-tooling-crate.md)). `cargo xtask research verify docs/research/<snapshot>/snapshot` verifies a research snapshot.

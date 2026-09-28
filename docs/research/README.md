@@ -17,11 +17,13 @@ Each snapshot is one directory named by date and topic.
 | `grounding-plan.md` | The experiments to run before the affected semantics are frozen, in dependency order | Yes, until the phase closes |
 | `results/` | One record per executed experiment: toolchain, bounds, what was and was not established, and the decision it feeds | Append only |
 
-Verify a snapshot before trusting it:
+Verify a snapshot before trusting it. The command checks the manifest, parses the graph strictly, runs the referential checks and negative controls, and validates every record against the snapshot's schema ([ADR 0003](../adr/0003-xtask-tooling-crate.md)):
 
 ```sh
-cd docs/research/<snapshot>/snapshot && sha256sum -c MANIFEST.sha256
+cargo xtask research verify docs/research/<snapshot>/snapshot
 ```
+
+`cargo test --workspace` runs the same checks, so a snapshot that stops verifying fails the build.
 
 The snapshot directories are excluded from the prose and Markdown linters. Their text is evidence, and editing evidence to satisfy a style rule would falsify the checksums.
 
@@ -30,6 +32,7 @@ The snapshot directories are excluded from the prose and Markdown linters. Their
 The 2026-09-28 bundle is a property graph in newline-delimited JSON (NDJSON), one record per line, with a JSON Schema and a validator beside it. Later snapshots may use other formats; the rules below apply to all of them.
 
 - **Weights are editorial.** An importance or salience score is a reviewer's ordinal judgment, useful for deciding what to read first. It is not evidence, probability, or a benchmark result.
+- **Review order is a command away.** `cargo xtask research list docs/research/<snapshot>/snapshot` prints the recommendations by salience, then importance, with disposition and phase.
 - **Disposition decides what a recommendation is for.** `adopt_direction` is a proposal to build toward. `trial` and `research_required` are questions with a suggested experiment. `defer_until_measured` is explicitly not a current dependency. A high score with the wrong disposition is not an instruction.
 - **Proposed is not executed.** An experiment node describes a test. Its `execution_status` says whether the test ran. Until a record exists under `results/`, nothing in a snapshot has been demonstrated on Nomos code.
 - **Vocabulary stays the specification's.** A snapshot may coin terms to make an argument. The repository documents use spec §3 vocabulary, and a new term enters the vocabulary only through an ADR.

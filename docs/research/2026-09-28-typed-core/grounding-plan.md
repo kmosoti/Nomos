@@ -13,8 +13,8 @@ The phase produces the first real code in the crates. AGENTS.md's skeleton rule 
 ## Rules
 
 - **Design before code.** Each experiment carries a hypothesis, a rival hypothesis, a procedure, measurements, and a decision rule. They are in the graph and repeated in the cards below. Code that does not serve one of them is not part of the phase.
-- **Negative controls.** Each experiment includes at least one case the draft semantics fail. A negative control that passes against the draft means the test is not testing. The seven bundle counterexamples are the first negative controls; each is ported to a Rust test in the crate whose semantics it concerns.
-- **Result records.** An experiment ends with `results/<experiment>.md`: toolchain and crate versions, the bounds and seeds used, what was established, what was not, and the decision it feeds. A record is written after the run, never before. No cell in a verification matrix says *passed* for planned work.
+- **Negative controls.** Each experiment includes at least one case the draft semantics fail. A negative control that passes against the draft means the test is not testing. The seven bundle counterexamples are the first negative controls. They exist today as models in `nomos-xtask`; each is ported to a test in the crate whose semantics it concerns once that crate has the semantics.
+- **Result records.** An experiment ends with `results/<experiment>.md`: toolchain and crate versions, the bounds and seeds used, what was established, what was not, and the decision it feeds. Anything that regenerates a record is a `cargo xtask` command or a Rust test (ADR 0003), never a script. A record is written after the run, never before. No cell in a verification matrix says *passed* for planned work.
 - **Determinism applies to harnesses.** Property tests record their seeds. Generated graphs and fixtures are reproducible from a seed and a version. A flaky harness is a finding about the harness, not noise.
 - **Vocabulary and invariants.** Code and documents use spec §3 terms. An experiment that touches an invariant N1–N12 adds the test for it (AGENTS.md rule 4). A new term or a changed invariant is an ADR, not a commit message.
 - **ADR layout.** ADRs keep the repository layout: Status, Date, Context, Decision, Consequences. The candidate's extra sections (Assumptions, Alternatives, Evidence, Verification, Revisit trigger) become subsections of Decision and Consequences, so that an ADR born from an experiment says what was measured and when to look again.
@@ -48,7 +48,7 @@ Waves 2 and 3 are independent of each other and can run in parallel once wave 1 
 
 | Wave | Experiments | Crates | Feeds |
 | --- | --- | --- | --- |
-| 0 | `layer-policy`, `agent-proof-gate`, verification matrix | none new to the domain; one tooling crate, see the card | ADR `verification-gates` |
+| 0 | `layer-policy`, `agent-proof-gate`, verification matrix | `nomos-xtask` | ADR `verification-gates` |
 | 1 | `assessment-algebra`, `warp-truth-table`, `bounded-convergence` | `nomos-core`, `nomos-warp`, `nomos-app`, `nomos-substrate-mock` | ADRs `evidence-model`, `warp-gates` |
 | 2 | `effect-recovery`, `refresh-recovery`, `scheduler-admission` | `nomos-core`, `nomos-warp`, `nomos-app`, `nomos-substrate-mock` | ADRs `recovery-authority`, `warp-gates` |
 | 3 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `nomos-canon`, `nomos-core` | ADR `canon-artifact` |
@@ -62,7 +62,7 @@ Nothing here decides a domain question. It builds the things that make the later
 
 - **Question.** Does a check over `cargo metadata` reject a forbidden workspace edge, including one hidden behind a feature or a target-specific dependency?
 - **Rival.** Conditional dependencies escape the check, and ordinary compilation is mistaken for policy conformance.
-- **Harness.** A tooling binary in `crates/bin/` (the conventional `xtask` shape; `bin/` may depend on anything, and the crate needs an ADR under rule 2, which `verification-gates` supplies) that reads the resolved graph for each supported feature and target set and checks every edge against the table in ADR 0000. The negative control is a fixture workspace under `tests/fixtures/layer-policy/` with a `core` crate that depends on an adapter, once directly, once behind a feature, once under `[target.'cfg(unix)'.dependencies]`. The real workspace is never modified to test the gate.
+- **Harness.** A `cargo xtask check-layers` command in `nomos-xtask` (ADR 0003) that reads the resolved graph from `cargo metadata` for each supported feature and target set and checks every edge against the table in ADR 0000. The negative control is a fixture workspace under `tests/fixtures/layer-policy/` with a `core` crate that depends on an adapter, once directly, once behind a feature, once under `[target.'cfg(unix)'.dependencies]`. The real workspace is never modified to test the gate.
 - **Measurements.** Forbidden edges detected per fixture; feature and target combinations covered.
 - **Decision rule.** All three fixture edges are rejected. Wiring the check into CI is a separate ask (AGENTS.md rule 9).
 
@@ -70,7 +70,7 @@ Nothing here decides a domain question. It builds the things that make the later
 
 - **Question.** Do the review rules catch a patch that passes a check by weakening what the check asserts?
 - **Rival.** The patch weakens a postcondition, adds an `assume`, `admit`, or `#[ignore]`, or moves code out of the verifier's view, and the green result is accepted.
-- **Harness.** Negative-control patches as fixtures under `tests/fixtures/agent-proof/`: one that loosens a postcondition, one that adds an escape hatch to a Kani or Verus harness, one that disables a test, one that unwraps a `forbid(unsafe_code)`. A script diffs specification and assumption changes separately from proof annotations. The gate is a review checklist plus that script; a regular expression cannot detect semantic weakening and the record says so.
+- **Harness.** Negative-control patches as fixtures under `tests/fixtures/agent-proof/`: one that loosens a postcondition, one that adds an escape hatch to a Kani or Verus harness, one that disables a test, one that unwraps a `forbid(unsafe_code)`. A `cargo xtask` command diffs specification and assumption changes separately from proof annotations. The gate is a review checklist plus that command; a regular expression cannot detect semantic weakening and the record says so.
 - **Measurements.** Escapes detected, false positives, review burden per patch.
 - **Decision rule.** Every known invalid shortcut fails the gate. Semantic weakening remains a human review item, recorded as such in AGENTS.md rule 10.
 
@@ -155,7 +155,7 @@ Runs on the typed IR. Three of the four experiments are the same under either an
 
 ### canonical-encoding
 
-- **Question.** Which restricted profile, deterministic Concise Binary Object Representation (CBOR, RFC 8949 §4.2) or the JSON Canonicalization Scheme (JCS, RFC 8785), represents the IR so that semantic equivalence and byte equality coincide?
+- **Question.** Which restricted profile represents the IR so that semantic equivalence and byte equality coincide: deterministic Concise Binary Object Representation (CBOR), as Request for Comments (RFC) 8949 §4.2 defines it, or the JSON Canonicalization Scheme (JCS) of RFC 8785?
 - **Rival.** Number, Unicode, map ordering, duplicate keys, or default handling breaks the equivalence in one of them.
 - **Harness.** Define the semantic equivalences first: field order, defaults, integer ranges, path bytes, forbidden floats. Golden vectors and adversarial fixtures encoded by both profiles, decoded by an independent decoder, and compared across two builds. `CanonID` is the hash of a domain tag, a version, and the normalized content; provenance stays outside the hash.
 - **Negative controls.** Two semantically different Canons that a naive normalization collapses must keep distinct identities.
@@ -186,7 +186,7 @@ Only under D1 = Rust authoring. Otherwise the experiment reduces to the N12 dete
 
 - **Question.** Can the transition kernel from waves 1 and 2 be modeled in TLA+ with explicit bounds, and do its counterexample traces replay through the Rust tests?
 - **Rival.** The model omits an implementation transition or assumes more of the adapters than they promise.
-- **Harness.** `formal/tla/ActionLifecycle.tla`, `PlanExecution.tla`, and `Fencing.tla` as spec §48 plans, with state bounds recorded. TLC counterexample traces exported and replayed through `nomos-app` against the mock. One Kani or Verus harness on one pure function, the readiness predicate being the obvious candidate, to learn the cost before adopting a verifier.
+- **Harness.** `formal/tla/ActionLifecycle.tla`, `PlanExecution.tla`, and `Fencing.tla` as spec §48 plans, with state bounds recorded. Counterexample traces from the TLA+ model checker (TLC) exported and replayed through `nomos-app` against the mock. One Kani or Verus harness on one pure function, the readiness predicate being the obvious candidate, to learn the cost before adopting a verifier.
 - **Negative controls.** A known-bad transition inserted into the Rust kernel must produce a trace the model rejects.
 - **Measurements.** Transitions mapped between model and code, negative-control failures, model bounds, check time.
 - **Decision rule.** The record names exactly which properties were checked, under which bounds, and with which adapters trusted. A finite-model check is not called a proof. Feeds `verification-gates` and fills the TLA+ column of the matrix.

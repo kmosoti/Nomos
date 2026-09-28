@@ -35,6 +35,8 @@ cargo test   --workspace
 
 A change is complete only when all four pass.
 
+Development tooling runs as `cargo xtask <command>` (ADR 0003). `cargo xtask research verify docs/research/<snapshot>/snapshot` checks a research snapshot, and `cargo test --workspace` runs the same checks.
+
 ## Layout
 
 | Path | Layer | May depend on |
@@ -43,7 +45,7 @@ A change is complete only when all four pass.
 | `crates/ports/` | Driven ports | `core/` |
 | `crates/app/` | Use cases | `core/`, `ports/` |
 | `crates/adapters/` | Driven adapters | `core/` and the one port they implement |
-| `crates/bin/` | CLIs, composition roots | Anything |
+| `crates/bin/` | CLIs, composition roots, and the `nomos-xtask` tooling crate | Anything |
 
 Workspace crates are referenced through `[workspace.dependencies]` in the root `Cargo.toml`, as `name.workspace = true`.
 
@@ -58,7 +60,8 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 7. **Determinism.** Nothing that feeds compilation or planning may depend on hash iteration order, randomness, or wall-clock time.
 8. **No `unsafe`.** Workspace lints forbid it.
 9. **Leave the pinned toolchain, the license, and CI alone** unless asked.
-10. **Never weaken a specification to pass a check.** A test, proof, or model that passes because a postcondition was loosened, an `assume`, `admit`, or axiom was added, a test was ignored, or code was moved out of the verifier's view proves nothing. Such changes are trust-boundary changes: make them in their own commit, say what they weaken, and report verifier output as it is. Research snapshots under `docs/research/` are evidence and are never edited; a revision is a new dated snapshot.
+10. **Tooling is Rust.** A check, generator, or reproducer that produces a record goes in `crates/bin/nomos-xtask`, not in a Python or shell script. A snapshot's own scripts stay under its `snapshot/` directory as received.
+11. **Never weaken a specification to pass a check.** A test, proof, or model that passes because a postcondition was loosened, an `assume`, `admit`, or axiom was added, a test was ignored, or code was moved out of the verifier's view proves nothing. Such changes are trust-boundary changes: make them in their own commit, say what they weaken, and report verifier output as it is. Research snapshots under `docs/research/` are evidence and are never edited; a revision is a new dated snapshot.
 
 ## Documentation Conventions
 

@@ -23,14 +23,19 @@ It is a design artifact. It built no Nomos code, checked no TLA+ model, and exec
 
 ## Verification on Import
 
-| Check | Result | What it establishes |
-| --- | --- | --- |
-| `sha256sum -c MANIFEST.sha256` | All nine files match | The copy under `snapshot/` is the bundle as delivered |
-| `validate_graph.py`, standard-library checks | Passed. Graph hash and counts match the shipped report. Six negative controls rejected | The graph is well formed and internally consistent |
-| `validate_graph.py --require-schema` | Not rerun here. The `jsonschema` package is not installed in the import environment. The shipped report records a pass with jsonschema 4.26.0 | Per-record schema conformance rests on the bundle's own report |
-| `reproduce_counterexamples.py` | Reran. Output identical to the shipped `counterexample-results.json` | The seven models are deterministic and say what the bundle says they say |
+The bundle's own Python scripts were read, then run once on import: the validator's standard-library checks passed with the shipped graph hash, and the reproducer's output was identical to the shipped `counterexample-results.json`. The schema pass could not be rerun with Python because the `jsonschema` package was not installed here.
 
-Both scripts were read before they were run. They use the standard library only, make no network requests, and spawn no processes. The reproducer writes one JSON file beside itself.
+The repository's instrument is the Rust tool in `nomos-xtask` ([ADR 0003](../../adr/0003-xtask-tooling-crate.md)), which reimplements both scripts. Its results on this snapshot:
+
+| Check | Command | Result | What it establishes |
+| --- | --- | --- | --- |
+| Manifest | `cargo xtask research verify snapshot` | All nine files match `MANIFEST.sha256` | The copy under `snapshot/` is the bundle as delivered |
+| Graph checks | same | Passed. `graph_sha256`, `counts`, `checks`, and `negative_controls` are byte for byte the shipped report's | The graph is well formed and internally consistent |
+| JSON Schema | same | All 518 records pass the snapshot's schema with `date` format checking, using the Rust `jsonschema` crate; the schema hash matches the shipped report | Per-record conformance is established here, not only by the bundle's report |
+| Counterexamples | `cargo xtask research reproduce` | Seven models, `id` and `observed` identical to the shipped file | The models are deterministic and say what the bundle says they say |
+| Continuous | `cargo test --workspace` | The manifest, graph, and schema checks and the seven models run as unit tests | A snapshot that stops verifying fails the build |
+
+The Python scripts stay under `snapshot/` as received and are not the record's tool.
 
 None of this establishes a claim about Nomos. The counterexamples are Python models of the draft formal documents. They show that the drafts, read literally, admit the bad outcomes. They do not show that Rust code has a bug, because there is no Rust code yet.
 
@@ -95,22 +100,22 @@ The bundle groups its 26 recommendations into eight ADR candidates. The groundin
 | `boundary-security` | `substrate`, `cipher` | Phase 1 and Phase 6 |
 | `future-algorithms` | `incremental`, `plan-witness` | After Phase 0 |
 
-The bundle's recommendation dependency edges form a DAG. Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The wave order follows that DAG.
+The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The wave order follows that DAG.
 
 ## Querying the Graph
 
-```python
-import json
-from pathlib import Path
-
-records = [json.loads(line) for line in
-           Path("snapshot/nomos-research.ndjson").read_text(encoding="utf-8").splitlines()]
-recs = [r for r in records if r.get("node_kind") == "recommendation"]
-recs.sort(key=lambda r: (-r["weights"]["salience"], -r["weights"]["importance"], r["id"]))
-for r in recs:
-    d = r["details"]
-    print(d["phase"], d["disposition"], r["title"], sep="\t")
+```sh
+cargo xtask research list docs/research/2026-09-28-typed-core/snapshot
 ```
+
+```text
+[4/4] adopt_direction      phase0                     Protect invariants from verification gaming by coding agents
+[4/4] adopt_direction      phase0                     Use sum types to remove contradictions, not just to rename tags
+[4/4] adopt_direction      before_fleet_mutation      Replace impossible world-wide safety with admission safety
+[4/4] trial                phase0                     Specify semantic normalization separately from encoding
+```
+
+The bracket is salience over importance. Anything else is a `serde_json` read of `snapshot/nomos-research.ndjson`, one object per line; the `graph` module of `nomos-xtask` is the reference for the record shapes.
 
 Node IDs are stable within the snapshot and have the form `urn:moiric:nomos:research:2026-09-28:<kind>:<key>`. The formal documents cite counterexamples and experiments by their `<key>`.
 
