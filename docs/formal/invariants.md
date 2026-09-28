@@ -26,7 +26,7 @@ Three of the predicates changed after the 2026-09-28 research review ([evaluatio
 
 **N1 compares a projection.** Literal whole-machine equality is false for any observer. Reading a file updates its access time, and the audit subsystem records the read. $\pi$ projects the machine onto the properties Canon can express for the resources it names. The observe-only capability rules out calls to mutate methods; it cannot prove that an adapter has no side effects. That residue is tested, not typed: property tests on the mock, and integration tests that diff $\pi$ on Linux.
 
-**N5 holds at the moment of the effect.** The predicate is stated at execution. The check in [fencing-and-idempotency.md](fencing-and-idempotency.md#fencing) happens before dispatch, and between that check and the operating-system effect a newer generation can be accepted. The N5 theorem there names the atomicity assumption it needs. Closing the gap is [ADR 0010](../adr/0010-effect-recovery-and-fencing.md), proposed.
+**N5 holds at the moment of the effect.** The predicate is stated at execution. The check in [fencing-and-idempotency.md](fencing-and-idempotency.md#fencing) happens before dispatch, and between that check and the operating-system effect a newer generation can be accepted. The N5 theorem there names the atomicity assumption it needs. [ADR 0010](../adr/0010-effect-recovery-and-fencing.md), accepted for the Cell, closes the gap by re-checking the generation in the step that admits the effect.
 
 **N3 is stated over convergence, not empty Variance.** A host whose files match but whose service still owes a refresh has a pending Obligation. It is not converged, and discharging the Obligation is a required mutation. Stating N3 over empty Variance would forbid that recovery.
 

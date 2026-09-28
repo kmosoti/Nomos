@@ -11,8 +11,8 @@
 | [0006](0006-kernel-contract.md) | The kernel is a pure transition function and owns reconciliation semantics | Accepted |
 | [0007](0007-verification-gates.md) | Verification scope and development gates | Accepted |
 | [0008](0008-ownership-and-identity.md) | Resource ownership, controller composition, and identity | Proposed |
-| [0009](0009-warp-activation-semantics.md) | Warp prerequisite, activation, and reservation semantics | Proposed |
-| [0010](0010-effect-recovery-and-fencing.md) | Effect recovery, authority fencing, and disruption budgets | Proposed |
+| [0009](0009-warp-activation-semantics.md) | Warp prerequisite, activation, and reservation semantics | Accepted |
+| [0010](0010-effect-recovery-and-fencing.md) | Effect recovery, authority fencing, and disruption budgets | Accepted for the Cell; `fence-interleavings` owed |
 | [0011](0011-canon-artifact-encoding.md) | Canon artifact encoding, identity, and versioning | Proposed |
 | [0012](0012-event-history.md) | Event history, durability, and retention | Proposed |
 | [0013](0013-trust-boundaries.md) | Substrate and Cipher trust boundaries | Proposed |
@@ -36,8 +36,8 @@ The 2026-09-28 research snapshot proposed eight decision bundles. Each is now a 
 | --- | --- | --- |
 | `verification-gates` | [0007](0007-verification-gates.md), [0015](0015-generator-verifier-development-model.md) | Accepted: the gates exist with their negative controls; 0007 amended 2026-09-28 by 0015 |
 | `evidence-model` | [0005](0005-assessment-vocabulary.md), [0008](0008-ownership-and-identity.md) | Assessment accepted; ownership and identity proposed |
-| `warp-gates` | [0009](0009-warp-activation-semantics.md) | Proposed until `04-warp-kernel` and `05-transition-kernel` |
-| `recovery-authority` | [0010](0010-effect-recovery-and-fencing.md) | Proposed until `05-transition-kernel` |
+| `warp-gates` | [0009](0009-warp-activation-semantics.md) | Accepted 2026-09-28 on the evidence of `04-warp-kernel` and `05-transition-kernel` |
+| `recovery-authority` | [0010](0010-effect-recovery-and-fencing.md) | Accepted for the Cell 2026-09-28 on the evidence of `05-transition-kernel`; Loom transport waits for `fence-interleavings` |
 | `canon-artifact` | [0004](0004-rust-typed-canon.md), [0011](0011-canon-artifact-encoding.md) | Authoring accepted; encoding proposed until `06-canon-artifact` |
 | `event-history` | [0012](0012-event-history.md) | Proposed until Phase 2 |
 | `boundary-security` | [0013](0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |

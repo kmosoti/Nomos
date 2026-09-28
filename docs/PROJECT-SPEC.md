@@ -1057,7 +1057,7 @@ Anything beyond this is subsequent architecture. Nomos earns its complexity one 
 
 The unresolved parts, stated so they can be argued with:
 
-- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions, and [ADR 0009](adr/0009-warp-activation-semantics.md) proposes them until the truth tables of milestone `04-warp-kernel` run.
+- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? Closed: [ADR 0009](adr/0009-warp-activation-semantics.md), accepted 2026-09-28, decides both as [formal/warp.md](formal/warp.md) states them.
 - **Idempotency key retention.** The Cell persists accepted keys. For how long? Unbounded retention is a slow disk leak. Bounded retention reopens the duplicate window for very late retransmissions.
 - **Leases vs. clock skew.** Plan leases expire in time, and clocks drift. Does expiry use Loom's clock, the Cell's clock, or a monotonic budget measured from receipt?
 - **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it assess that Condition as Indeterminate? [ADR 0013](adr/0013-trust-boundaries.md) proposes the second, unless a provider can compare without exposing plaintext.

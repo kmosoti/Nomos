@@ -1,6 +1,6 @@
 # ADR 0010: Effect Recovery, Authority Fencing, and Disruption Budgets
 
-- **Status.** Proposed
+- **Status.** Accepted for the Cell, 2026-09-28, by the project owner, on the evidence of milestone `05-transition-kernel`. The Loom-transport criterion, `fence-interleavings`, is still owed
 - **Date.** 2026-09-28
 - **Candidate.** `recovery-authority` in the 2026-09-28 research snapshot (recommendations `effect-recovery`, `fencing`, `budget`)
 
@@ -59,6 +59,10 @@ Milestone `05-transition-kernel` implements §1, §3, and §4 for one Cell and r
 - **§4, the budget predicate.** Selection skips an Action $a$ when some failure domain $f$ has $\lvert U_f \cup R_f \cup D_f(a) \rvert > k_f$, where $U_f$ comes from the budget snapshot in the policy, $R_f$ is the nodes disrupted by every effect still holding a reservation plus every Action already chosen in this selection, and $D_f(a)$ is the nodes $a$ would disrupt. When the budget snapshot is older than the policy's maximum age at the instant of admission, no Action that disrupts a node is admitted. One selection runs per `step`, so admissions are serialized.
 
 **Evidence.** [effect-recovery](../research/2026-09-28-typed-core/results/effect-recovery.md) and [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md) meet the first acceptance criterion for one Cell: no duplicate live effect, no suppressed repair, no unsafe retry, and no budget oversubscription. For the second, the `Fencing` model, checked by the TLA+ model checker (TLC), shows a paused check followed by a late effect violating N5 (the `split` control) and the atomic admission not, and `RefreshRecovery` shows no conflicting unreserved effect under superseding authority with crashes ([kernel-conformance](../research/2026-09-28-typed-core/results/kernel-conformance.md)). The third criterion, `fence-interleavings`, needs Loom. The ADR stays Proposed, for the Cell, until the project owner accepts it.
+
+## Note, 2026-09-28: Acceptance
+
+The project owner accepted this ADR for the Cell on 2026-09-28, on the records of [effect-recovery](../research/2026-09-28-typed-core/results/effect-recovery.md), [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md), and [kernel-conformance](../research/2026-09-28-typed-core/results/kernel-conformance.md). The decision accepted is §1 to §5 as the note above defines them, and one definition replaces §3's wording: a superseding Plan is accepted at once, so the old Plan admits nothing more, and it observes and plans only once every effect is Settled, not only the conflicting ones. That is stricter than §3 as written, keeps the oscillation rule true by construction, and costs latency only while an effect is slow; the revisit trigger below covers the case where it stalls a Cell. The third acceptance criterion, `fence-interleavings` across Loom transport races, is not met and waits for Loom; until it runs, the acceptance covers one Cell and its local authority.
 
 ## Consequences
 
