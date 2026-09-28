@@ -6,6 +6,7 @@
 | [0001](0001-headscale-mesh-adapter.md) | Headscale as the preliminary Mesh adapter | Accepted |
 | [0002](0002-vault-cipher-adapter.md) | HashiCorp Vault as the preliminary Cipher adapter | Accepted |
 | [0003](0003-xtask-tooling-crate.md) | Development tooling lives in the `nomos-xtask` crate | Accepted |
+| [0004](0004-rust-typed-canon.md) | Canon is authored in Rust and shipped as an inert Canonical IR | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
@@ -19,7 +20,7 @@ The 2026-09-28 research snapshot proposes eight decision bundles. None is an ADR
 | `evidence-model` | Per-resource assessment with a third outcome, resource ownership across controllers, identity | Wave 1, wave 4 |
 | `warp-gates` | Edge semantics (spec §62), satisfaction anchors, durable change consumption, reservations | Wave 1, wave 2 |
 | `recovery-authority` | Effect recovery contracts, fencing at the effect boundary, admission-scoped budgets | Wave 2 |
-| `canon-artifact` | Canon authoring surface, validated decoding, algebraic resource model, canonical encoding profile | Decision D1, wave 3 |
+| `canon-artifact` | Canonical encoding profile, schema versioning, and migration rules. The authoring surface, validated decoding, and algebraic model are decided in [ADR 0004](0004-rust-typed-canon.md) | Wave 3 |
 | `event-history` | Outbox, retention, and disk-pressure behavior | Phase 2 |
 | `boundary-security` | Substrate privilege boundary and Cipher sinks | Phases 1 and 6 |
 | `future-algorithms` | Incremental planning and Plan witnesses | After Phase 0, measured first |

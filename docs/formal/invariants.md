@@ -15,7 +15,7 @@ The constitutional layer (spec §58). Each invariant appears as a predicate, nex
 | N9 | Failure budgets are never intentionally exceeded | $\mathrm{admit}(a, f) \Rightarrow \lvert \mathrm{Unavailable}_{snap}(f) \cup \mathrm{Reserved}(f) \cup \{a\} \rvert \le k_f$ | Admission control in Loom scheduling against a fresh observation snapshot ([warp](warp.md#runnable-set)) | TLA+, failure |
 | N10 | Unknown outcomes stay unknown | $\mathrm{TimedOut}(a) \Rightarrow \neg\mathrm{assume}(\mathrm{Succeeded}) \wedge \neg\mathrm{assume}(\mathrm{Failed})$ | TimedOut forces re-observation | Failure |
 | N11 | Losing Loom does not invalidate Cell state | Cell observations are independent of Loom liveness | Cell owns observation and local Event Log | Failure |
-| N12 | Canon compilation is deterministic | $\mathrm{compile}(C) = \mathrm{compile}(C') \text{ when } \mathrm{canon}(C)=\mathrm{canon}(C')$ | Canonical IR encoding; content-derived `CanonID` | Property (determinism) |
+| N12 | Canon compilation is deterministic | $\mathrm{compile}(C) = \mathrm{compile}(C') \text{ when } \mathrm{canon}(C)=\mathrm{canon}(C')$ | Canonical IR encoding; content-derived `CanonID`. The authoring build that produces the IR is outside N12 and tested separately ([ADR 0004](../adr/0004-rust-typed-canon.md)) | Property (determinism) |
 
 ## What the Predicates Mean
 

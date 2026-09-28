@@ -22,9 +22,9 @@ The phase produces the first real code in the crates. AGENTS.md's skeleton rule 
 
 ## Decisions Needed From the User
 
-Three decisions gate parts of the plan. Waves 0 to 2 need none of them.
+Three decisions gated parts of the plan. Waves 0 to 2 need none of them. D1 is decided; D2 and D3 are open.
 
-- **D1. Canon authoring surface.** The specification says YAML with a typed IR (§5, §54). The snapshot assumes a Rust-authored Canon compiled to an inert artifact. Wave 3's `typed-validation`, `canonical-encoding`, and `compatibility-matrix` run on the typed IR and are the same under either answer. `build-hermeticity` only exists for Rust authoring; under the specification's model it collapses into the N12 determinism test. Closing D1 is a specification amendment and the `canon-artifact` ADR.
+- **D1. Canon authoring surface.** *Decided 2026-09-28: Rust.* [ADR 0004](../../adr/0004-rust-typed-canon.md) records it and amends spec §5, §6, §54, and the CLI examples. Wave 3 is no longer gated, and `build-hermeticity` is in scope as written. What wave 3 still decides is the IR encoding profile, schema versioning, and migration rules.
 - **D2. The third `diff` outcome.** Spec §9's `diff` returns Variance or nothing. Wave 1 will implement a per-resource result that also carries *evidence supports neither* with a reason, because the experiment needs it. Whether that outcome gets a name in spec §3, and what it is called, is the `evidence-model` ADR.
 - **D3. Edge semantics.** Spec §62 already lists `after` and `on_change` semantics as needing an ADR. Wave 1's `warp-truth-table` produces the table that ADR (`warp-gates`) records. The working definitions in [warp.md](../../formal/warp.md) are the hypothesis.
 
@@ -37,10 +37,10 @@ flowchart TB
     W2["Wave 2<br/>Effects and recovery in the mock<br/>effect-recovery · refresh-recovery · scheduler-admission"]
     W3["Wave 3<br/>Canon boundary<br/>typed-validation · canonical-encoding · compatibility-matrix · build-hermeticity"]
     W4["Wave 4<br/>Conformance and composition<br/>kernel-conformance · controller-composition"]
-    D1(["D1 decided"])
+    ADR4(["ADR 0004<br/>Rust-typed Canon, decided"])
     W0 --> W1 --> W2 --> W4
     W1 --> W3
-    D1 --> W3
+    ADR4 --> W3
     W3 --> W4
 ```
 
@@ -142,13 +142,13 @@ Still no operating system. The mock gains a scripted crash boundary: the kernel 
 
 ## Wave 3: Canon Boundary
 
-Runs on the typed IR. Three of the four experiments are the same under either answer to D1.
+Runs on the typed IR and the Rust authoring API that ADR 0004 decided. Its results close the remainder of the `canon-artifact` candidate: the encoding profile, schema versioning, and migration rules.
 
 ### typed-validation
 
 - **Question.** Do construction, decoding, and migration enforce the same domain invariants?
 - **Rival.** Derived deserialization, a public field, or a migration constructs a value the constructor would reject.
-- **Harness.** In `nomos-canon` and `nomos-core`: decode into untrusted data-transfer objects, then fallible conversion into validated types with private fields. Generated valid and malformed inputs: bad ranges, duplicate resource identifiers, dangling `requires` references, unknown resource kinds, oversized inputs. Compile-fail cases for constructing a validated type outside its module. The sum-type countercase: an absent file with content must be unrepresentable, not merely rejected.
+- **Harness.** In `nomos-canon` and `nomos-core`: the authoring API builds validated types with private fields; the consumer decodes into untrusted data-transfer objects, then converts fallibly into the same types through the same validator. Generated valid and malformed inputs: bad ranges, duplicate resource identifiers, dangling `requires` references, unknown resource kinds, oversized inputs. Compile-fail cases for constructing a validated type outside its module. The sum-type countercase: an absent file with content must be unrepresentable in the authoring API, not merely rejected by the decoder.
 - **Negative controls.** A `serde` derive on the validated type without a `try_from` boundary must let a malformed value through; the test proves the harness detects it.
 - **Measurements.** Rejection parity across the three paths, panic count (target zero), size of the smallest counterexample `proptest` finds.
 - **Decision rule.** No malformed input becomes a validated Canon by any supported path, and every error is typed and contains no Cipher material. Feeds `canon-artifact`.
@@ -173,7 +173,7 @@ Runs on the typed IR. Three of the four experiments are the same under either an
 
 ### build-hermeticity
 
-Only under D1 = Rust authoring. Otherwise the experiment reduces to the N12 determinism test in wave 3's other cards and is recorded as such.
+The contract is ADR 0004 §3. This experiment is what turns it from a stated rule into a measured one.
 
 - **Question.** Do two isolated builds with the same declared inputs produce the same canonical artifact, and is every undeclared input denied?
 - **Rival.** Wall clock, locale, temporary paths, hash seeds, environment, or network reach the generator and change the output.
@@ -218,7 +218,7 @@ These experiments are in the graph and are not Phase 0 work. They are listed so 
 
 1. Fourteen result records under `results/`, each with a decision, none claiming more than it ran.
 2. The seven bundle counterexamples exist as Rust tests, fail against the draft semantics, and pass against the corrected ones.
-3. ADRs accepted or explicitly deferred: `verification-gates`, `evidence-model`, `warp-gates`, `recovery-authority` (the Phase 0 part), and `canon-artifact` or a recorded deferral of D1.
+3. ADRs accepted or explicitly deferred: `verification-gates`, `evidence-model`, `warp-gates`, `recovery-authority` (the Phase 0 part), and the remainder of `canon-artifact` on top of ADR 0004.
 4. `docs/formal/verification-matrix.md` filled from the records, with *not run* wherever nothing ran.
 5. Spec §62 updated: edge semantics closed, the third `diff` outcome closed or named as open, the encoding question closed.
 6. The four Cargo checks and the docs lint pass on the closing commit.

@@ -2,16 +2,16 @@
 
 ## Canon Compilation
 
-Human-readable Canon is never executed directly (spec §6).
+The author's Rust is never executed on a host (spec §5–§6, [ADR 0004](../adr/0004-rust-typed-canon.md)). An authoring crate runs once in an isolated build job and emits the Canonical IR. Loom and Cell accept only the IR.
 
 ```mermaid
 flowchart LR
-    Y[/"Canon YAML"/] --> P["Parser"] --> AST["Typed AST"] --> V["Validation"] --> IR["Canonical IR"]
-    IR --> H["H(CanonicalEncoding)"] --> CID(["CanonID"])
-    IR --> W["Warp"] --> DAG(["Plan DAG"])
+    R[/"Rust authoring crate"/] --> B["isolated build job"] --> IR["Canonical IR"]
+    IR --> V["validated decode"] --> H["H(CanonicalEncoding)"] --> CID(["CanonID"])
+    V --> W["Warp"] --> DAG(["Plan DAG"])
 ```
 
-The canonical IR serializes deterministically, so identical Canon always gets the same `CanonID`. That is invariant N12; see [formal/invariants.md](../formal/invariants.md).
+The canonical IR serializes deterministically, so identical Canon always gets the same `CanonID`. That is invariant N12; see [formal/invariants.md](../formal/invariants.md). Reproducibility of the build job that produces the IR is a separate obligation, tested by the `build-hermeticity` grounding experiment.
 
 ## Trace and Enforce Share One Pipeline
 
@@ -19,7 +19,7 @@ Trace is Enforce with the execution stage removed. There is no separate dry-run 
 
 ```mermaid
 flowchart LR
-    C[/"Canon"/] --> Parse --> Observe --> Diff["Variance"] --> Compile["Warp → Plan"]
+    C[/"Canonical IR"/] --> Decode --> Observe --> Diff["Variance"] --> Compile["Warp → Plan"]
     Compile --> Report(["Trace: Variance report<br/>no mutation"])
     Compile --> Execute["Enforce: execute Actions"] --> Verify --> Observe2{"Observe again"}
     Observe2 --> Converged(["Variance = ∅<br/>converged"])

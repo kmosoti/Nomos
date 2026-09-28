@@ -8,7 +8,7 @@
 | [adr/](adr/) | Architecture decision records |
 | [research/](research/) | Dated research snapshots, their evaluation against the repository, and the experiments they propose |
 | [style/](style/) | Prose style specification and linting |
-| [CANON.md](CANON.md) | Canon language reference (not yet written) |
+| [CANON.md](CANON.md) | Canon authoring reference (not yet written; [ADR 0004](adr/0004-rust-typed-canon.md) records the decision) |
 | [PROTOCOL.md](PROTOCOL.md) | Loom ↔ Cell control protocol (not yet written) |
 | [security-model.md](security-model.md) | Security model and hardening (not yet written) |
 

@@ -99,8 +99,8 @@ The node-resident executor. A Cell:
 A Cell is autonomous enough to work without Loom:
 
 ```sh
-nomos-cell trace --canon local.yaml
-nomos-cell enforce --canon local.yaml
+nomos-cell trace --canon local.canon
+nomos-cell enforce --canon local.canon
 ```
 
 Loom adds fleet coordination. It is not a dependency for basic reconciliation.
@@ -180,68 +180,50 @@ Targeting uses Identity and Stable Traits unless a Canon explicitly allows other
 
 ## 5. Canon
 
-Canon expresses desired state.
+Canon expresses desired state. It is authored in Rust: a crate that depends on `nomos-canon`, builds a `Canon` value from typed resource specifications, and emits the Canonical IR of §6 ([ADR 0004](adr/0004-rust-typed-canon.md)). The shape below is illustrative; the authoring API is settled by the grounding experiments.
 
-```yaml
-apiVersion: nomos/v1alpha1
-name: telemetry-node
+```rust
+use nomos_canon::prelude::*;
 
-resources:
-  - id: nomos-user
-    kind: system_user
-    spec:
-      name: nomos
-      shell: /usr/sbin/nologin
+pub fn telemetry_node() -> Canon {
+    let nomos_user = SystemUser::named("nomos").shell("/usr/sbin/nologin");
 
-  - id: config-directory
-    kind: directory
-    requires:
-      - nomos-user
-    spec:
-      path: /etc/nomos
-      owner: nomos
-      group: nomos
-      mode: "0750"
+    let config_directory = Directory::at("/etc/nomos")
+        .owner(&nomos_user)
+        .mode(0o750)
+        .requires(&nomos_user);
 
-  - id: cell-config
-    kind: file
-    requires:
-      - config-directory
-    spec:
-      path: /etc/nomos/cell.yaml
-      owner: nomos
-      group: nomos
-      mode: "0640"
-      content:
-        source: artifact
-        digest: sha256:...
+    let cell_config = File::present("/etc/nomos/cell.conf", Content::artifact(CELL_CONFIG_DIGEST))
+        .owner(&nomos_user)
+        .mode(0o640)
+        .requires(&config_directory);
 
-  - id: cell-service
-    kind: systemd_unit
-    requires:
-      - cell-config
-    on_change:
-      - cell-config
-    spec:
-      name: nomos-cell.service
-      enabled: true
-      state: running
+    let cell_service = SystemdUnit::named("nomos-cell.service")
+        .enabled(true)
+        .state(UnitState::Running)
+        .requires(&cell_config)
+        .on_change(&cell_config);
+
+    Canon::named("telemetry-node").resources([nomos_user, config_directory, cell_config, cell_service])
+}
 ```
 
-Canon is versioned, typed, deterministic, declarative, statically validated, and independent of execution order where possible.
+Canon is versioned, typed, deterministic, declarative, statically validated, and independent of execution order where possible. The resource specifications are sum types: a file is `Absent` or `Present` with its requirements, and the absent-with-contents contradiction has no representation.
 
-Canon does not embed a general-purpose programming language. Configuration systems have repeatedly shown humanity's talent for turning templating engines into badly documented programming languages. Nomos declines. Conditional expressions stay deliberately restricted.
+Rust is the authoring surface, not the runtime. The author's crate runs once, in an isolated build job, and what it emits is inert data. Loom and Cell never compile or run Rust from a Canon; they accept only the Canonical IR. No programming language runs on a managed host, which is the property the earlier YAML design existed to protect. Configuration systems have repeatedly shown humanity's talent for turning templating engines into badly documented programming languages. Nomos declines a second time: where a Canon needs a host-dependent value, the IR carries a small typed expression form with fixed bounds, resolved against a frozen snapshot of Traits and parameters. Never a closure, never a template.
 
 ## 6. Canon Compilation
 
-Human-readable Canon is not what gets executed.
+The author's Rust is not what gets executed.
 
 ```mermaid
 flowchart LR
-    Y[/"YAML"/] --> P["Parser"] --> A["Typed AST"] --> V["Validation"] --> IR["Canonical IR"]
-    IR --> H(["hash"])
-    IR --> W["Warp"] --> D(["Plan DAG"])
+    R[/"Rust authoring crate"/] --> B["isolated build job"] --> IR["Canonical IR<br/>inert, versioned"]
+    IR --> V["validated decode<br/>Loom · Cell"] --> H(["hash"])
+    V --> W["Warp"] --> D(["Plan DAG"])
 ```
+
+The build job is ordinary code execution and is treated as such: no network, no host-management credentials, declared inputs only, and a provenance record (toolchain, lockfile digest, `nomos-canon` version, input digests) written beside the IR and excluded from `CanonID`. Two builds with the same declared inputs produce the same IR bytes. That is tested, not assumed. The consumer decodes the IR into untrusted data-transfer objects and converts them, fallibly, into the validated domain types through the same validator the authoring API uses. An IR that fails that conversion produces no Plan.
 
 The canonical intermediate representation (IR) serializes deterministically, which gives:
 
@@ -255,9 +237,8 @@ Content-derived identity borrows the useful part of Nix: identical canonical con
 
 A Cipher is a protected reference whose plaintext is resolved only at the boundary where it is needed.
 
-```yaml
-password:
-  cipher: vault://production/database/password
+```rust
+.password(Cipher::reference("vault://production/database/password"))
 ```
 
 Cipher is not a synonym for node-specific configuration. Ordinary scoped variables stay ordinary Canon parameters. Secrets need different guarantees.
@@ -627,12 +608,10 @@ The privileged side accepts typed operations only, never serialized shell comman
 
 Arbitrary shell execution is not a reconciliation primitive. If it is ever added, it is explicitly opaque:
 
-```yaml
-kind: exec
-spec:
-  command: ...
-  precondition: ...
-  postcondition: ...
+```rust
+Exec::opaque(command)
+    .precondition(before)
+    .postcondition(after)
 ```
 
 Policy can forbid it entirely. Arbitrary commands make idempotence, expected mutation, authorization scope, rollback, affected resources, verification, and permissions much harder to reason about. Typed operations come first.
@@ -652,7 +631,7 @@ Polkit is not the foundation of network authorization. It may help a local human
 Trace guarantees non-mutation.
 
 ```sh
-nomos-cell trace --canon system.yaml
+nomos-cell trace --canon system.canon
 ```
 
 ```text
@@ -671,7 +650,7 @@ SYSTEMD example.service
     desired:  running
 ```
 
-Trace uses exactly the same parse, observe, diff, and compile pipeline as Enforce. Only execution is left out. A dry run that secretly takes a different code path is a lie with good manners.
+Trace uses exactly the same decode, observe, diff, and compile pipeline as Enforce. Only execution is left out. A dry run that secretly takes a different code path is a lie with good manners.
 
 ## 38. Enforce
 
@@ -809,14 +788,14 @@ Crates beyond the four components (`nomos-canon`, `nomos-store`, `nomos-protocol
 Loom:
 
 ```sh
-nomos-loom compile --canon base-system.yaml
-nomos-loom trace   --target 'traits.os == "debian"' --canon hardened-host.yaml
-nomos-loom enforce --target 'traits.tier == "edge"' --canon telemetry-stack.yaml
+nomos-loom compile --canon base-system.canon
+nomos-loom trace   --target 'traits.os == "debian"' --canon hardened-host.canon
+nomos-loom enforce --target 'traits.tier == "edge"' --canon telemetry-stack.canon
 ```
 
 | Command | Effect |
 | --- | --- |
-| `compile` | Compile and validate Canon |
+| `compile` | Validate a Canonical IR and report its `CanonID` |
 | `trace` | Distributed, non-mutating evaluation |
 | `enforce` | Coordinate fleet convergence |
 
@@ -824,8 +803,8 @@ Cell:
 
 ```sh
 nomos-cell traits
-nomos-cell trace   --canon /etc/nomos/local.yaml
-nomos-cell enforce --canon /etc/nomos/local.yaml
+nomos-cell trace   --canon /etc/nomos/local.canon
+nomos-cell enforce --canon /etc/nomos/local.canon
 nomos-cell events
 ```
 
@@ -835,6 +814,8 @@ nomos-cell events
 | `trace` | Evaluate local Variance |
 | `enforce` | Standalone convergence |
 | `events` | Inspect the local Event Log |
+
+The `.canon` suffix names a Canonical IR file. The encoding behind it is decided by the canonical-encoding ablation (§54), and the suffix follows.
 
 ## 52. Design Lineage
 
@@ -880,7 +861,7 @@ The reference problem is simpler: *reliably describe, inspect, change, and verif
 Uncertain choices are settled by experiment before they are frozen.
 
 - **Persistence.** redb vs. SQLite vs. an LMDB-family store.
-- **Canon syntax.** Strict YAML vs. TOML, with the same typed IR either way.
+- **Canonical IR encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) vs. the JSON Canonicalization Scheme (JCS), with the same typed model either way. The authoring surface is decided ([ADR 0004](adr/0004-rust-typed-canon.md)); the bytes are not.
 - **Transport.** Validate tonic over HTTP/2 against requirements before looking at QUIC.
 - **File observation.** Metadata plus hash vs. full read vs. notification-assisted caching.
 - **Fleet targeting.** Predicate scans vs. bitmap indexes, at large synthetic fleet sizes only.
@@ -994,7 +975,7 @@ The three stay independently useful, with narrow integration surfaces. They do n
 
 Nomos v0 succeeds when it demonstrates all of the following on real Debian hosts:
 
-1. Parse and deterministically compile Canon.
+1. Build Canon from Rust to a Canonical IR and compile it deterministically.
 2. Discover and expose typed Traits.
 3. Observe supported Linux resources without mutation.
 4. Compute precise Variance.
