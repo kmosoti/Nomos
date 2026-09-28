@@ -1,0 +1,5 @@
+error[E0596]: cannot borrow data in a `&` reference as mutable
+  --> tests/compile-fail/canon-mutation.rs:11:5
+   |
+11 |     c.resources().clear();
+   |     ^^^^^^^^^^^^^ cannot borrow as mutable

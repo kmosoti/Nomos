@@ -22,11 +22,13 @@
 //! [reconciliation.md]: ../../../../../docs/formal/reconciliation.md
 
 mod apply;
+mod artifact;
 mod step;
 #[cfg(test)]
 mod tests;
 
 pub use apply::apply;
+pub use artifact::EmptyLabel;
 pub use step::step;
 
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -81,7 +83,8 @@ impl Managed {
 }
 
 /// The part of a compiled Canon the kernel reads: managed resources and the
-/// edges between them. The artifact form is `06-canon-artifact`'s.
+/// edges between them. A decoded artifact becomes one through
+/// `TryFrom<&nomos_canon::model::Canon>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Canon {
     resources: BTreeMap<ResourcePath, Managed>,
