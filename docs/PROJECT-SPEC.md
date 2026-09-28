@@ -984,7 +984,9 @@ The constitutional layer.
 - **N11.** Losing Loom does not invalidate Observations the Cell has already collected.
 - **N12.** Canon compilation is deterministic for identical inputs.
 
-**Proposed.** *Unknown evidence does not imply noncompliance.* An Indeterminate Assessment is never counted as a Variance, and every planned Action is caused by a Variance or an Obligation, never by an Indeterminate Assessment. It is recorded here and in [formal/invariants.md](formal/invariants.md) as a candidate for N13. It gets that number when the assessment tests of milestone `03-assessment-kernel` exist to check it; N1–N12 keep their numbers.
+- **N13.** Unknown evidence does not imply noncompliance. An Indeterminate Assessment is never counted as a Variance, and every planned Action is caused by a Variance or an Obligation, never by an Indeterminate Assessment.
+
+N13 was proposed by [ADR 0005](adr/0005-assessment-vocabulary.md) and numbered when milestone `03-assessment-kernel` landed the tests that check its Assessment clause; the Obligation clause is checked when a Plan exists. N1–N12 kept their numbers.
 
 These invariants matter more than any implementation technology. Formal statements: [formal/invariants.md](formal/invariants.md).
 

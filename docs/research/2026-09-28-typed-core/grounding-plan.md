@@ -1,6 +1,6 @@
 # Grounding Plan: An Executable Kernel Contract
 
-- **Status.** In progress, 2026-09-28. Two milestones landed; five remain. Four experiments have result records under [results/](results/).
+- **Status.** In progress, 2026-09-28. Three milestones landed; four remain. Five experiments have result records under [results/](results/).
 - **Goal.** One typed Canon, one shared assessment model, one deterministic planner, one replayable transition kernel, and a harness that demonstrably rejects broken boundaries and broken semantics.
 - **Not the goal.** Another round of adapters, networking, storage, or a testing platform with nothing meaningful to test.
 
@@ -16,7 +16,7 @@ The plan is organized as seven milestones with stable names. A milestone is a br
 | Core purity | `#![no_std]`, panic lints, and `cargo xtask check-core-purity` over `crates/core/PURITY.toml` | Purity of behavior; the crates are still empty |
 | Oracle protection | `cargo xtask check-trust-boundary` fails an undeclared specification or verifier change and an undeclared escape hatch | Semantic weakening inside a declared change |
 | Records | Receipts under `verification/receipts/`, validated; the matrix is filled from them | Any semantic property: every invariant row is `not run` or `planned` |
-| Domain kernel | Module documentation only | Any assessment or transition semantics |
+| Domain kernel | The assessment algebra for the file family: truth table, laws on generated inputs, compile-fail boundaries, two Kani harnesses, three semantic mutants caught | Any transition semantics; every resource family but files |
 | Formal verification | Written algorithms and proof sketches; `formal/tla/` holds a README | A checked executable model |
 
 A green build is not a verified engine. The milestones exist to change the right-hand column, one row at a time, with evidence.
@@ -30,7 +30,7 @@ A green build is not a verified engine. The milestones exist to change the right
 | Core owns semantics; the kernel is `step(snapshot, input) = decision` | [ADR 0006](../../adr/0006-kernel-contract.md) | Port shapes as code |
 | Tooling is Rust in `nomos-xtask` | [ADR 0003](../../adr/0003-xtask-tooling-crate.md) | None |
 | Every gate has a record and negative controls | [ADR 0007](../../adr/0007-verification-gates.md), amended | None |
-| Generators are untrusted; oracles are protected and declared; receipts are the evidence | [ADR 0015](../../adr/0015-generator-verifier-development-model.md) | Kani or Verus; signed receipts; proof-carrying Plans |
+| Generators are untrusted; oracles are protected and declared; receipts are the evidence; Kani is the bounded verifier | [ADR 0015](../../adr/0015-generator-verifier-development-model.md) | Signed receipts; proof-carrying Plans |
 | Core crates are `no_std`, panic-free outside tests, and allowlisted | [ADR 0016](../../adr/0016-core-purity.md) | The first allowlist entry |
 
 Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 ([ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until `04-warp-kernel` and `05-transition-kernel`).
@@ -73,11 +73,11 @@ Exit, met: every new gate rejects each of its fixture shortcuts by code and acce
 
 ### 03-assessment-kernel
 
-One resource family first: file presence and content requirements. In `nomos-core`: validated `Condition` types with private fields, `Observation` with provenance, collection window, and collection outcome, per-Condition `Assessment` with `Satisfied`, `Variance`, and `Indeterminate` carrying its reason, and a report that keeps every Assessment.
+*Landed 2026-09-28 on branch `milestone/03-assessment-kernel`.* One resource family first: file presence and content requirements. In `nomos-core`: validated `ResourcePath` and `Digest`, `FileCondition` as a sum type, `Condition` with private fields, `Observation` with provenance, collection window, and collection outcome, `assess` with `Satisfied`, `Variance`, and `Indeterminate` carrying its reason, and a `Report` that keeps every Assessment in a deterministic order and hands the Plan its Variances only. The `Secret` wrapper for N8.
 
-Tests: exhaustive truth tables for pairs, property tests for longer conjunctions with recorded seeds, compile-fail cases for the type boundaries in the table below, the Indeterminate monotonicity relation, and the semantic mutants `SM-ASSESS-001` to `SM-ASSESS-003` activated. One Kani or Verus harness on one pure predicate, with cover checks, and the record decides which tool (ADR 0015, not decided). The first `PURITY.toml` allowlist entry, if any, arrives here in its own verifier commit.
+Evidence, in the [record](results/assessment-algebra.md): the exhaustive requirement-by-evidence truth table; five laws on generated inputs from a fixed seed bank, including the Indeterminate monotonicity and permutation relations; six compile-fail cases; two Kani harnesses with cover checks, which decided the bounded verifier (ADR 0015 note); `SM-ASSESS-001` to `SM-ASSESS-003` active and caught; `cargo-mutants` over the crate with every survivor classified. The permutation law found the reported failure depended on Observation order; the fix and the minimized counterexample fixture are in the record. No `PURITY.toml` allowlist entry was needed.
 
-Exit: malformed values cannot enter through any supported construction path, uncertainty is never converted into satisfaction or Variance, and every active semantic mutant is caught. N13 becomes an invariant when its row's tests exist.
+Exit, met: a malformed path, digest, window, or Condition cannot be built; an absent file cannot carry content; a failed, missing, or contradicted Observation is Indeterminate and never Satisfied or a Variance; every active semantic mutant is caught. N13 is an invariant (spec §58). Not met here and moved: the Trace observe-only compile-fail case of ADR 0013 §1 needs the Substrate port's capability split, which `05-transition-kernel` writes.
 
 ### 04-warp-kernel
 
@@ -181,7 +181,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 | `core-purity` | `02-verification-foundation` | [results/core-purity.md](results/core-purity.md) |
 | `mutation-calibration` | `02-verification-foundation` | [results/mutation-calibration.md](results/mutation-calibration.md) |
 | `generator-variance` | `02-verification-foundation` designed; runs when a kernel exists | [results/generator-variance.md](results/generator-variance.md) |
-| `assessment-algebra` | `03-assessment-kernel` | none |
+| `assessment-algebra` | `03-assessment-kernel` | [results/assessment-algebra.md](results/assessment-algebra.md) |
 | `warp-truth-table` | `04-warp-kernel` | none |
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | none |
 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | none |
@@ -230,10 +230,10 @@ The research snapshot's experiments remain the evidence units, joined by four th
 
 - **Question.** Are three Assessment outcomes per Condition, kept unaggregated, enough for the first resource family?
 - **Rival.** An aggregate shortcut collapses unknown, absent, stale, or contradictory evidence into one of the two old outcomes.
-- **Harness.** `03-assessment-kernel`'s types; exhaustive pair tables; `proptest` conjunctions; Observation fixtures for present, absent, stale, denied, and conflicting; the Indeterminate monotonicity relation; `SM-ASSESS-001` to `SM-ASSESS-003`.
-- **Negative control.** `partial-assessment`: a Variance beside an Indeterminate must still be reported. A denied read must never assess as Satisfied or Variance. An empty error list must not mean Satisfied.
-- **Measurements.** Truth-table agreement; mutation admissions from an Indeterminate (target zero); evaluation bound for any bounded typed bindings.
-- **Decision rule.** No Indeterminate becomes Variance or Satisfied, and no unrelated Indeterminate hides a Variance.
+- **Harness.** `03-assessment-kernel`'s types; exhaustive pair tables; `proptest` laws from a seed bank; Observation fixtures for present, absent, old, denied, and conflicting; the Indeterminate monotonicity relation; `SM-ASSESS-001` to `SM-ASSESS-003`; two Kani harnesses.
+- **Negative control.** `partial-assessment`: a Variance beside an Indeterminate must still be reported. A denied read must never assess as Satisfied or Variance. Each semantic mutant must be caught.
+- **Measurements.** Truth-table agreement; Indeterminate Assessments reaching the Plan (zero); survivors of `cargo-mutants`, classified.
+- **Decision rule, met.** No Indeterminate becomes Variance or Satisfied, and no unrelated Indeterminate hides a Variance. Bounded typed bindings were not needed for the file family and are not measured.
 
 ### warp-truth-table
 

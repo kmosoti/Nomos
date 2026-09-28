@@ -30,7 +30,7 @@ The package manager is `package`'s only interface. AGENTS.md rule 5 forbids shel
 
 ### Acceptance Criteria
 
-- **Milestone `03-assessment-kernel`.** Compile-fail tests for §1, and for the secret wrapper passing through a prohibited serialization path.
+- **Milestone `03-assessment-kernel`.** Compile-fail tests for §1, and for the secret wrapper passing through a prohibited serialization path. *Partly met, 2026-09-28:* the secret wrapper has compile-fail cases for `Display`, `Serialize`, and an unused `expose`, and a sentinel test on its `Debug` output. The §1 case needs the observe and mutate split of the Substrate port, which does not exist yet; it moves to the milestone that writes the port shapes, `05-transition-kernel`, or to `07-substrate-conformance`.
 - **Linux adapter, `substrate-contract`.** Denied reads, symlink races, directory replacement, aliases, and foreign writers on a disposable Linux machine. No unauthorized mutation, and no false Absent.
 - **Phase 6, `secret-nondisclosure`.** Sentinel secrets and their common encodings are absent from every forbidden sink across success and failure paths.
 
