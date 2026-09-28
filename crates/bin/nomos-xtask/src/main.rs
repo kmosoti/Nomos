@@ -38,6 +38,12 @@
 //! - `receipts record <check-id> --out <file> -- <command...>`: runs the
 //!   command, never through a shell, and appends a receipt written from what
 //!   happened. Exits non-zero when the command did.
+//! - `hermeticity [--scratch <dir>] [--out <file>]`: experiment
+//!   `build-hermeticity`. Builds the Canon authoring crate twice in
+//!   isolation, runs its generators, compares the IR, and records every
+//!   undeclared input the jobs touched. Prints the record as JSON and one
+//!   `LEAK` line per failed check; needs `strace`, `unshare`, and `valgrind`,
+//!   and fails when one is missing.
 //! - `mutants semantic [--corpus <corpus.toml>]`: applies every active
 //!   semantic mutant of `tests/semantic-mutants/corpus.toml` to a scratch
 //!   copy of the workspace and runs its named test, which must fail. Prints
@@ -50,6 +56,7 @@ mod counterexamples;
 mod error;
 mod freeze;
 mod graph;
+mod hermeticity;
 mod layers;
 mod manifest;
 mod purity;
@@ -73,7 +80,8 @@ const USAGE: &str = "usage:
   cargo xtask check-trust-boundary --base <ref>
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
-  cargo xtask mutants semantic    [--corpus <corpus.toml>]";
+  cargo xtask mutants semantic    [--corpus <corpus.toml>]
+  cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -88,6 +96,7 @@ fn main() -> ExitCode {
         ["receipts", "validate", rest @ ..] => receipts_validate(rest),
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
         ["mutants", "semantic", rest @ ..] => mutants_semantic(rest),
+        ["hermeticity", rest @ ..] => hermeticity(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -165,6 +174,33 @@ fn frozen(rest: &[&str]) -> Result<(), String> {
         "{} change(s) to accepted research snapshots; a revision is a new dated snapshot",
         violations.len()
     ))
+}
+
+fn hermeticity(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let scratch = option(rest, "--scratch")?
+        .map(|s| root.join(s))
+        // Outside the workspace: Cargo reads `.cargo/config.toml` in every
+        // ancestor of the build, and the workspace's own would be read.
+        .unwrap_or_else(|| std::env::temp_dir().join("nomos-hermeticity"));
+    let record = hermeticity::run(&root, &scratch)?;
+    let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
+    if let Some(out) = option(rest, "--out")? {
+        std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
+    }
+    print!("{rendered}");
+    let failures = record.failures();
+    for check in &failures {
+        eprintln!("LEAK [{check}]");
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} build-hermeticity check(s) failed",
+            failures.len()
+        ))
+    }
 }
 
 fn check_layers(rest: &[&str]) -> Result<(), String> {
