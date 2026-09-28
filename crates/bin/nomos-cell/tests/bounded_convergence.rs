@@ -204,3 +204,17 @@ fn converged_holds_nothing() {
         "the write and the refresh"
     );
 }
+
+/// N3, the fixed point of reconciliation.md: enforcing a Canon the host
+/// already satisfies, with nothing owed and nothing in flight, mutates
+/// nothing.
+#[test]
+fn re_enforcing_a_converged_canon_mutates_nothing() {
+    let mut sim = Sim::new(refresh_host());
+    sim.enforce(plan("p1", 1, obligation_canon(), 3));
+    assert_eq!(sim.run(), RunOutcome::Converged);
+    let executed = sim.host.executions().len();
+    sim.enforce(plan("p2", 2, obligation_canon(), 3));
+    assert_eq!(sim.run(), RunOutcome::Converged);
+    assert_eq!(sim.host.executions().len(), executed);
+}

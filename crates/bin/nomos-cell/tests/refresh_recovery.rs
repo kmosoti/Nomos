@@ -152,10 +152,16 @@ fn a_crash_after_replacement_cannot_lose_the_refresh() {
         "the Obligation survived"
     );
     sim.quiesce();
+    let before = sim.host.executions().len();
     sim.enforce(plan("p2", 2, obligation_canon(), 3));
     assert_eq!(sim.run(), RunOutcome::Converged);
     assert!(sim.refresh_consumed(), "the refresh was not lost");
     assert!(sim.snapshot.obligations().is_empty());
+    // N3's second test (reconciliation.md): a pending Obligation produces
+    // exactly its discharge and nothing else.
+    let after: Vec<_> = sim.host.executions()[before..].iter().collect();
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].0.resource(), &p(SVC));
 }
 
 #[test]
