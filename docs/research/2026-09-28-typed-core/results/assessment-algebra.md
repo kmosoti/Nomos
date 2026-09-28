@@ -8,14 +8,14 @@
 
 | Field | Value |
 | --- | --- |
-| Toolchain | Rust 1.98.1; proptest 1.11; trybuild 1.0.121; Kani 0.68.0 with its bundled CBMC; cargo-mutants 27.1.0 |
+| Toolchain | Rust 1.98.1; proptest 1.11; trybuild 1.0.121; Kani 0.68.0 with its bundled C Bounded Model Checker (CBMC); cargo-mutants 27.1.0 |
 | Crate | `nomos-core`, `no_std` with `alloc`, allowlist empty |
 | Production functions | `assess_evidence`, `assess_collection`, `assess`, `Report::assess`, `Report::variances` in `crates/core/nomos-core/src/assessment.rs` |
 | Receipts | `verification/receipts/2026-09-28-assessment-kernel.ndjson`: `cargo-test`, `kani`, `mutants-semantic`, and the rest of the required path |
 
 ## What Was Built
 
-`ResourcePath` (absolute, normalized, no NUL) and `Digest` (32 bytes) with fallible constructors; `FileCondition` as `Absent | Present { content: Any | Exactly(Digest) }`, so an absent file with content is unwritable; `Condition` with private fields; `Observation` with `Collection::Collected(FileEvidence) | Failed(CollectionFailure)`, a collector name, and a window of two `Instant`s that the kernel compares and never reads from a clock; `Assessment` with `Variance { Missing, Unexpected, ContentDiffers }` and `Reason { NoObservation, CollectionFailed, Conflicting }`; `Report` sorted by resource, with `variances()` as the only Plan input; `Secret<T>` for N8.
+`ResourcePath` (absolute, normalized, no zero byte) and `Digest` (32 bytes) with fallible constructors; `FileCondition` as `Absent | Present { content: Any | Exactly(Digest) }`, so an absent file with content is unwritable; `Condition` with private fields; `Observation` with `Collection::Collected(FileEvidence) | Failed(CollectionFailure)`, a collector name, and a window of two `Instant`s that the kernel compares and never reads from a clock; `Assessment` with `Variance { Missing, Unexpected, ContentDiffers }` and `Reason { NoObservation, CollectionFailed, Conflicting }`; `Report` sorted by resource, with `variances()` as the only Plan input; `Secret<T>` for N8.
 
 Sufficiency, as implemented: at least one collected Observation of the resource, and every collected one agrees. A failure beside evidence does not contradict it; whether it should count against sufficiency is a policy for `05-transition-kernel`. Freshness is a policy on the window applied before assessment, never inside it, so a matching Observation is Satisfied whatever its age.
 
