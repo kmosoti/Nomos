@@ -6,11 +6,11 @@ Every machine in a fleet drifts. Someone edits a config by hand. A package updat
 
 Nomos asks a different question. You describe how your machines **should** be. That description is the **Canon**. Nomos then keeps asking: *how are they actually?*
 
-It observes each host and measures the **Variance** between reality and the Canon. It works out the smallest safe set of changes, applies them, and looks again to confirm that reality moved. Every step is written down as immutable history.
+It observes each host and measures the **Variance** between reality and the Canon. It works out a deterministic set of required changes that is valid under explicit safety constraints, applies them, and looks again to confirm that reality moved. Every step is written down as immutable history.
 
 What does "done" mean here? The intended postcondition was observed on the machine. An exit code is a rumor.
 
-> Observe reality, compare it with Canon, derive the smallest valid change, apply that change under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
+> Observe reality, compare it with Canon, derive a deterministic, valid set of required changes, apply those changes under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
 
 ## The Cast
 

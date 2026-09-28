@@ -106,7 +106,7 @@ Loom adds fleet coordination. It is not a dependency for basic reconciliation.
 
 ### Warp (`nomos-warp`)
 
-The dependency and execution-graph engine. Warp takes declarative resources and Variance and produces a directed acyclic graph (DAG) of executable Actions. It handles:
+The dependency and execution-graph engine. Warp takes the Canon's resources and relationships, their Assessments, pending Obligations, capabilities, and policy, and produces a directed acyclic graph (DAG) of executable Actions ([formal/reconciliation.md](formal/reconciliation.md#model)). It handles:
 
 - dependency resolution
 - graph construction
@@ -1008,7 +1008,7 @@ flowchart TB
 
 The governing idea fits in one sentence:
 
-> Observe reality, compare it with Canon, derive the smallest valid change, apply that change under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
+> Observe reality, compare it with Canon, derive a deterministic, valid set of required changes, apply those changes under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
 
 Everything else is machinery in service of that loop.
 
