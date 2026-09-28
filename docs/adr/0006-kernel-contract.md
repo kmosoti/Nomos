@@ -1,7 +1,8 @@
 # ADR 0006: The Kernel Is a Pure Transition Function and Owns Reconciliation Semantics
 
-- **Status.** Accepted
-- **Date.** 2026-09-28
+- **Status.** Accepted, with the items under *Not Decided Here* open
+- **Date.** 2026-09-28, amended 2026-09-28
+- **Provenance.** The ownership table and the one-engine rule come from the review of `main` at `013b9d0` that the project owner supplied, and the owner set the executable kernel contract as the next milestone. The owner did not state these decisions separately; if they should be revisited before milestone 1 PR 4, the status is Proposed.
 
 ## Context
 
@@ -34,7 +35,7 @@ A `KernelSnapshot` is the control state: the accepted Canonical IR, the Assessme
 
 ### 3. One Engine, Two Drivers
 
-The application layer drives `step` in production, interpreting effect requests through ports and feeding receipts back. The deterministic simulator drives the same `step` with scripted inputs: delayed receipts, duplicates, crashes modeled as dropped receipts, and superseding authority. There is no test build of the engine. Replaying a recorded input sequence reproduces the decisions exactly (invariant N12 extended to the kernel).
+The application layer drives `step` in production, interpreting effect requests through ports and feeding receipts back. The deterministic simulator drives the same `step` with scripted inputs: delayed receipts, duplicates, crashes modeled as dropped receipts, and superseding authority. There is no test build of the engine. Replaying a recorded input sequence must reproduce the decisions exactly. That is a requirement on the kernel, tested in milestone 1 PR 4. It is not N12, which covers Canon compilation, and it is not a numbered invariant until those tests exist.
 
 ### 4. Ports Carry Data, Not Behavior
 
@@ -43,6 +44,20 @@ A port trait exposes typed requests and typed results. `nomos-substrate` exposes
 ### 5. Where Cross-Layer Tests Live
 
 The workspace is virtual, so a test must belong to a package. Conformance suites that wire the application to adapters live at a composition boundary, `crates/bin/nomos-cell/tests/` first, or in a dedicated conformance crate if an ADR adds one. The root `tests/` directory holds fixtures as data that those targets load; Cargo does not discover Rust files placed there.
+
+### Not Decided Here
+
+These are open, and milestone 1 PR 2 to PR 4 settle them. None may be treated as decided until its pull request records the choice:
+
+- **The types.** The fields of `KernelSnapshot`, the variants of `Input`, and the shape of `Decision`. §2 names what they must carry, not how.
+- **Port signatures.** Whether `observe` and `apply` are asynchronous, how they report transport failure, and how a receipt names the effect it answers.
+- **Settlement evidence.** What shows, per resource kind, that an effect can cause no further change ([warp.md](../formal/warp.md#conflict-keys) gives examples, not a contract).
+- **Loom.** Whether Loom runs the same `step` over fleet state or a separate kernel with the same discipline. Phase 3.
+- **A conformance crate.** Whether cross-layer suites outgrow `nomos-cell/tests/`. That would be a new crate and a new ADR.
+
+### Related Decisions
+
+Ownership of individual resource properties across controllers is [ADR 0008](0008-ownership-and-identity.md). Readiness, activation, and reservations are [ADR 0009](0009-warp-activation-semantics.md). Effect recovery and fencing are [ADR 0010](0010-effect-recovery-and-fencing.md). The Event ordering the kernel emits is [ADR 0012](0012-event-history.md). All four are proposed and plug into `step`.
 
 ### Assumptions
 
@@ -57,7 +72,7 @@ The workspace is virtual, so a test must belong to a package. Conformance suites
 
 ### Evidence
 
-Research recommendation `pure-kernel` and finding `single-controller` are arguments, not measurements. The milestone's pull requests 2 to 4 are the evidence this ADR is owed.
+Research recommendation `pure-kernel` and finding `single-controller` are arguments, not measurements. Pull request 1 added the first mechanical evidence of §1's layer boundaries: `cargo xtask check-layers` rejects an adapter dependency in core, ports, or app ([ADR 0007](0007-verification-gates.md)). The semantic half of §1, that no adapter can return an interpretation, and §2 to §4 are owed by milestone 1 PR 2 to PR 4.
 
 ## Consequences
 
@@ -66,4 +81,4 @@ Research recommendation `pure-kernel` and finding `single-controller` are argume
 - Recovery is a replay of recorded inputs into `step`, followed by fresh Observations, matching [event-log.md](../formal/event-log.md).
 - **Verification.** Milestone 1 pull request 4: the transition kernel with a recovery simulator, the first executable TLA+ model of the same transitions, and replayable traces. Pull request 2 and 3 supply the assessment and Warp functions `step` calls.
 - **Failure behavior.** A kernel given an input it cannot interpret, for example a receipt for an unknown effect, records the fact as an Event and leaves the snapshot unchanged; it never guesses.
-- **Revisit trigger.** Reopen if an effect cannot be expressed without a callback, or if the simulator and production drivers diverge in a way the input model cannot capture.
+- **Revisit trigger.** Reopen if an effect cannot be expressed without a callback, if the simulator and production drivers diverge in a way the input model cannot capture, or if the owner does not accept the provenance above.
