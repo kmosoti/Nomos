@@ -1,12 +1,11 @@
 # TLA+ models
 
-Planned models of the control protocol (not of Linux):
+Machine-checked models of the control protocol. They model the protocol, not Linux.
+
+Planned modules:
 
 - `ActionLifecycle.tla`
 - `PlanExecution.tla`
 - `Fencing.tla`
 
-See `docs/PROJECT-SPEC.md` §48.
-
-Written statements and proof sketches of the same properties live in
-[`docs/formal/`](../../docs/formal/).
+See [spec §48](../../docs/PROJECT-SPEC.md#48-formal-specification). Written statements and proof sketches of the same properties live in [docs/formal/](../../docs/formal/).

@@ -2,8 +2,7 @@
 
 ## Components
 
-Nomos is the project, protocol and shared model. It is not a daemon. It has
-four architectural components (spec §2).
+Nomos is the project, the protocol, and the shared model. It is not a daemon. It has four architectural components (spec §2).
 
 ```mermaid
 flowchart TB
@@ -20,12 +19,12 @@ flowchart TB
     C --> Stream(["outbound authenticated stream<br/>Cell initiates"]) --> L
 ```
 
-| Component | Binary / crate | Role |
-|---|---|---|
-| Loom | `nomos-loom` | Accepts Canon, tracks Cells, resolves targets, plans, dispatches, ingests Events. Single authority in v0. |
-| Cell | `nomos-cell` | Discovers Traits, observes, executes, verifies, spools Events. Works without Loom. |
+| Component | Binary or crate | Role |
+| --- | --- | --- |
+| Loom | `nomos-loom` | Accepts Canon, tracks Cells, resolves targets, plans, dispatches, and ingests Events. The single authority in v0. |
+| Cell | `nomos-cell` | Discovers Traits, observes, executes, verifies, and spools Events. Works without Loom. |
 | Warp | `nomos-warp` | Compiles resources and Variance into an Action DAG. |
-| Substrate | `nomos-substrate` (+ adapters) | Typed operations against the OS, using native APIs rather than shell. |
+| Substrate | `nomos-substrate` and its adapters | Typed operations against the OS, through native APIs instead of shell. |
 
 ## The control loop
 
@@ -45,7 +44,7 @@ flowchart TB
     Loom -.-> Ev
 ```
 
-A Cell runs the same loop locally, with no Loom involved:
+A Cell runs the same loop locally, no Loom required:
 
 ```mermaid
 flowchart LR
@@ -56,10 +55,7 @@ flowchart LR
 
 ## Deployment topology (v0)
 
-One Loom and many Cells. Cells connect **outward** to Loom over the Mesh
-(Headscale, [ADR 0001](../adr/0001-headscale-mesh-adapter.md)). Secrets
-resolve at the point of use through the Cipher port (Vault,
-[ADR 0002](../adr/0002-vault-cipher-adapter.md)).
+One Loom, many Cells. Cells connect **outward** to Loom over the Mesh (Headscale, [ADR 0001](../adr/0001-headscale-mesh-adapter.md)). Secrets resolve at the point of use through the Cipher port (Vault, [ADR 0002](../adr/0002-vault-cipher-adapter.md)).
 
 ```mermaid
 flowchart LR
@@ -89,4 +85,4 @@ flowchart LR
     N --> E(["operational Events"]) --> F
 ```
 
-They are independent systems with narrow integration surfaces.
+Three independent systems with narrow integration surfaces. Each is useful on its own.

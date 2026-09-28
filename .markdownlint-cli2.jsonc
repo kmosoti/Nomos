@@ -1,0 +1,15 @@
+// Markdown formatting rules. The prose conventions live in CONTRIBUTING.md.
+{
+  "config": {
+    "default": true,
+    // One paragraph per line, so no line-length limit.
+    "MD013": false,
+    // HTML appears only inside Mermaid node labels.
+    "MD033": false,
+    // Repeated headings are fine in different sections.
+    "MD024": { "siblings_only": true },
+    "MD004": { "style": "dash" },
+    "MD029": { "style": "ordered" }
+  },
+  "ignores": ["LICENSE", "target/**"]
+}

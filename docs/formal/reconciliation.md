@@ -20,12 +20,9 @@ $$
 \mathrm{diff}(D, O) = \varnothing \iff O \models D
 $$
 
-Here $O \models D$ means "the observation satisfies the desired spec".
-Every correctness result below depends on this requirement. Each driver must
-therefore test it directly.
+Here $O \models D$ means "the observation satisfies the desired spec". Every correctness result below rests on this requirement, so every driver tests it directly.
 
-**Plan purity.** $\mathrm{plan}$ is a function of Variance only, and
-$\mathrm{plan}(\varnothing) = \emptyset$.
+**Plan purity.** $\mathrm{plan}$ is a function of Variance only, and $\mathrm{plan}(\varnothing) = \emptyset$.
 
 ## Algorithm
 
@@ -45,8 +42,7 @@ enforce(C, bound k):
     return NonConvergent(bound)
 ```
 
-Trace is the same procedure with `execute` removed and the loop run once
-(spec §37).
+Trace is the same procedure with `execute` removed and the loop run once (spec §37).
 
 ```mermaid
 flowchart LR
@@ -61,34 +57,20 @@ flowchart LR
 
 ## Fixed point (N3)
 
-**Claim.** If $\mathrm{Enforce}(C, S) = S'$ with
-$\mathrm{diff}(C, S') = \varnothing$, then $\mathrm{Enforce}(C, S')$ performs
-no mutating Action.
+**Claim.** If $\mathrm{Enforce}(C, S) = S'$ with $\mathrm{diff}(C, S') = \varnothing$, then $\mathrm{Enforce}(C, S')$ performs no mutating Action.
 
-*Proof sketch.* In state $S'$ the first iteration observes $O = S'$. The first
-iteration computes $\mathrm{diff}(C, S') = \varnothing$ and returns
-`Converged` before `plan` or `execute` is reached. No Action is produced, so
-none mutates. $\square$
+*Proof sketch.* In state $S'$, the first iteration observes $O = S'$, computes $\mathrm{diff}(C, S') = \varnothing$ and returns `Converged` before `plan` or `execute` is reached. No Action is produced, so none mutates. $\square$
 
-The property test is therefore
-$\mathrm{enforce}(\mathrm{enforce}(S)) = \mathrm{enforce}(S)$, with zero
-mutating Actions in the second run.
+The property test is therefore $\mathrm{enforce}(\mathrm{enforce}(S)) = \mathrm{enforce}(S)$, with zero mutating Actions in the second run.
 
 ## Termination
 
 **Claim.** `enforce` terminates after at most $k$ iterations.
 
-*Proof.* The loop variable is bounded by $k$. Every exit path either returns
-or increments $i$. $\square$
+*Proof.* The loop variable is bounded by $k$. Every exit path either returns or increments $i$. $\square$
 
-Oscillation detection is a sharper early exit. Suppose an external writer $B$
-restores a previous state $X$ after Nomos changes it. Then some later
-observation repeats an earlier one, so $H(O_j) = H(O_i)$ for some $j > i$.
-Nomos reports this as oscillation rather than running until the bound.
-Oscillation that never repeats an exact state still ends at $k$.
+Oscillation detection is a sharper early exit. Suppose an external writer $B$ restores a previous state $X$ every time Nomos changes it. Some later observation then repeats an earlier one, so $H(O_j) = H(O_i)$ for some $j > i$, and Nomos reports oscillation instead of running to the bound. Oscillation that never repeats an exact state still stops at $k$. Nomos may lose an argument with another controller. It will not lose it forever.
 
 ## Verification (N6)
 
-An Action reaches `Succeeded` only through `Verifying`. `Verifying` succeeds
-only if $\mathrm{verify}(D_r, O'_r)$ holds on a fresh observation. An exit
-code is never accepted as evidence.
+An Action reaches `Succeeded` only through `Verifying`. `Verifying` succeeds only if $\mathrm{verify}(D_r, O'_r)$ holds on a fresh observation. An exit code is never evidence.

@@ -1,27 +1,23 @@
 # Contributing to Nomos
 
-Thank you for your interest in Nomos. The project is at the skeleton stage.
-The most valuable contributions right now are careful ones: sharper semantics,
-clearer boundaries, and tests that pin down invariants.
+Thanks for being here. Nomos is at the skeleton stage, so the most valuable contributions are careful ones: sharper semantics, cleaner boundaries, and tests that pin invariants down.
 
 ## Before you start
 
 Read these, in order:
 
 1. [README](README.md): what Nomos is for.
-2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary and the safety invariants N1–N12.
-3. [Architecture](docs/architecture/): how the code is organised.
-4. [ADR 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule and the pinned toolchain.
+2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary, and safety invariants N1–N12.
+3. [Architecture](docs/architecture/): how the code is organized.
+4. [ADR 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule, and the pinned toolchain.
 
-For anything larger than a small fix, open an issue first so the design can be
-agreed before code is written.
+For anything bigger than a small fix, open an issue first. Agreeing on the design is cheaper than rewriting the code.
 
 ## Toolchain
 
-Rust is pinned to **1.98.1** in `rust-toolchain.toml`. With rustup installed,
-the right toolchain is selected automatically.
+Rust is pinned to **1.98.1** in `rust-toolchain.toml`. With rustup installed, the right toolchain is selected automatically.
 
-Run these before opening a pull request. CI runs the same checks:
+Run these before opening a pull request. CI runs the same checks.
 
 ```sh
 cargo fmt    --all --check
@@ -43,56 +39,62 @@ flowchart LR
     ports --> core
 ```
 
-- **Dependencies point inward only.** `core/` depends on nothing. `app/` never
-  depends on `adapters/`. Only `bin/` wires adapters to ports.
-- **One port per adapter.** A new technology (a storage engine, a secrets
-  backend, a transport) is a new adapter crate named
-  `nomos-<port>-<technology>`. It does not add a dependency to the core.
-- **Any new crate, port or change to the dependency rule needs an ADR.**
+- **Dependencies point inward.** `core/` depends on nothing. `app/` never depends on `adapters/`. Only `bin/` wires adapters to ports.
+- **One port per adapter.** A new technology, such as a storage engine, a secrets backend, or a transport, is a new adapter crate named `nomos-<port>-<technology>`. It never adds a dependency to the core.
+- **ADRs for structure.** Any new crate, new port, or change to the dependency rule needs an ADR.
 
 ## Design rules
 
-- **Vocabulary.** Use the terms in spec §3 exactly: Canon, Trait, Cipher,
-  Variance, Trace, Enforce, Event, Event Log. One concept gets one name.
-- **Invariants first.** A change must not weaken N1–N12. If it touches one,
-  say which and add or extend a test for it.
-- **Typed operations, not shell.** Substrate uses native interfaces such as
-  D-Bus and syscalls. Arbitrary command execution is not a reconciliation
-  primitive.
-- **No secret plaintext.** Cipher values never appear in Events, Plans, Trace
-  output, errors or logs.
-- **Deterministic by default.** Avoid depending on iteration order, hash seeds
-  or wall-clock time in anything that feeds compilation or planning.
+- **Vocabulary.** Use the terms from spec §3 exactly: Canon, Trait, Cipher, Variance, Trace, Enforce, Event, Event Log. One concept, one name.
+- **Invariants first.** A change must not weaken N1–N12. If it touches one, say which, and add or extend a test for it.
+- **Typed operations, not shell.** Substrate uses native interfaces such as D-Bus and syscalls. Arbitrary command execution is not a reconciliation primitive.
+- **No secret plaintext.** Cipher values never appear in Events, Plans, Trace output, errors, or logs.
+- **Deterministic by default.** Nothing that feeds compilation or planning depends on iteration order, hash seeds, or wall-clock time.
 
 ## Documentation
 
-- Technical material belongs in `docs/`. The README tells the story.
-- **Diagrams are Mermaid only.** GitHub renders Mermaid. ASCII art and
-  box-drawing diagrams break across fonts and viewers, so don't add them.
-  Use fenced code blocks only for code, commands, pseudocode and sample output.
-- **No labels on Mermaid arrows or state transitions.** GitHub's renderer can
-  fail on labelled arrows (`A -- text --> B`, `A -->|text| B`, `S1 --> S2: text`)
-  with "Could not find a suitable point for the given distance". Put the text in
-  the node, route the arrow through a small label node (`A --> L(["text"]) --> B`),
-  or explain the transitions in a table under the diagram.
-- Mathematical statements use GitHub math (`$...$`, `$$...$$`).
+### Voice
+
+Nomos docs state things as they are. Short sentences, active voice, no hedging. A dry line is welcome where it makes a point stick. Keep it out of rules and definitions, where it only adds ambiguity.
+
+### Mechanics
+
+- **Where things go.** The README tells the story. Technical material lives in `docs/`.
+- **Spelling.** American English: behavior, organize, artifact.
+- **Headings.** Sentence case. Component and vocabulary terms keep their capitals.
+- **Commas.** Use the Oxford comma.
+- **Paragraphs.** One paragraph per line, no hard wrapping.
+- **Lists.** Fragments take no final period. Full sentences do. Bold lead-ins end with a period: `- **Label.** Text.`
+- **Abbreviations.** Write "for example", not "e.g.".
+- **Math.** GitHub math syntax (`$...$` and `$$...$$`).
+
+Check formatting with [markdownlint](https://github.com/DavidAnson/markdownlint-cli2), which reads `.markdownlint-cli2.jsonc`:
+
+```sh
+npx markdownlint-cli2 "**/*.md"
+```
+
+### Diagrams
+
+- **Mermaid only.** GitHub renders Mermaid. ASCII art and box-drawing characters fall apart across fonts and viewers. Fenced code blocks are for code, commands, pseudocode, and sample output.
+- **No labels on arrows or state transitions.** GitHub's renderer can fail on labeled arrows (`A -- text --> B`, `A -->|text| B`, `S1 --> S2: text`) with "Could not find a suitable point for the given distance". Put the text in a node, route the arrow through a small label node (`A --> L(["text"]) --> B`), or explain transitions in a table under the diagram.
+
+### Where documents go
+
 - Algorithms and proofs go in `docs/formal/`. Machine-checked TLA+ models go in `formal/tla/`.
-- Decisions go in `docs/adr/`, numbered sequentially. Use the Status, Date,
-  Context, Decision, Consequences layout.
+- Decisions go in `docs/adr/`, numbered sequentially, with the Status, Date, Context, Decision, and Consequences layout.
 
 ## Commits and pull requests
 
-- Keep each pull request focused on one change. Separate refactors from behaviour changes.
-- Write commit messages in the imperative ("Add Warp cycle detection"). Explain *why* in the body.
+- Keep each pull request to one change. Refactors and behavior changes go separately.
+- Write commit subjects in the imperative ("Add Warp cycle detection") and explain *why* in the body.
 - Update docs and ADRs in the same pull request as the change they describe.
-- CI must be green before review.
+- CI is green before review.
 
-## Reporting security issues
+## Security issues
 
 Do not open a public issue. Follow [SECURITY.md](SECURITY.md).
 
 ## License
 
-Nomos is licensed under the [Apache License 2.0](LICENSE). By submitting a
-contribution, you agree that it is licensed under the same terms, as described
-in section 5 of the license.
+Nomos is licensed under the [Apache License 2.0](LICENSE). By submitting a contribution, you agree that it is licensed under the same terms, as described in section 5 of the license.

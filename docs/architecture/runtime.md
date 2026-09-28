@@ -11,13 +11,11 @@ flowchart LR
     IR --> W["Warp"] --> DAG(["Plan DAG"])
 ```
 
-The canonical IR serializes deterministically, so identical Canon always has
-the same `CanonID` (invariant N12, see [formal/invariants.md](../formal/invariants.md)).
+The canonical IR serializes deterministically, so identical Canon always gets the same `CanonID`. That is invariant N12; see [formal/invariants.md](../formal/invariants.md).
 
 ## Trace and Enforce share one pipeline
 
-Trace is Enforce with the execution stage removed. It is not a separate
-"dry-run" implementation (spec §37).
+Trace is Enforce with the execution stage removed. There is no separate dry-run implementation to drift out of sync (spec §37).
 
 ```mermaid
 flowchart LR
@@ -54,15 +52,13 @@ stateDiagram-v2
 ```
 
 | Transition | Condition |
-|---|---|
-| `Dispatched → Rejected` | stale generation or unauthorized |
-| `Verifying → Succeeded` | postcondition observed |
-| `Verifying → Failed` | postcondition not observed |
-| `TimedOut → end` | outcome unknown; state is re-observed |
+| --- | --- |
+| `Dispatched → Rejected` | Stale generation, or unauthorized |
+| `Verifying → Succeeded` | Postcondition observed |
+| `Verifying → Failed` | Postcondition not observed |
+| `TimedOut → end` | Outcome unknown; state is observed again |
 
-`TimedOut` does not mean the Action failed. The remote side may have completed
-it. The outcome is recorded as unknown and settled by re-observing
-(invariant N10).
+`TimedOut` does not mean the Action failed. The remote side may have finished the work after the connection dropped. The outcome is recorded as unknown and settled by observing again (invariant N10).
 
 ## Cell internals
 
@@ -78,7 +74,7 @@ flowchart TB
     spool --> proto
 ```
 
-Planned privilege separation (spec §33, Phase 5):
+Privilege separation is planned for Phase 5 (spec §33):
 
 ```mermaid
 flowchart TB
@@ -129,6 +125,8 @@ sequenceDiagram
 ```
 
 ## Optimistic planning
+
+Loom plans against a generation and checks it before executing, instead of locking the fleet while it thinks (spec §17).
 
 ```mermaid
 flowchart LR
