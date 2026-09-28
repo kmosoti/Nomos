@@ -77,6 +77,23 @@ Three points in the bundle disagreed with the specification or with the agent ru
 
 **Package-manager invocation.** Recommendation `substrate` says a controlled `argv` invocation of an unavoidable package-manager command line is not shell interpolation. AGENTS.md rule 5 says no shell execution in Substrate, and spec §12 requires D-Bus for systemd. A direct `execve` with a fixed argument vector is not a shell, but nobody has decided whether it is allowed, and `package` is a Phase 1 resource (spec §10, §55). Recorded, not decided.
 
+## Historical Recommendation and Accepted Architecture
+
+The snapshot under `snapshot/` is a historical recommendation, preserved as received. Where its wording differs from the specification or an ADR, the specification and the ADR are the accepted architecture. The snapshot is never edited to agree with them.
+
+| Recommendation | Status in this repository |
+| --- | --- |
+| `typed-canon` | Accepted: [ADR 0004](../../adr/0004-rust-typed-canon.md). Rust authoring, inert artifact, build job treated as code execution |
+| `evidence-assessment` | Accepted: [ADR 0005](../../adr/0005-assessment-vocabulary.md). Condition, Observation, and three-way Assessment |
+| `pure-kernel` | Accepted: [ADR 0006](../../adr/0006-kernel-contract.md). Not implemented |
+| `validated-boundary`, `algebraic-model` | Accepted as direction in ADR 0004. Not implemented; milestone 1 PR 2 and PR 5 |
+| `canonical-profile` | Open. ADR 0004 §5 lists it unresolved |
+| `bounded-bindings` | Open, as Trait-dependent expressions. The snapshot's specific expression form is not adopted |
+| `compatibility` | Open, as the extensibility model and schema versioning |
+| `layer-enforcement` | Implemented: `cargo xtask check-layers`, in CI |
+| `agent-proof` | Rule adopted: AGENTS.md rule 11. The mechanical gate is not implemented |
+| Every other recommendation | Assigned to an experiment in the [milestone plan](grounding-plan.md); not decided |
+
 ## Recommendations and Where They Land
 
 The bundle groups its 26 recommendations into eight ADR candidates. The grounding plan assigns each candidate to the wave whose experiments produce its evidence.

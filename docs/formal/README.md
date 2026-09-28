@@ -22,9 +22,10 @@ The 2026-09-28 research snapshot reviewed these drafts and reproduced seven coun
 
 | Symbol | Meaning |
 | --- | --- |
-| $D_r$ | Desired state of resource $r$ (from Canon) |
-| $O_r$ | Observed state of resource $r$ |
-| $\mathrm{diff}(D, O)$ | Variance; $\varnothing$ when $O$ satisfies $D$ |
+| $C_r$ | Condition on resource $r$ (from Canon) |
+| $O_r$ | Observation of resource $r$ |
+| $\mathrm{assess}(C, O)$ | Assessment: $\mathrm{Satisfied}$, $\mathrm{Variance}(\delta)$, or $\mathrm{Indeterminate}(\rho)$ |
+| $S$ | The host itself, as Substrate exposes it; $\pi(S)$ its managed-resource projection |
 | $G = (V, E)$ | Warp graph; $V$ = Actions, $E$ = dependency edges |
 | $g$ | Plan generation (fencing token) |
 | $g^{acc}_n$ | Highest generation accepted by node $n$ |

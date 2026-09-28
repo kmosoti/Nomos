@@ -6,8 +6,8 @@ The author's Rust is never executed on a host (spec §5–§6, [ADR 0004](../adr
 
 ```mermaid
 flowchart LR
-    R[/"Rust authoring crate"/] --> B["isolated build job"] --> IR["Canonical IR"]
-    IR --> V["validated decode"] --> H["H(CanonicalEncoding)"] --> CID(["CanonID"])
+    R[/"typed Rust Canon source"/] --> B["isolated build job<br/>construction · validation · normalization"] --> ART[("Canon artifact<br/>inert Canonical IR")]
+    ART --> V["validated decode"] --> H["H(CanonicalEncoding)"] --> CID(["CanonID"])
     V --> W["Warp"] --> DAG(["Plan DAG"])
 ```
 
@@ -19,11 +19,12 @@ Trace is Enforce with the execution stage removed. There is no separate dry-run 
 
 ```mermaid
 flowchart LR
-    C[/"Canonical IR"/] --> Decode --> Observe --> Diff["Variance"] --> Compile["Warp → Plan"]
-    Compile --> Report(["Trace: Variance report<br/>no mutation"])
-    Compile --> Execute["Enforce: execute Actions"] --> Verify --> Observe2{"Observe again"}
-    Observe2 --> Converged(["Variance = ∅<br/>converged"])
-    Observe2 --> Again["Variance ≠ ∅, within bound<br/>compile again"] --> Compile
+    C[/"Canon artifact"/] --> Decode --> Observe --> Assess["Assess<br/>Satisfied · Variance · Indeterminate"] --> Compile["Warp → Plan"]
+    Compile --> Report(["Trace: Assessment report<br/>no mutation"])
+    Compile --> Execute["Enforce: execute Actions"] --> Verify --> Observe2{"Observe and assess again"}
+    Observe2 --> Converged(["all Satisfied, no Obligation, all Settled<br/>converged"])
+    Observe2 --> Ind(["only Indeterminate left<br/>Indeterminate"])
+    Observe2 --> Again["Variance or Obligation, within bound<br/>compile again"] --> Compile
     Observe2 --> NC(["bound exceeded or oscillation<br/>non-convergence"])
 ```
 
@@ -56,7 +57,7 @@ stateDiagram-v2
 | `Dispatched → Rejected` | Stale generation, or unauthorized |
 | `Verifying → Succeeded` | Postcondition observed |
 | `Verifying → Failed` | Postcondition not observed |
-| `TimedOut → end` | Outcome unknown; state is observed again |
+| `TimedOut → end` | Outcome unknown; the resource is observed again |
 
 `TimedOut` does not mean the Action failed. The remote side may have finished the work after the connection dropped. The outcome is recorded as unknown and settled by observing again (invariant N10).
 

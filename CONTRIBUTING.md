@@ -49,7 +49,7 @@ flowchart LR
 
 ## Design Rules
 
-- **Vocabulary.** Use the terms from spec §3 exactly: Canon, Condition, Trait, Cipher, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Trace, Enforce, Event, Event Log. One concept, one name.
+- **Vocabulary.** Use the terms from spec §3 exactly: Canon, Condition, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Action, Plan, Trait, Cipher, Trace, Enforce, Event, Event Log. One concept, one name. A failed observation is Indeterminate, never a Variance.
 - **Invariants first.** A change must not weaken N1–N12. If it touches one, say which, and add or extend a test for it.
 - **Typed operations, not shell.** Substrate uses native interfaces such as D-Bus and syscalls. Arbitrary command execution is not a reconciliation primitive.
 - **No secret plaintext.** Cipher values never appear in Events, Plans, Trace output, errors, or logs.

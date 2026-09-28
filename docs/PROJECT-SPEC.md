@@ -13,19 +13,18 @@
 
 Nomos (Ancient Greek νόμος: law, custom, established order) is a host-state convergence and distributed control system.
 
-Nomos describes how machines should be, observes how they are, computes the difference, builds a safe execution plan, applies the required changes, verifies their effects, and records every transition in an immutable, append-only Event Log.
+Nomos describes how machines should be as Conditions, observes how they are, assesses each Condition against the evidence, builds a safe execution plan for the known mismatches, applies the required changes, verifies their effects, and records every transition in an immutable, append-only Event Log.
 
 Its fundamental control relationship:
 
 $$
 \begin{aligned}
-&\mathit{DesiredState} \xrightarrow{\text{compare}} \mathit{ObservedState} \\
-&\mathit{Variance} = \mathit{DesiredState} - \mathit{ObservedState} \\
-&\mathit{Plan} = \mathrm{compile}(\mathit{Variance})
+\mathit{Assessment}_r &= \mathrm{assess}(\mathit{Condition}_r,\ \mathit{Observation}_r) \in \{\mathrm{Satisfied},\ \mathrm{Variance},\ \mathrm{Indeterminate}\} \\
+\mathit{Plan} &= P(\mathit{Canon},\ \{\mathit{Assessment}_r\},\ \mathit{Obligations},\ \mathit{Capabilities},\ \mathit{Policy})
 \end{aligned}
 $$
 
-applied until $\mathit{ObservedState} \approx \mathit{DesiredState}$.
+applied until the Canon is converged: every Condition Satisfied, no Obligation pending, every relevant effect Settled (§8). An Indeterminate Assessment contributes nothing to the Plan. Unknown evidence does not imply noncompliance.
 
 Nomos is not Salt rewritten in Rust. Salt is one source of lessons. So are reconciliation systems, workflow engines, schedulers, operating systems, databases, formal methods, security systems, and distributed-systems research.
 
@@ -99,8 +98,8 @@ The node-resident executor. A Cell:
 A Cell is autonomous enough to work without Loom:
 
 ```sh
-nomos-cell trace --canon local.canon
-nomos-cell enforce --canon local.canon
+nomos-cell trace --canon artifacts/local
+nomos-cell enforce --canon artifacts/local
 ```
 
 Loom adds fleet coordination. It is not a dependency for basic reconciliation.
@@ -145,22 +144,51 @@ systemd exposes units, jobs, state, and operations through its D-Bus object mode
 
 | Term | Definition |
 | --- | --- |
-| Canon | Declarative description of desired state, authored in Rust and shipped as an inert Canonical IR |
-| Condition | A requirement Canon states about one resource |
+| Canon | Compiled desired intent: Conditions and their relationships, authored in typed Rust and consumed as an inert, normalized artifact (§5–§6) |
+| Condition | A proposition about one resource that reality is expected to satisfy |
+| Observation | Evidence obtained from Substrate about one resource: what was seen, by which source, when, and whether collection succeeded |
+| Assessment | The interpretation of a Condition against an Observation: Satisfied, Variance, or Indeterminate |
+| Variance | A known mismatch: sufficient evidence that a Condition does not hold |
+| Indeterminate | Insufficient or failed evidence, with its reason. Never a mismatch |
+| Obligation | A follow-up effect a completed change requires and no Condition can observe, held durably until discharged |
+| Settled | The condition of an effect whose outcome is known and which can cause no further change |
+| Action | One bounded attempt to cause or verify a transition of one resource (§18) |
+| Plan | An immutable compiled set of Actions, their dependency edges, and their constraints (§16) |
 | Trait | Typed observation about a Cell or its environment |
 | Cipher | Reference to protected secret material |
-| Observation | Evidence about one resource: what was seen, by whom, when, and whether collection succeeded |
-| Assessment | The judgment of one Condition against its Observations: Satisfied, Variance, or Indeterminate |
-| Variance | Evidence-backed difference between a Condition and observed state |
-| Indeterminate | An Assessment whose evidence supports neither satisfaction nor Variance, with its reason |
-| Obligation | A follow-up effect a completed change requires and no Condition can observe, held durably until discharged |
-| Settled | The state of an effect whose outcome is known and which can cause no further change |
 | Trace | Non-mutating evaluation of Assessments |
-| Enforce | Reconciliation of observed state toward Canon |
+| Enforce | Reconciliation of reality toward Canon: plan from Variance and Obligations, apply, verify, observe again |
 | Event | Immutable record of a meaningful transition |
 | Event Log | Append-only, ordered collection of Events |
 
-Alternative names are discarded on purpose. There is no "Pattern/Canon", "Flaw/Variance", "Audit/Trace", or "Weave/Enforce", and no "Requirement/Condition", "Check/Assessment", "Unknown/Indeterminate", or "Quiesced/Settled". One concept gets one name. The six terms after the original eight were added by [ADR 0005](adr/0005-assessment-vocabulary.md).
+Alternative names are discarded on purpose. There is no "Pattern/Canon", "Flaw/Variance", "Audit/Trace", or "Weave/Enforce", and no "Requirement/Condition", "Check/Assessment", "Unknown/Indeterminate", or "Quiesced/Settled". One concept gets one name. Condition, Observation, Assessment, Indeterminate, Obligation, and Settled were added by [ADR 0005](adr/0005-assessment-vocabulary.md). Action and Plan were already defined in §16 and §18 and are listed so the one-name rule covers them too.
+
+### The Assessment Algebra
+
+A Condition and an Observation produce exactly one Assessment:
+
+```mermaid
+flowchart TB
+    C["Condition<br/>what reality should satisfy"] --> A{"Assessment"}
+    O["Observation<br/>evidence from Substrate"] --> A
+    A --> S(["Satisfied"])
+    A --> V(["Variance<br/>known mismatch"])
+    A --> I(["Indeterminate<br/>insufficient or failed evidence"])
+```
+
+Conceptually:
+
+```rust
+enum Assessment<V, E> {
+    Satisfied,
+    Variance(V),
+    Indeterminate(E),
+}
+```
+
+`V` describes the mismatch and `E` the reason the evidence was insufficient. The Rust types are not implemented yet; milestone 1 pull request 2 implements them for the first resource family.
+
+A failed observation is never a Variance. A denied read, a stale reading, or two readings that contradict each other assess as Indeterminate. Casting such evidence to Variance would plan a mutation from ignorance; casting it to Satisfied would hide drift behind a permission error. **Unknown evidence does not imply noncompliance** (proposed invariant, §58). Assessments are kept per Condition: an Indeterminate Assessment of one resource does not erase the Variance of another.
 
 ## 4. Traits
 
@@ -186,7 +214,7 @@ Targeting uses Identity and Stable Traits unless a Canon explicitly allows other
 
 ## 5. Canon
 
-Canon expresses desired state. It is authored in Rust: a crate that depends on `nomos-canon`, builds a `Canon` value from typed resource specifications, and emits the Canonical IR of §6 ([ADR 0004](adr/0004-rust-typed-canon.md)). The shape below is illustrative; the authoring API is settled by the grounding experiments.
+Canon expresses desired intent as Conditions on resources and the relationships between them. It is authored in typed Rust: a crate that depends on `nomos-canon`, builds a `Canon` value from typed resource specifications, and emits the inert artifact of §6 ([ADR 0004](adr/0004-rust-typed-canon.md)). The shape below is illustrative. The authoring API, including whether it offers builders, a macro layer, or both, is not designed yet.
 
 ```rust
 use nomos_canon::prelude::*;
@@ -216,20 +244,29 @@ pub fn telemetry_node() -> Canon {
 
 Canon is versioned, typed, deterministic, declarative, statically validated, and independent of execution order where possible. The resource specifications are sum types: a file is `Absent` or `Present` with its requirements, and the absent-with-contents contradiction has no representation.
 
-Rust is the authoring surface, not the runtime. The author's crate runs once, in an isolated build job, and what it emits is inert data. Loom and Cell never compile or run Rust from a Canon; they accept only the Canonical IR. No programming language runs on a managed host, which is the property the earlier YAML design existed to protect. Configuration systems have repeatedly shown humanity's talent for turning templating engines into badly documented programming languages. Nomos declines a second time: where a Canon needs a host-dependent value, the IR carries a small typed expression form with fixed bounds, resolved against a frozen snapshot of Traits and parameters. Never a closure, never a template.
+Rust is the authoring surface, not the runtime. The author's crate runs once, in an isolated build job, and what it emits is inert data. Loom and Cell never compile or run Rust from a Canon; they accept only the artifact. No programming language runs on a managed host, which is the property the earlier YAML design existed to protect. Configuration systems have repeatedly shown humanity's talent for turning templating engines into badly documented programming languages. Nomos declines a second time. How a Condition may depend on a Trait is an open decision (§62), and so is how Conditions compose beyond a set. Whatever answers are chosen must survive the same rule: what reaches Loom and Cell is data, never a closure or a template.
 
 ## 6. Canon Compilation
 
-The author's Rust is not what gets executed.
+The author's Rust is not what gets executed. It is compiled, once, into an inert artifact, and the artifact is what Loom and Cell consume.
 
 ```mermaid
-flowchart LR
-    R[/"Rust authoring crate"/] --> B["isolated build job"] --> IR["Canonical IR<br/>inert, versioned"]
-    IR --> V["validated decode<br/>Loom · Cell"] --> H(["hash"])
-    V --> W["Warp"] --> D(["Plan DAG"])
+flowchart TB
+    SRC[/"typed Rust Canon source"/] --> DC["validated domain construction"]
+    DC --> SV["semantic validation"]
+    SV --> NM["normalization"]
+    NM --> IR["inert Canonical IR"]
+    IR --> ART[("Canon artifact")]
+    ART --> LC["Loom · Cell<br/>validated decode"]
+    LC --> W["Warp"] --> D(["Plan DAG"])
+    IR --> H(["CanonID"])
 ```
 
+Every stage above the artifact runs in the author's build job. Every stage below it runs in Nomos, and none of them runs Rust from the Canon.
+
 The build job is ordinary code execution and is treated as such: no network, no host-management credentials, declared inputs only, and a provenance record (toolchain, lockfile digest, `nomos-canon` version, input digests) written beside the IR and excluded from `CanonID`. Two builds with the same declared inputs produce the same IR bytes. That is tested, not assumed. The consumer decodes the IR into untrusted data-transfer objects and converts them, fallibly, into the validated domain types through the same validator the authoring API uses. An IR that fails that conversion produces no Plan.
+
+The encoding of the IR, the artifact container and its file extension, the content hash profile behind $H$ below, and any artifact signing scheme are open (§62). This section fixes the stages and the boundary, not the bytes.
 
 The canonical intermediate representation (IR) serializes deterministically, which gives:
 
@@ -638,7 +675,7 @@ Polkit is not the foundation of network authorization. It may help a local human
 Trace guarantees non-mutation.
 
 ```sh
-nomos-cell trace --canon system.canon
+nomos-cell trace --canon artifacts/system
 ```
 
 ```text
@@ -655,24 +692,30 @@ SYSTEMD example.service
   state:
     observed: stopped
     desired:  running
+
+FILE /etc/example.d/secret.conf
+  INDETERMINATE: read denied (EACCES)
+  action: none
 ```
 
-Trace uses exactly the same decode, observe, diff, and compile pipeline as Enforce. Only execution is left out. A dry run that secretly takes a different code path is a lie with good manners.
+The last entry is an Indeterminate Assessment. Trace reports it with its reason and plans nothing for it.
+
+Trace uses exactly the same decode, observe, assess, and compile pipeline as Enforce. Only execution is left out. A dry run that secretly takes a different code path is a lie with good manners.
 
 ## 38. Enforce
 
 ```mermaid
 flowchart LR
-    C[/"Canon"/] --> O["Observe"] --> V["Variance"] --> W["Warp"] --> P["Plan"] --> A["Actions"] --> VF["Verify"] --> O2["Observe again"]
+    C[/"Canon artifact"/] --> O["Observe"] --> AS["Assess"] --> W["Warp"] --> P["Plan"] --> A["Actions"] --> VF["Verify"] --> O2["Observe again"]
 ```
 
-Convergence ends when $\mathit{Variance} = \varnothing$ or a defined failure condition is reached.
+Enforce ends `Converged` when every Condition is Satisfied, no Obligation is pending, and every relevant effect is Settled (§8). It ends `Indeterminate` when nothing is left to plan but some evidence is insufficient, and `NonConvergent` or `Failed` otherwise ([formal/reconciliation.md](formal/reconciliation.md)). Empty Variance alone is not convergence.
 
 Reconciliation loops are bounded. If A changes X and B changes it back, over and over, Nomos detects the non-convergence. It does not cheerfully consume electricity forever.
 
 ## 39. Fixed-Point Property
 
-If $\mathrm{Enforce}(\mathit{Canon}, S) = S'$ and $\mathit{Variance}(\mathit{Canon}, S') = \varnothing$, then $\mathrm{Enforce}(\mathit{Canon}, S') = S'$.
+If $\mathrm{Enforce}(\mathit{Canon}, S) = S'$ and the Canon is converged on the host $S'$, then $\mathrm{Enforce}(\mathit{Canon}, S') = S'$.
 
 The second application performs no mutating Actions. This is one of Nomos's most important property-based tests.
 
@@ -737,7 +780,8 @@ flowchart LR
 - **Idempotence.** $\mathrm{enforce}(\mathrm{enforce}(S)) = \mathrm{enforce}(S)$.
 - **Trace purity.** $\mathit{SubstrateBefore} = \mathit{SubstrateAfter}$ for every Trace.
 - **Graph validity.** Every dependency precedes its dependent Action.
-- **Determinism.** Identical Canon, Traits, and observed state produce identical logical Plans.
+- **Determinism.** An identical Canon artifact, Traits, and Observations produce identical logical Plans.
+- **Unknown evidence.** No Indeterminate Assessment becomes a Variance, and no Action is planned from one.
 - **Secret non-disclosure.** No Cipher plaintext appears in serialized Events.
 - **Event monotonicity.** For every writer, $\mathit{sequence}_{n+1} > \mathit{sequence}_n$.
 - **Stale fencing.** An Action with a generation below the latest accepted generation never executes.
@@ -795,14 +839,14 @@ Crates beyond the four components (`nomos-canon`, `nomos-store`, `nomos-protocol
 Loom:
 
 ```sh
-nomos-loom compile --canon base-system.canon
-nomos-loom trace   --target 'traits.os == "debian"' --canon hardened-host.canon
-nomos-loom enforce --target 'traits.tier == "edge"' --canon telemetry-stack.canon
+nomos-loom compile --canon artifacts/base-system
+nomos-loom trace   --target 'traits.os == "debian"' --canon artifacts/hardened-host
+nomos-loom enforce --target 'traits.tier == "edge"' --canon artifacts/telemetry-stack
 ```
 
 | Command | Effect |
 | --- | --- |
-| `compile` | Validate a Canonical IR and report its `CanonID` |
+| `compile` | Validate a Canon artifact and report its `CanonID` |
 | `trace` | Distributed, non-mutating evaluation |
 | `enforce` | Coordinate fleet convergence |
 
@@ -810,8 +854,8 @@ Cell:
 
 ```sh
 nomos-cell traits
-nomos-cell trace   --canon /etc/nomos/local.canon
-nomos-cell enforce --canon /etc/nomos/local.canon
+nomos-cell trace   --canon /etc/nomos/artifacts/local
+nomos-cell enforce --canon /etc/nomos/artifacts/local
 nomos-cell events
 ```
 
@@ -822,7 +866,7 @@ nomos-cell events
 | `enforce` | Standalone convergence |
 | `events` | Inspect the local Event Log |
 
-The `.canon` suffix names a Canonical IR file. The encoding behind it is decided by the canonical-encoding ablation (§54), and the suffix follows.
+`--canon` names a Canon artifact. Its container format and file extension are open (§62), so the paths above have none.
 
 ## 52. Design Lineage
 
@@ -937,26 +981,28 @@ The constitutional layer.
 - **N8.** Cipher plaintext never enters persistent operational records.
 - **N9.** Failure-budget constraints are never intentionally exceeded.
 - **N10.** An unknown execution outcome stays unknown. It is never silently converted to success or failure.
-- **N11.** Losing Loom does not invalidate already-observed Cell state.
+- **N11.** Losing Loom does not invalidate Observations the Cell has already collected.
 - **N12.** Canon compilation is deterministic for identical inputs.
+
+**Proposed.** *Unknown evidence does not imply noncompliance.* An Indeterminate Assessment is never counted as a Variance, and every planned Action is caused by a Variance or an Obligation, never by an Indeterminate Assessment. It is recorded here and in [formal/invariants.md](formal/invariants.md) as a candidate for N13. It gets that number when the assessment tests of milestone 1 pull request 2 exist to check it; N1–N12 keep their numbers.
 
 These invariants matter more than any implementation technology. Formal statements: [formal/invariants.md](formal/invariants.md).
 
 ## 59. Architectural Thesis
 
-Nomos is five transformations. Canon, Traits, and Observation produce Variance. Variance produces a Warp graph. Warp produces Actions. Actions operate through Substrate. Every meaningful transition produces Events.
+Nomos is five transformations. Conditions from the Canon and Observations from Substrate produce Assessments. Variances and Obligations produce a Warp graph. Warp produces Actions. Actions operate through Substrate. Every meaningful transition produces Events.
 
 ```mermaid
 flowchart TB
-    CANON[/"<b>CANON</b><br/>desired state"/] --> LOOM["<b>LOOM</b><br/>targeting / planning"]
+    CANON[/"<b>CANON</b><br/>compiled desired intent"/] --> LOOM["<b>LOOM</b><br/>targeting / planning"]
     LOOM --> WARP["<b>WARP</b><br/>Action DAG"]
     WARP --> CELL["<b>CELL</b><br/>validated execution"]
     CELL --> SUB["<b>SUBSTRATE</b><br/>Linux"]
     SUB --> OBS(["OBSERVATION"])
     OBS --> TR(["TRAITS"])
-    OBS --> VAR(["VARIANCE"])
+    OBS --> AS(["ASSESSMENT<br/>Satisfied · Variance · Indeterminate"])
     TR --> LOOM
-    VAR --> LOOM
+    AS --> LOOM
     X["every transition"] --> EV["EVENT"] --> EL[("EVENT LOG")]
 ```
 
@@ -1012,6 +1058,17 @@ The unresolved parts, stated so they can be argued with:
 - **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions. They need an ADR.
 - **Idempotency key retention.** The Cell persists accepted keys. For how long? Unbounded retention is a slow disk leak. Bounded retention reopens the duplicate window for very late retransmissions.
 - **Leases vs. clock skew.** Plan leases expire in time, and clocks drift. Does expiry use Loom's clock, the Cell's clock, or a monotonic budget measured from receipt?
-- **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it report that Variance as unknown?
+- **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it assess that Condition as Indeterminate?
 - **Mesh identity vs. Nomos identity.** Headscale authenticates nodes on the network. Nomos authorizes Cells to act. How are the two bound, so a compromised tailnet key does not become fleet authority?
 - **Persistence.** redb, SQLite, or an LMDB-family store. The ablation in §54 decides.
+
+Canon ([ADR 0004](adr/0004-rust-typed-canon.md) decides the authoring surface and the inert-artifact boundary; these remain open):
+
+- **Artifact encoding.** A restricted deterministic CBOR profile or canonical JSON (§54).
+- **Artifact container and file extension.**
+- **Content hash profile.** The algorithm and domain separation behind $H$ in §6.
+- **Artifact signing.** Whether artifacts are signed, by whom, and what a Cell checks.
+- **Extensibility model.** Whether resource kinds are a closed set or can be extended, and how an unknown kind is carried without being executed.
+- **Condition composition.** Whether Conditions compose beyond a set, for example by disjunction or negation, and what a repair means for a composite.
+- **Trait-dependent expressions.** How a Condition may depend on a Trait value, and how that dependency is bounded.
+- **Authoring API form.** Builders, a macro layer, or both.

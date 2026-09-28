@@ -21,24 +21,24 @@ flowchart TB
 
 | Component | Binary or crate | Role |
 | --- | --- | --- |
-| Loom | `nomos-loom` | Accepts Canon, tracks Cells, resolves targets, plans, dispatches, and ingests Events. The single authority in v0. |
-| Cell | `nomos-cell` | Discovers Traits, observes, executes, verifies, and spools Events. Works without Loom. |
-| Warp | `nomos-warp` | Compiles resources and Variance into a directed acyclic graph (DAG) of Actions. |
+| Loom | `nomos-loom` | Accepts Canon artifacts, tracks Cells, resolves targets, plans, dispatches, and ingests Events. The single authority in v0. |
+| Cell | `nomos-cell` | Discovers Traits, collects Observations, executes, verifies, and spools Events. Works without Loom. |
+| Warp | `nomos-warp` | Compiles Variances and Obligations into a directed acyclic graph (DAG) of Actions. |
 | Substrate | `nomos-substrate` and its adapters | Typed operations against the OS, through native APIs instead of shell. |
 
 ## The Control Loop
 
 ```mermaid
 flowchart TB
-    Canon[/"Canon<br/>desired state"/] --> Loom
+    Canon[/"Canon artifact<br/>compiled desired intent"/] --> Loom
     Loom["Loom<br/>targeting · planning"] --> Warp["Warp<br/>Action DAG"]
     Warp --> Cell["Cell<br/>validated execution"]
     Cell --> Substrate["Substrate<br/>Linux"]
     Substrate --> Obs(["Observation"])
     Obs --> Traits(["Traits"])
-    Obs --> Var(["Variance"])
+    Obs --> As(["Assessment<br/>Satisfied · Variance · Indeterminate"])
     Traits --> Loom
-    Var --> Loom
+    As --> Loom
 
     Cell -.-> Ev[("Event Log<br/>every transition")]
     Loom -.-> Ev
@@ -48,9 +48,10 @@ A Cell runs the same loop locally, no Loom required:
 
 ```mermaid
 flowchart LR
-    Canon[/"local Canon"/] --> Observe --> Diff["Variance"]
-    Diff --> Done(["Variance = ∅<br/>converged"])
-    Diff --> Plan["Variance ≠ ∅<br/>Warp → Plan"] --> Apply --> Verify --> Observe
+    Canon[/"local Canon artifact"/] --> Observe --> Assess["Assess"]
+    Assess --> Done(["all Satisfied, no Obligation<br/>converged"])
+    Assess --> Ind(["only Indeterminate left<br/>Indeterminate"])
+    Assess --> Plan["Variance or Obligation<br/>Warp → Plan"] --> Apply --> Verify --> Observe
 ```
 
 ## Deployment Topology (v0)

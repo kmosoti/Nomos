@@ -22,7 +22,7 @@ The 2026-09-28 research snapshot proposes eight decision bundles. None is an ADR
 | `evidence-model` | Resource ownership across controllers and identity. The three-way Assessment and its vocabulary are decided in [ADR 0005](0005-assessment-vocabulary.md); semantic ownership in [ADR 0006](0006-kernel-contract.md) | Milestone 1 PR 4 for composition; identity later |
 | `warp-gates` | Edge semantics (spec §62), satisfaction anchors, durable change consumption, reservations | Wave 1, wave 2 |
 | `recovery-authority` | Effect recovery contracts, fencing at the effect boundary, admission-scoped budgets | Wave 2 |
-| `canon-artifact` | Canonical encoding profile, schema versioning, and migration rules. The authoring surface, validated decoding, and algebraic model are decided in [ADR 0004](0004-rust-typed-canon.md) | Wave 3 |
+| `canon-artifact` | Canonical encoding profile, schema versioning, and migration rules. The authoring surface and the inert-artifact boundary are decided in [ADR 0004](0004-rust-typed-canon.md), which lists every Canon question still open | Milestone 1 PR 5 |
 | `event-history` | Outbox, retention, and disk-pressure behavior | Phase 2 |
 | `boundary-security` | Substrate privilege boundary and Cipher sinks | Phases 1 and 6 |
 | `future-algorithms` | Incremental planning and Plan witnesses | After Phase 0, measured first |

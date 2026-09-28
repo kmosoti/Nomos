@@ -17,13 +17,25 @@ Spec §3 gains six terms and one revised definition. One concept, one name, as b
 
 | Term | Definition | Why it exists |
 | --- | --- | --- |
-| Condition | A requirement Canon states about one resource | The unit a Cell judges. A Canon is a set of Conditions plus relationships |
-| Observation | Evidence about one resource: what was seen, by whom, when, and whether collection succeeded | Provenance and freshness are part of the evidence, not metadata beside it |
-| Assessment | The judgment of one Condition against its Observations: Satisfied, Variance, or Indeterminate | Three outcomes, per Condition, never aggregated into one status for the Canon |
-| Variance | Evidence-backed difference between a Condition and observed state | Revised from "difference between desired and observed state" so a failed observation cannot be one |
-| Indeterminate | An Assessment whose evidence supports neither satisfaction nor Variance, with its reason | Plans no mutation. An Indeterminate Assessment of one resource never erases a Variance of another |
+| Condition | A proposition about one resource that reality is expected to satisfy | The unit a Cell judges. A Canon is Conditions plus relationships |
+| Observation | Evidence obtained from Substrate: what was seen, by which source, when, and whether collection succeeded | Provenance and freshness are part of the evidence, not metadata beside it |
+| Assessment | The interpretation of a Condition against an Observation: Satisfied, Variance, or Indeterminate | Three outcomes, per Condition, never aggregated into one status for the Canon |
+| Variance | A known mismatch | Revised from "difference between desired and observed state" so a failed observation cannot be one |
+| Indeterminate | Insufficient or failed evidence, with its reason | Plans no mutation. An Indeterminate Assessment of one resource never erases a Variance of another |
 | Obligation | A follow-up effect a completed change requires and no Condition can observe, held durably until discharged | A refresh owed after a file replacement survives a crash only if it is recorded before the replacement |
-| Settled | The state of an effect whose outcome is known and which can cause no further change | Reservation release, retry, and Plan supersession wait for settlement, not for a satisfied Condition |
+| Settled | The condition of an effect whose outcome is known and which can cause no further change | Reservation release, retry, and Plan supersession wait for settlement, not for a satisfied Condition |
+
+The algebra, conceptually:
+
+```rust
+enum Assessment<V, E> {
+    Satisfied,
+    Variance(V),
+    Indeterminate(E),
+}
+```
+
+The governing rule: **unknown evidence does not imply noncompliance.** A failed observation is never a Variance.
 
 The rejected synonyms join the list in spec §3: no "Requirement" for Condition, no "Check" or "Evaluation" for Assessment, no "Unknown" for Indeterminate, no "Pending action" for Obligation, no "Done" or "Quiesced" for Settled.
 
@@ -46,7 +58,9 @@ Counterexamples `partial-assessment`, `lost-refresh`, and `fence-race` in the re
 
 - Spec §3, §8, and §9 are amended in the same change. `diff` becomes `assess` with three outcomes. Convergence requires every Assessment Satisfied, every Obligation discharged, and every relevant effect Settled ([reconciliation](../formal/reconciliation.md)).
 - N3 is restated over that convergence condition, so a required Obligation discharge is not a violation of the fixed point ([invariants](../formal/invariants.md)).
-- Core types carry these names: `Condition`, `Observation`, `Assessment` with variants `Satisfied`, `Variance`, and `Indeterminate`, `Obligation`, and a `Settled` state on effect receipts.
+- The governing rule is recorded as a proposed invariant, a candidate for N13, in spec §58 and [invariants](../formal/invariants.md). It is numbered when the tests that check it exist. N1–N12 are not renumbered.
+- Logical composition of Conditions beyond a set is not decided here (spec §62).
+- Core types carry these names when they are implemented: `Condition`, `Observation`, `Assessment` with variants `Satisfied`, `Variance`, and `Indeterminate`, `Obligation`, and a `Settled` marker on effect receipts. No such type exists yet.
 - AGENTS.md rule 3 and CONTRIBUTING.md list the expanded vocabulary.
 - **Verification.** Milestone 1, pull request 2, implements the assessment algebra with exhaustive truth tables and property tests; pull request 4 exercises Obligations and settlement in the recovery simulator. Until those run, this ADR decides names and meanings, not behavior.
 - **Failure behavior.** An adapter has no channel through which to report "satisfied"; it returns Observations, and core assesses them. A driver that cannot observe a property returns an Observation whose collection failed, which assesses as Indeterminate with that reason.
