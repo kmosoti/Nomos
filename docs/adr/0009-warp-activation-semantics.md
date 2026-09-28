@@ -28,7 +28,7 @@ A vertex runs, is Skipped as terminal without change, or is Blocked, with no fal
 
 ### 3. Satisfied Prerequisites Are Anchors
 
-Every resource named by a `requires`, `after`, or `on_change` edge has a vertex. A resource with a Variance or an Obligation gets its Action. A Satisfied resource gets an anchor, Succeeded on entry and unchanged. An Indeterminate resource gets an anchor that blocks, because a prerequisite that might be missing is not met.
+Every resource named by a `requires`, `after`, or `on_change` edge has a vertex. A resource with a Variance or an Obligation gets its Action. A Satisfied resource gets an anchor, Succeeded on entry and unchanged. An Indeterminate resource gets an Indeterminate anchor, terminal on entry, not Succeeded, and unchanged, and its effect is per edge: a `requires` edge from it is Blocked, because a prerequisite that might be missing is not met; an `after` edge from it is Satisfied, because `after` is ordering; and an `on_change` edge from it is a source without a verified change, so it never activates and counts toward Disabled.
 
 ### 4. Change Consumption Survives a Crash
 
@@ -46,7 +46,7 @@ An Action holds its conflict keys from dispatch until its effect is Settled, pas
 
 ### Acceptance Criteria
 
-- **PR 3, `warp-truth-table`.** Exhaustive predecessor-outcome tables, the one-changed-one-unchanged case, the cycle-witness case, and insertion-order invariance, against production functions and an independent reference evaluator.
+- **PR 3, `warp-truth-table`.** Exhaustive predecessor-outcome tables over every source outcome, the Indeterminate anchor included, for each edge kind. Also the one-changed-one-unchanged case, the cycle-witness case, and insertion-order invariance, all against production functions and an independent reference evaluator. The Indeterminate-anchor rows in §3 are part of the table the tests must reproduce, not a detail left to the implementation.
 - **PR 4, `refresh-recovery` and `scheduler-admission`.** No declared Obligation lost at any crash boundary, and no conflicting overlap or budget oversubscription under adversarial interleavings.
 
 ## Consequences

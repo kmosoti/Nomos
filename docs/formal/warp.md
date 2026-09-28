@@ -14,7 +14,7 @@ $G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from A
 | $E_{after}$ | `after` | $u$ is terminal (any outcome) | Always |
 | $E_{chg}$ | `on_change` | $u$ is terminal | Some `on_change` source of $v$ succeeded and produced a verified change |
 
-**Failure propagation.** If $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}\}$ and $(u, v) \in E_{req}$, then $v$ never becomes ready. This propagates transitively along $E_{req}$.
+**Failure propagation.** If $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}, \mathrm{Indeterminate}\}$ and $(u, v) \in E_{req}$, then $v$ never becomes ready. This propagates transitively along $E_{req}$. Every one of these outcomes is terminal, so an `after` edge from $u$ is met; the last is the outcome of an Indeterminate anchor, defined below.
 
 **Well-formedness.** The whole edge set $E$ must be acyclic. A cycle in any edge kind is a compilation error.
 
@@ -22,7 +22,17 @@ $G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from A
 
 $V$ is produced from Assessments, so a resource whose Assessment is Satisfied produces no Action. Read literally, that leaves `cell-config requires config-directory` with a dangling edge whenever the directory already exists, and the file Action either never starts or starts without its prerequisite being represented at all.
 
-*Working definition.* For every resource that a `requires`, `after`, or `on_change` edge refers to, Warp adds a vertex. If the resource has a Variance or an Obligation, the vertex is its Action. If its Assessment is Satisfied, the vertex is a *satisfaction anchor*: no operation, $\sigma = \mathrm{Succeeded}$ on entry, $\mathrm{changed} = \mathrm{false}$. An anchor is terminal on entry, so an `after` edge from it is met immediately, a `requires` edge from it is met immediately, and an `on_change` edge from it never activates. Anchors mutate nothing, so N3 holds with them present. An anchor for a resource whose Assessment is Indeterminate is not `Succeeded`. It blocks its dependents, because a prerequisite that might be missing is not a prerequisite that is met.
+*Working definition.* For every resource that a `requires`, `after`, or `on_change` edge refers to, Warp adds a vertex. If the resource has a Variance or an Obligation, the vertex is its Action. If its Assessment is Satisfied, the vertex is a *satisfaction anchor*: no operation, $\sigma = \mathrm{Succeeded}$ on entry, $\mathrm{changed} = \mathrm{false}$. An anchor is terminal on entry, so an `after` edge from it is met immediately, a `requires` edge from it is met immediately, and an `on_change` edge from it never activates. Anchors mutate nothing, so N3 holds with them present.
+
+An anchor for a resource whose Assessment is Indeterminate is an *Indeterminate anchor*: no operation, terminal on entry with outcome $\sigma = \mathrm{Indeterminate}$, which is not `Succeeded`, and $\mathrm{changed} = \mathrm{false}$. Its effect depends on the edge, because the three edge kinds ask different questions:
+
+| Edge from an Indeterminate anchor | Resolves to | Why |
+| --- | --- | --- |
+| `requires` | Blocked, and it propagates | A prerequisite that might be missing is not a prerequisite that is met |
+| `after` | Satisfied | `after` is ordering, not success. The anchor is terminal, so anything ordered after it may start |
+| `on_change` | Terminal without a verified change | The edge waits for a change Nomos made and verified, and an anchor made none. It never activates the group, and it counts toward Disabled like any unchanged source |
+
+An Indeterminate source does not make the dependent's own Condition uncertain. If the dependent needs a refresh because of drift nobody observed, that is a Variance or an Obligation of the dependent, not an activation.
 
 ## Cycle Detection and Topological Order
 
@@ -95,12 +105,12 @@ $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a ser
 | --- | --- | --- |
 | `requires` edge | Waiting | $u$ is not terminal |
 | `requires` edge | Satisfied | $\sigma(u) = \mathrm{Succeeded}$ |
-| `requires` edge | Blocked | $u$ ended other than `Succeeded`, or $u$ is an Indeterminate anchor. Propagates |
+| `requires` edge | Blocked | $u$ ended other than `Succeeded`, an Indeterminate anchor included. Propagates |
 | `after` edge | Waiting | $u$ is not terminal |
-| `after` edge | Satisfied | $u$ is terminal, any outcome |
+| `after` edge | Satisfied | $u$ is terminal, any outcome, an Indeterminate anchor included |
 | `on_change` group | Waiting | Some source is not terminal |
 | `on_change` group | Activated | Some source succeeded and changed |
-| `on_change` group | Disabled | Every source is terminal and none changed |
+| `on_change` group | Disabled | Every source is terminal and none changed; an Indeterminate anchor is a source that did not change |
 
 $v$ runs when every `requires` and `after` edge is Satisfied and its `on_change` group is Activated or empty. $v$ is Skipped when no edge is Blocked and the group is Disabled: not failed, terminal without change, so its own dependents see it that way. $v$ is Blocked when any `requires` edge is. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table, and milestone 1 pull request 3 produces the truth table that ADR records.
 
