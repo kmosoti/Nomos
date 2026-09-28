@@ -59,9 +59,9 @@ Each finding was checked against the draft it cites. *Confirmed* means the draft
 | `trace-scope` | N1 compared whole machines | Qualification | N1 compares a projection onto managed-resource properties |
 | `layer-policy` | ADR 0000 said the manifests make the build enforce the dependency rule | Confirmed overstatement | ADR 0000 amended. Experiment `layer-policy` |
 | `types-not-world` | The leverage section implied a constructor proves a property | Qualification | Note in `invariants.md` on what a type proves |
-| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Design input | Grounding plan, wave 3. ADR candidate `canon-artifact` |
-| `partial-assessment` | Spec §9 `diff` returns Variance or nothing | Design input | Grounding plan, wave 1. Known Gaps in `reconciliation.md`. ADR candidate `evidence-model` |
-| `single-controller` | The reconciliation model has one controller | Design input | Grounding plan, wave 4 |
+| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Adopted as direction | ADR 0004. Milestone 1 PR 5 closes the encoding and compatibility remainder |
+| `partial-assessment` | Spec §9 `diff` returned Variance or nothing | Adopted | ADR 0005: `assess` with three outcomes, none aggregated. Milestone 1 PR 2 |
+| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`, after milestone 1 PR 4 |
 | `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 10 and CONTRIBUTING.md |
 | `epoch-not-oracle`, `identity-path`, `secrets-scope`, `incremental-scope` | Beyond Phase 0 | Deferred | Listed under deferred experiments in the grounding plan |
 
@@ -69,19 +69,11 @@ The six corrections in the bundle retract guidance from the conversation that pr
 
 ## Conflicts With the Specification
 
-Three points in the bundle disagreed with the specification or with the agent rules when it was imported. Each is a specification amendment plus an ADR, which is the project owner's decision. One has since been decided; two remain open.
+Three points in the bundle disagreed with the specification or with the agent rules when it was imported. Each is a specification amendment plus an ADR, which is the project owner's decision. Two have since been decided; one remains open.
 
 **Canon authoring surface.** *Resolved on 2026-09-28 by [ADR 0004](../../adr/0004-rust-typed-canon.md).* At import, spec §5 showed Canon as YAML, §54 listed the syntax ablation as strict YAML against TOML with the same typed intermediate representation (IR) either way, and §5 said Canon does not embed a general-purpose programming language. The bundle took a Rust-authored Canon, a crate that generates an inert artifact, as the intended direction, on the strength of a conversation decision (`src:user-decisions`) rather than the specification, while noting that Rust authoring is code execution and needs an isolated build job without host credentials. The project owner confirmed the direction, and the specification was amended: Rust is the authoring surface, hosts accept only the Canonical IR, and the build job is treated as code execution. The encoding profile of the IR is still the wave 3 experiment.
 
-**Vocabulary.** The bundle uses *Condition*, *Observation*, *Assessment*, and *Indeterminate*. Spec §3 fixes Canon, Trait, Cipher, Variance, Trace, Enforce, Event, and Event Log, and §9 already uses Observation and Variance in the driver contract. The mapping is:
-
-| Bundle term | Specification | Status |
-| --- | --- | --- |
-| Condition | A resource's `spec` in Canon, $D_r$ | Existing concept, no new name needed yet |
-| Observation | `Observation`, $O_r$ | Already in spec §9 |
-| Assessment: Satisfied, Variance, Indeterminate | The result of `diff` | `diff` has two outcomes today. The third, for evidence that supports neither, is proposed. ADR candidate `evidence-model` |
-
-The repository documents describe the third outcome in words where they need it and coin no term for it.
+**Vocabulary.** *Resolved on 2026-09-28 by [ADR 0005](../../adr/0005-assessment-vocabulary.md).* The bundle uses *Condition*, *Observation*, *Assessment*, and *Indeterminate*; at import, spec §3 fixed eight terms and §9's `diff` had two outcomes. The owner chose to expand the vocabulary. Spec §3 now carries the four bundle terms, a revised definition of Variance, and two terms the review of `main` at `013b9d0` showed were needed: *Obligation*, for a follow-up effect no Condition can observe, and *Settled*, for an effect that can cause no further change. `diff` became `assess` with three outcomes, and [ADR 0006](../../adr/0006-kernel-contract.md) moved assessment and planning semantics out of the adapters into core.
 
 **Package-manager invocation.** Recommendation `substrate` says a controlled `argv` invocation of an unavoidable package-manager command line is not shell interpolation. AGENTS.md rule 5 says no shell execution in Substrate, and spec §12 requires D-Bus for systemd. A direct `execve` with a fixed argument vector is not a shell, but nobody has decided whether it is allowed, and `package` is a Phase 1 resource (spec §10, §55). Recorded, not decided.
 
