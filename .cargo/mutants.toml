@@ -10,7 +10,13 @@
 # and `Verified::from(..)` replacements never compile. Skipping them is not a
 # weakening: they are unviable by construction, and the calibration run
 # recorded every one of them as such before this exclusion existed.
-exclude_re = ["with Verified::"]
+#
+# `for_harness` constructors exist only under `cfg(kani)`, so `cargo test`
+# never compiles them and every mutant of one is reported missed while
+# measuring nothing. The transition-kernel run recorded one such survivor
+# before this exclusion existed; the harnesses that use them are checked by
+# `cargo kani`, and each fails on its semantic mutant.
+exclude_re = ["with Verified::", "::for_harness "]
 
 # Bounded-verifier harnesses are compiled only by `cargo kani`, which fails
 # on a mutated harness; `cargo test` never sees them, so mutating them here
