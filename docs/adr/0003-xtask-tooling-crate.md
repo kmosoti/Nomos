@@ -19,6 +19,6 @@ The first research snapshot arrived with its own tooling in Python: a graph vali
 ## Consequences
 
 - `Cargo.lock` grows by the tool's dependencies, and `cargo test --workspace` compiles them. That cost buys the snapshot's manifest, graph, and schema being re-verified, and the seven counterexamples re-run, on every test run.
-- The verifier's report has the same shape as the Python report the snapshot ships. Its `graph_sha256`, `counts`, `checks`, and `negative_controls` agree with the shipped report byte for byte; the `json_schema` block names the Rust crate and its semver requirement instead of the Python package, and `Cargo.lock` pins the exact version.
+- The verifier's report carries one block per stage. Its `graph` block has the same shape as the Python report the snapshot ships: `graph_sha256`, `counts`, `checks`, and `negative_controls` agree with the shipped report byte for byte, and the `json_schema` block names the Rust crate and its semver requirement instead of the Python package, with `Cargo.lock` pinning the exact version. The `manifest` block was added on 2026-09-28 when the manifest became a required stage rather than an optional one.
 - **Failure behavior.** Any failed check exits non-zero with the failing check's message and writes no report. A checksum mismatch stops the run before the graph is read.
 - The counterexamples in this crate model prose, not Nomos code. They stay here as the record's reproducer even after the grounding plan ports each one into the crate it concerns as a negative control.

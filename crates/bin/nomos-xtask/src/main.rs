@@ -6,10 +6,11 @@
 //!
 //! Commands:
 //!
-//! - `research verify <snapshot-dir>`: check a research snapshot's manifest,
-//!   parse its NDJSON graph strictly, run the referential and structural
-//!   checks, validate every record against the snapshot's JSON Schema, and run
-//!   the negative controls. Prints the validation report as JSON.
+//! - `research verify <snapshot-dir>`: verify a research snapshot as a whole.
+//!   The manifest is required and must cover every file; then the NDJSON graph
+//!   is parsed strictly, the referential and structural checks and negative
+//!   controls run, and every record is validated against the snapshot's JSON
+//!   Schema. Prints a report with one block per stage.
 //! - `research list <snapshot-dir>`: print the recommendations in review order.
 //! - `research reproduce`: run the seven counterexample models of the draft
 //!   formal documents and print their report as JSON.
@@ -19,6 +20,7 @@
 mod counterexamples;
 mod graph;
 mod manifest;
+mod snapshot;
 mod strict_json;
 
 use std::path::{Path, PathBuf};
@@ -62,22 +64,10 @@ fn option<'a>(rest: &'a [&'a str], flag: &str) -> Result<Option<&'a str>, String
 fn verify(dir: &Path, rest: &[&str]) -> Result<(), String> {
     let report_path = option(rest, "--report")?.map(PathBuf::from);
     let with_schema = !rest.contains(&"--no-schema");
-
-    let manifest = dir.join("MANIFEST.sha256");
-    if manifest.exists() {
-        for (name, ok) in manifest::verify(&manifest)? {
-            eprintln!("{name}: {}", if ok { "OK" } else { "FAILED" });
-        }
-    } else {
-        eprintln!(
-            "no MANIFEST.sha256 in {}; skipping checksums",
-            dir.display()
-        );
+    let (files, report) = snapshot::verify_snapshot(dir, with_schema)?;
+    for (name, ok) in files {
+        eprintln!("{name}: {}", if ok { "OK" } else { "FAILED" });
     }
-
-    let graph_path = dir.join("nomos-research.ndjson");
-    let schema_path = with_schema.then(|| dir.join("record.schema.json"));
-    let report = graph::verify(&graph_path, schema_path.as_deref())?;
     let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
     if let Some(path) = report_path {
         std::fs::write(&path, &rendered).map_err(|e| format!("{}: {e}", path.display()))?;
