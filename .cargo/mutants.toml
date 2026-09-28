@@ -12,6 +12,11 @@
 # recorded every one of them as such before this exclusion existed.
 exclude_re = ["with Verified::"]
 
+# Bounded-verifier harnesses are compiled only by `cargo kani`, which fails
+# on a mutated harness; `cargo test` never sees them, so mutating them here
+# measures nothing (the assessment-algebra record).
+exclude_globs = ["**/src/verification.rs"]
+
 # Cargo never rewrites the lockfile under a mutant.
 additional_cargo_args = ["--locked"]
 
