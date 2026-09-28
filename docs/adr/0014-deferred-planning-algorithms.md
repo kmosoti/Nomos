@@ -23,5 +23,5 @@ Spec §54, and the research snapshot's `defer_until_measured` and `research_requ
 
 ## Consequences
 
-- No milestone 1 pull request adds incremental or witness machinery.
+- No kernel milestone adds incremental or witness machinery.
 - **Revisit trigger.** The full recomputation path is correct and profiled, or a planner more complex than greedy selection is proposed.

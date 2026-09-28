@@ -46,8 +46,8 @@ An Action holds its conflict keys from dispatch until its effect is Settled, pas
 
 ### Acceptance Criteria
 
-- **PR 3, `warp-truth-table`.** Exhaustive predecessor-outcome tables over every source outcome, the Indeterminate anchor included, for each edge kind. Also the one-changed-one-unchanged case, the cycle-witness case, and insertion-order invariance, all against production functions and an independent reference evaluator. The Indeterminate-anchor rows in §3 are part of the table the tests must reproduce, not a detail left to the implementation.
-- **PR 4, `refresh-recovery` and `scheduler-admission`.** No declared Obligation lost at any crash boundary, and no conflicting overlap or budget oversubscription under adversarial interleavings.
+- **`04-warp-kernel`, `warp-truth-table`.** Exhaustive predecessor-outcome tables over every source outcome, the Indeterminate anchor included, for each edge kind. Also the one-changed-one-unchanged case, the cycle-witness case, and insertion-order invariance, all against production functions and an independent reference evaluator. The Indeterminate-anchor rows in §3 are part of the table the tests must reproduce, not a detail left to the implementation.
+- **`05-transition-kernel`, `refresh-recovery` and `scheduler-admission`.** No declared Obligation lost at any crash boundary, and no conflicting overlap or budget oversubscription under adversarial interleavings.
 
 ## Consequences
 

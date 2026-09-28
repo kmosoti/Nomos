@@ -32,7 +32,7 @@ The IR has its own schema version, and resource capabilities have their own vers
 
 ### Acceptance Criteria
 
-Milestone 1 PR 5:
+Milestone `06-canon-artifact`:
 
 - `canonical-encoding` passes golden and adversarial vectors across two builds and an independent decoder.
 - `compatibility-matrix` passes old and new readers, unknown variants, and migrations.

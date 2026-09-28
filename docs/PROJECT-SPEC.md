@@ -186,7 +186,7 @@ enum Assessment<V, E> {
 }
 ```
 
-`V` describes the mismatch and `E` the reason the evidence was insufficient. The Rust types are not implemented yet; milestone 1 pull request 2 implements them for the first resource family.
+`V` describes the mismatch and `E` the reason the evidence was insufficient. The Rust types are not implemented yet; milestone `03-assessment-kernel` implements them for the first resource family.
 
 A failed observation is never a Variance. A denied read, a stale reading, or two readings that contradict each other assess as Indeterminate. Casting such evidence to Variance would plan a mutation from ignorance; casting it to Satisfied would hide drift behind a permission error. **Unknown evidence does not imply noncompliance** (proposed invariant, §58). Assessments are kept per Condition: an Indeterminate Assessment of one resource does not erase the Variance of another.
 
@@ -984,7 +984,7 @@ The constitutional layer.
 - **N11.** Losing Loom does not invalidate Observations the Cell has already collected.
 - **N12.** Canon compilation is deterministic for identical inputs.
 
-**Proposed.** *Unknown evidence does not imply noncompliance.* An Indeterminate Assessment is never counted as a Variance, and every planned Action is caused by a Variance or an Obligation, never by an Indeterminate Assessment. It is recorded here and in [formal/invariants.md](formal/invariants.md) as a candidate for N13. It gets that number when the assessment tests of milestone 1 pull request 2 exist to check it; N1–N12 keep their numbers.
+**Proposed.** *Unknown evidence does not imply noncompliance.* An Indeterminate Assessment is never counted as a Variance, and every planned Action is caused by a Variance or an Obligation, never by an Indeterminate Assessment. It is recorded here and in [formal/invariants.md](formal/invariants.md) as a candidate for N13. It gets that number when the assessment tests of milestone `03-assessment-kernel` exist to check it; N1–N12 keep their numbers.
 
 These invariants matter more than any implementation technology. Formal statements: [formal/invariants.md](formal/invariants.md).
 
@@ -1055,7 +1055,7 @@ Anything beyond this is subsequent architecture. Nomos earns its complexity one 
 
 The unresolved parts, stated so they can be argued with:
 
-- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions, and [ADR 0009](adr/0009-warp-activation-semantics.md) proposes them until the truth tables of milestone 1 PR 3 run.
+- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions, and [ADR 0009](adr/0009-warp-activation-semantics.md) proposes them until the truth tables of milestone `04-warp-kernel` run.
 - **Idempotency key retention.** The Cell persists accepted keys. For how long? Unbounded retention is a slow disk leak. Bounded retention reopens the duplicate window for very late retransmissions.
 - **Leases vs. clock skew.** Plan leases expire in time, and clocks drift. Does expiry use Loom's clock, the Cell's clock, or a monotonic budget measured from receipt?
 - **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it assess that Condition as Indeterminate? [ADR 0013](adr/0013-trust-boundaries.md) proposes the second, unless a provider can compare without exposing plaintext.

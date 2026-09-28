@@ -6,7 +6,7 @@
 
 ## Context
 
-A crash between an operating-system effect and its Event leaves started work with no record. Replaying the Event Log restores what the Cell knew, not what the host is (finding `replay-not-reality`). "Append-only" says nothing about disk space. The Event Log is Phase 2 work, but the kernel of milestone 1 must emit Events in an order that this design can make durable. Research open question `retention` ends here.
+A crash between an operating-system effect and its Event leaves started work with no record. Replaying the Event Log restores what the Cell knew, not what the host is (finding `replay-not-reality`). "Append-only" says nothing about disk space. The Event Log is Phase 2 work, but the kernel of milestone `05-transition-kernel` must emit Events in an order that this design can make durable. Research open question `retention` ends here.
 
 ## Decision
 
@@ -34,7 +34,7 @@ When the log cannot accept an append, mutation admission fails closed, because a
 
 ### Acceptance Criteria
 
-- **Milestone 1 PR 4.** The logical ordering of intent, dispatch, completion, and acknowledgment is modeled against a fault-injectable in-memory store.
+- **Milestone `05-transition-kernel`.** The logical ordering of intent, dispatch, completion, and acknowledgment is modeled against a fault-injectable in-memory store.
 - **Phase 2, `event-crash-replay`.** Kill the Cell at each persistence and effect boundary, replay duplicates and gaps, send a conflicting payload at an existing coordinate, and exhaust the spool. No acknowledged Event may be lost and no false success reported.
 
 ## Consequences
