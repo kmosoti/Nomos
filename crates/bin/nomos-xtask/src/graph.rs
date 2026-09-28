@@ -3,8 +3,13 @@
 //! These checks establish that the artifact is well formed: strictly parsed,
 //! unique identifiers, resolvable references, bounded weights, every
 //! recommendation covered by a proposed experiment, no cycle among
-//! recommendation dependencies, and metadata counts that match the records.
-//! They say nothing about whether the research is right.
+//! recommendation dependencies, metadata counts that match the records, and
+//! every record valid against the snapshot's JSON Schema. They say nothing
+//! about whether the research is right.
+//!
+//! Every failure carries a stable [`Code`]. The built-in negative controls
+//! check that each deliberately corrupted input is rejected *for its reason*,
+//! not merely rejected.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -12,6 +17,7 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
+use crate::error::{Code, VerificationError, Verified, expect_rejection, require};
 use crate::manifest::sha256_hex;
 use crate::strict_json;
 
@@ -40,7 +46,7 @@ const NOT_ESTABLISHED: [&str; 4] = [
     "Proposed experiments have been executed",
 ];
 
-/// The validation report, shaped like the one the snapshot ships.
+/// The graph stage's report, shaped like the validation report the snapshot ships.
 #[derive(Serialize)]
 pub(crate) struct Report {
     status: &'static str,
@@ -65,10 +71,12 @@ impl Report {
     pub(crate) fn counts(&self) -> &Map<String, Value> {
         &self.counts
     }
-}
 
-fn require(condition: bool, message: impl FnOnce() -> String) -> Result<(), String> {
-    if condition { Ok(()) } else { Err(message()) }
+    /// Negative-control outcomes, by name.
+    #[cfg(test)]
+    pub(crate) fn negative_controls(&self) -> &Map<String, Value> {
+        &self.negative_controls
+    }
 }
 
 /// Python truthiness, which the shipped validator relies on for "present and non-empty".
@@ -83,92 +91,116 @@ fn truthy(value: Option<&Value>) -> bool {
     }
 }
 
-fn field<'a>(record: &'a Value, key: &str, at: &str) -> Result<&'a Value, String> {
-    record
-        .get(key)
-        .ok_or_else(|| format!("{at}: missing field '{key}'"))
+fn field<'a>(record: &'a Value, key: &str, at: &str) -> Verified<&'a Value> {
+    record.get(key).ok_or_else(|| {
+        VerificationError::new(Code::MissingField, format!("{at}: missing field '{key}'"))
+    })
 }
 
-fn text<'a>(record: &'a Value, key: &str, at: &str) -> Result<&'a str, String> {
-    field(record, key, at)?
-        .as_str()
-        .ok_or_else(|| format!("{at}: field '{key}' is not a string"))
+fn text<'a>(record: &'a Value, key: &str, at: &str) -> Verified<&'a str> {
+    field(record, key, at)?.as_str().ok_or_else(|| {
+        VerificationError::new(
+            Code::WrongFieldType,
+            format!("{at}: field '{key}' is not a string"),
+        )
+    })
 }
 
-fn id_list<'a>(record: &'a Value, key: &str, at: &str) -> Result<Vec<&'a str>, String> {
+fn id_list<'a>(record: &'a Value, key: &str, at: &str) -> Verified<Vec<&'a str>> {
     field(record, key, at)?
         .as_array()
-        .ok_or_else(|| format!("{at}: field '{key}' is not a list"))?
+        .ok_or_else(|| {
+            VerificationError::new(
+                Code::WrongFieldType,
+                format!("{at}: field '{key}' is not a list"),
+            )
+        })?
         .iter()
         .map(|v| {
-            v.as_str()
-                .ok_or_else(|| format!("{at}: '{key}' holds a non-string"))
+            v.as_str().ok_or_else(|| {
+                VerificationError::new(
+                    Code::WrongFieldType,
+                    format!("{at}: '{key}' holds a non-string"),
+                )
+            })
         })
         .collect()
 }
 
-fn integer_weight(value: &Value, location: &str) -> Result<(), String> {
+fn integer_weight(value: &Value, location: &str) -> Verified<()> {
     let ok = matches!(value, Value::Number(n) if n.as_u64().is_some_and(|w| w <= 4));
-    require(ok, || {
+    require(ok, Code::WeightOutOfRange, || {
         format!("{location}: expected integer weight in [0,4], got {value}")
     })
 }
 
 /// Strict NDJSON parse: no BOM, a final newline, no blank lines, one object per line.
-pub(crate) fn parse_text(text: &str) -> Result<Vec<Value>, String> {
-    require(!text.starts_with('\u{feff}'), || {
+pub(crate) fn parse_text(text: &str) -> Verified<Vec<Value>> {
+    require(!text.starts_with('\u{feff}'), Code::NdjsonBom, || {
         "A UTF-8 BOM is not permitted".into()
     })?;
-    require(text.ends_with('\n'), || {
+    require(!text.is_empty(), Code::NdjsonEmpty, || {
+        "Graph is empty".into()
+    })?;
+    require(text.ends_with('\n'), Code::NdjsonNoFinalNewline, || {
         "The final NDJSON record needs a newline".into()
     })?;
     let mut records = Vec::new();
     for (index, line) in text.lines().enumerate() {
         let number = index + 1;
-        require(!line.trim().is_empty(), || {
+        require(!line.trim().is_empty(), Code::NdjsonBlankRecord, || {
             format!("Blank record at line {number}")
         })?;
-        let value = strict_json::parse(line).map_err(|e| format!("Line {number}: {e}"))?;
-        require(value.is_object(), || {
+        let value = strict_json::parse(line)
+            .map_err(|e| VerificationError::new(e.code(), format!("Line {number}: {e}")))?;
+        require(value.is_object(), Code::NdjsonNotObject, || {
             format!("Line {number} is not a JSON object")
         })?;
         records.push(value);
     }
-    require(!records.is_empty(), || "Graph is empty".into())?;
     Ok(records)
 }
 
 /// Every cross-record invariant. Returns the counts derived from the records.
-pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, String> {
+pub(crate) fn check_records(records: &[Value]) -> Verified<Map<String, Value>> {
     let metadata = &records[0];
     require(
         metadata.get("record_type") == Some(&json!("metadata")),
+        Code::MetadataNotFirst,
         || "Metadata must be first".into(),
     )?;
     let metadata_count = records
         .iter()
         .filter(|r| r.get("record_type") == Some(&json!("metadata")))
         .count();
-    require(metadata_count == 1, || {
+    require(metadata_count == 1, Code::MetadataCount, || {
         "Exactly one metadata record is required".into()
     })?;
 
     let mut ids = Vec::with_capacity(records.len());
     for record in records {
         let id = record.get("id").and_then(Value::as_str).unwrap_or("");
-        require(!id.is_empty(), || "Every record needs an ID".into())?;
+        require(!id.is_empty(), Code::MissingId, || {
+            "Every record needs an ID".into()
+        })?;
         ids.push(id);
     }
-    let unique: HashSet<&str> = ids.iter().copied().collect();
-    require(unique.len() == ids.len(), || "Duplicate record ID".into())?;
+    let mut unique: HashSet<&str> = HashSet::new();
+    for id in &ids {
+        require(unique.insert(id), Code::DuplicateId, || {
+            format!("Duplicate record ID: {id}")
+        })?;
+    }
     for record in records {
         let kind = record
             .get("record_type")
             .and_then(Value::as_str)
             .unwrap_or("");
-        require(matches!(kind, "metadata" | "node" | "edge"), || {
-            format!("Unknown record type: {kind}")
-        })?;
+        require(
+            matches!(kind, "metadata" | "node" | "edge"),
+            Code::UnknownRecordType,
+            || format!("Unknown record type: {kind}"),
+        )?;
     }
 
     let node_list: Vec<&Value> = records
@@ -200,31 +232,41 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
         for key in ["importance", "salience"] {
             integer_weight(field(weights, key, id)?, &format!("{id}.{key}"))?;
         }
-        require(truthy(weights.get("rationale")), || {
-            format!("Missing rationale: {id}")
-        })?;
+        require(
+            truthy(weights.get("rationale")),
+            Code::MissingRationale,
+            || format!("Missing rationale: {id}"),
+        )?;
         let source_ids = id_list(node, "source_ids", id)?;
-        require(source_ids.iter().all(|s| sources.contains(s)), || {
-            format!("Missing/non-source reference at {id}")
-        })?;
+        require(
+            source_ids.iter().all(|s| sources.contains(s)),
+            Code::UnresolvedSource,
+            || format!("Missing/non-source reference at {id}"),
+        )?;
         let details = field(node, "details", id)?;
         match text(node, "node_kind", id)? {
             "source" => require(
                 truthy(details.get("url")) && truthy(details.get("locator")),
+                Code::SourceWithoutLocator,
                 || format!("Missing source URL/locator: {id}"),
             )?,
             "recommendation" => {
                 let experiment_ids = id_list(details, "experiment_ids", id)?;
-                require(!experiment_ids.is_empty(), || {
-                    format!("Recommendation has no proposed check: {id}")
-                })?;
+                require(
+                    !experiment_ids.is_empty(),
+                    Code::RecommendationWithoutExperiment,
+                    || format!("Recommendation has no proposed check: {id}"),
+                )?;
                 require(
                     experiment_ids.iter().all(|e| experiments.contains(e)),
+                    Code::UnresolvedExperiment,
                     || format!("Unresolved experiment at {id}"),
                 )?;
-                require(truthy(details.get("acceptance_criteria")), || {
-                    format!("No acceptance criteria: {id}")
-                })?;
+                require(
+                    truthy(details.get("acceptance_criteria")),
+                    Code::MissingAcceptanceCriteria,
+                    || format!("No acceptance criteria: {id}"),
+                )?;
             }
             "open_question" | "adr_candidate" => {
                 let recommendation_ids = id_list(details, "recommendation_ids", id)?;
@@ -232,18 +274,20 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
                     recommendation_ids
                         .iter()
                         .all(|r| recommendations.contains(r)),
+                    Code::UnresolvedRecommendation,
                     || format!("Unresolved recommendation at {id}"),
                 )?;
             }
             "experiment" => {
                 let proposal_only = field(details, "execution_status", id)? == "not_run"
                     && field(details, "results", id)?.is_null();
-                require(proposal_only, || {
+                require(proposal_only, Code::ExperimentNotProposal, || {
                     format!("This snapshot labels experiments as proposals: {id}")
                 })?;
             }
             "counterexample" => require(
                 details.get("scope").is_some() && details.get("reproducer").is_some(),
+                Code::CounterexampleIncomplete,
                 || format!("Counterexample needs scope and reproducer: {id}"),
             )?,
             _ => {}
@@ -258,22 +302,28 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
         let id = edge["id"].as_str().unwrap_or("");
         let from = text(edge, "from", id)?;
         let to = text(edge, "to", id)?;
-        require(nodes.contains_key(from) && nodes.contains_key(to), || {
-            format!("Dangling graph endpoint: {id}")
-        })?;
-        require(from != to, || format!("Self-loop: {id}"))?;
+        require(
+            nodes.contains_key(from) && nodes.contains_key(to),
+            Code::DanglingEndpoint,
+            || format!("Dangling graph endpoint: {id}"),
+        )?;
+        require(from != to, Code::SelfLoop, || format!("Self-loop: {id}"))?;
         let evidence = id_list(edge, "evidence_ids", id)?;
-        require(evidence.iter().all(|e| nodes.contains_key(e)), || {
-            format!("Dangling evidence reference: {id}")
-        })?;
+        require(
+            evidence.iter().all(|e| nodes.contains_key(e)),
+            Code::DanglingEvidence,
+            || format!("Dangling evidence reference: {id}"),
+        )?;
         integer_weight(
             field(edge, "semantic_weight", id)?,
             &format!("{id}.semantic_weight"),
         )?;
         let relation = text(edge, "relation", id)?;
-        require(triples.insert((from, relation, to)), || {
-            format!("Duplicate relationship: ('{from}', '{relation}', '{to}')")
-        })?;
+        require(
+            triples.insert((from, relation, to)),
+            Code::DuplicateEdge,
+            || format!("Duplicate relationship: ('{from}', '{relation}', '{to}')"),
+        )?;
         *degree.entry(from).or_default() += 1;
         *degree.entry(to).or_default() += 1;
         match relation {
@@ -283,6 +333,7 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
             "depends_on" => {
                 require(
                     recommendations.contains(from) && recommendations.contains(to),
+                    Code::DependencyEndpointKind,
                     || "Recommendation dependency endpoints have incorrect kinds".into(),
                 )?;
                 dependency_edges.entry(from).or_default().push(to);
@@ -290,19 +341,26 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
             _ => {}
         }
     }
-    for rid in &recommendations {
+    let mut ordered: Vec<&str> = recommendations.iter().copied().collect();
+    ordered.sort_unstable();
+    for rid in &ordered {
         for eid in id_list(&nodes[rid]["details"], "experiment_ids", rid)? {
-            require(tested_pairs.contains(&(rid, eid)), || {
-                format!("Missing tested_by edge: {rid} -> {eid}")
-            })?;
+            require(
+                tested_pairs.contains(&(*rid, eid)),
+                Code::MissingTestedBy,
+                || format!("Missing tested_by edge: {rid} -> {eid}"),
+            )?;
         }
     }
-    require(
-        nodes
-            .keys()
-            .all(|id| degree.get(id).copied().unwrap_or(0) > 0),
-        || "Graph contains an isolated node".into(),
-    )?;
+    let mut isolated: Vec<&str> = nodes
+        .keys()
+        .copied()
+        .filter(|id| degree.get(id).copied().unwrap_or(0) == 0)
+        .collect();
+    isolated.sort_unstable();
+    require(isolated.is_empty(), Code::IsolatedNode, || {
+        format!("Graph contains an isolated node: {}", isolated.join(", "))
+    })?;
 
     // Only the recommendation dependency subgraph must be acyclic.
     let mut active: HashSet<&str> = HashSet::new();
@@ -312,9 +370,9 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
         edges: &HashMap<&'a str, Vec<&'a str>>,
         active: &mut HashSet<&'a str>,
         finished: &mut HashSet<&'a str>,
-    ) -> Result<(), String> {
-        require(!active.contains(current), || {
-            "Cycle in recommendation dependencies".into()
+    ) -> Verified<()> {
+        require(!active.contains(current), Code::DependencyCycle, || {
+            format!("Cycle in recommendation dependencies through {current}")
         })?;
         if finished.contains(current) {
             return Ok(());
@@ -327,8 +385,6 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
         finished.insert(current);
         Ok(())
     }
-    let mut ordered: Vec<&str> = recommendations.iter().copied().collect();
-    ordered.sort_unstable();
     for rid in ordered {
         visit(rid, &dependency_edges, &mut active, &mut finished)?;
     }
@@ -344,64 +400,81 @@ pub(crate) fn check_records(records: &[Value]) -> Result<Map<String, Value>, Str
     counts.insert("records".into(), json!(records.len()));
     require(
         metadata.get("counts") == Some(&Value::Object(counts.clone())),
+        Code::CountsMismatch,
         || "Metadata counts do not match records".into(),
     )?;
     Ok(counts)
 }
 
-/// Deliberately corrupted copies that the checks must reject.
-pub(crate) fn negative_controls(records: &[Value]) -> Result<Map<String, Value>, String> {
+/// Deliberately corrupted copies that the checks must reject, each for its own reason.
+pub(crate) fn negative_controls(records: &[Value]) -> Verified<Map<String, Value>> {
     let mut outcomes = Map::new();
-    let mut cases: Vec<(&str, Vec<Value>)> = Vec::new();
+    let mut cases: Vec<(&str, Vec<Value>, Code)> = Vec::new();
 
     let mut bad = records.to_vec();
     if let Some(edge) = bad.iter_mut().find(|r| r["record_type"] == "edge") {
         edge["to"] = json!("urn:missing:endpoint");
     }
-    cases.push(("dangling_endpoint", bad));
+    cases.push(("dangling_endpoint", bad, Code::DanglingEndpoint));
 
     let mut bad = records.to_vec();
     if let Some(node) = bad.iter_mut().find(|r| r["record_type"] == "node") {
         node["weights"]["salience"] = json!(5);
     }
-    cases.push(("out_of_range_weight", bad));
+    cases.push(("out_of_range_weight", bad, Code::WeightOutOfRange));
 
     let mut bad = records.to_vec();
     if bad.len() > 2 {
         let first = bad[1]["id"].clone();
         bad[2]["id"] = first;
     }
-    cases.push(("duplicate_id", bad));
+    cases.push(("duplicate_id", bad, Code::DuplicateId));
 
-    for (name, bad) in cases {
-        require(check_records(&bad).is_err(), || {
-            format!("Negative control accepted: {name}")
-        })?;
+    for (name, bad, expected) in cases {
+        expect_rejection(name, check_records(&bad), expected)?;
         outcomes.insert(name.into(), json!("rejected_as_expected"));
     }
-    for (name, corrupt) in [
-        ("duplicate_json_key", "{\"x\":1,\"x\":2}\n"),
-        ("non_finite_number", "{\"x\":NaN}\n"),
-        ("blank_record", "{}\n\n"),
+    for (name, corrupt, expected) in [
+        (
+            "duplicate_json_key",
+            "{\"x\":1,\"x\":2}\n",
+            Code::JsonDuplicateKey,
+        ),
+        (
+            "non_finite_number",
+            "{\"x\":NaN}\n",
+            Code::JsonNonFiniteNumber,
+        ),
+        ("blank_record", "{}\n\n", Code::NdjsonBlankRecord),
     ] {
-        require(parse_text(corrupt).is_err(), || {
-            format!("Parser negative control accepted: {name}")
-        })?;
+        expect_rejection(name, parse_text(corrupt), expected)?;
         outcomes.insert(name.into(), json!("rejected_as_expected"));
     }
     Ok(outcomes)
 }
 
-fn validate_schema(records: &[Value], schema_path: &Path) -> Result<Value, String> {
-    let bytes =
-        std::fs::read(schema_path).map_err(|e| format!("{}: {e}", schema_path.display()))?;
-    let schema: Value =
-        serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", schema_path.display()))?;
-    jsonschema::meta::validate(&schema).map_err(|e| format!("Invalid JSON Schema: {e}"))?;
+fn validate_schema(records: &[Value], schema_path: &Path) -> Verified<Value> {
+    let bytes = std::fs::read(schema_path).map_err(|e| {
+        VerificationError::new(
+            Code::SchemaUnreadable,
+            format!("{}: {e}", schema_path.display()),
+        )
+    })?;
+    let schema: Value = serde_json::from_slice(&bytes).map_err(|e| {
+        VerificationError::new(
+            Code::SchemaInvalid,
+            format!("{}: {e}", schema_path.display()),
+        )
+    })?;
+    jsonschema::meta::validate(&schema).map_err(|e| {
+        VerificationError::new(Code::SchemaInvalid, format!("Invalid JSON Schema: {e}"))
+    })?;
     let validator = jsonschema::options()
         .should_validate_formats(true)
         .build(&schema)
-        .map_err(|e| format!("Invalid JSON Schema: {e}"))?;
+        .map_err(|e| {
+            VerificationError::new(Code::SchemaInvalid, format!("Invalid JSON Schema: {e}"))
+        })?;
     for (index, record) in records.iter().enumerate() {
         let errors: Vec<String> = validator
             .iter_errors(record)
@@ -415,7 +488,7 @@ fn validate_schema(records: &[Value], schema_path: &Path) -> Result<Value, Strin
                 format!("not valid {brief} (schema path {})", e.schema_path())
             })
             .collect();
-        require(errors.is_empty(), || {
+        require(errors.is_empty(), Code::SchemaViolation, || {
             let id = record["id"].as_str().unwrap_or("?");
             format!(
                 "JSON Schema failure at line {} ({id}): {}",
@@ -433,17 +506,24 @@ fn validate_schema(records: &[Value], schema_path: &Path) -> Result<Value, Strin
     }))
 }
 
-/// Runs every check on a graph file and returns the report.
-pub(crate) fn verify(graph_path: &Path, schema_path: Option<&Path>) -> Result<Report, String> {
-    let bytes = std::fs::read(graph_path).map_err(|e| format!("{}: {e}", graph_path.display()))?;
-    let text =
-        String::from_utf8(bytes.clone()).map_err(|e| format!("{}: {e}", graph_path.display()))?;
+/// Runs every graph-stage check, schema validation included. There is no
+/// weaker mode: a snapshot either passes all of it or fails.
+pub(crate) fn verify(graph_path: &Path, schema_path: &Path) -> Verified<Report> {
+    let bytes = std::fs::read(graph_path).map_err(|e| {
+        VerificationError::new(
+            Code::GraphUnreadable,
+            format!("{}: {e}", graph_path.display()),
+        )
+    })?;
+    let text = String::from_utf8(bytes.clone()).map_err(|e| {
+        VerificationError::new(
+            Code::GraphUnreadable,
+            format!("{}: {e}", graph_path.display()),
+        )
+    })?;
     let records = parse_text(&text)?;
     let counts = check_records(&records)?;
-    let json_schema = match schema_path {
-        Some(path) => validate_schema(&records, path)?,
-        None => json!({ "status": "not_requested" }),
-    };
+    let json_schema = validate_schema(&records, schema_path)?;
     let negative_controls = negative_controls(&records)?;
     Ok(Report {
         status: "passed",
@@ -458,9 +538,13 @@ pub(crate) fn verify(graph_path: &Path, schema_path: Option<&Path>) -> Result<Re
 }
 
 /// Recommendations in review order: salience, then importance, descending; then ID.
-pub(crate) fn recommendation_index(graph_path: &Path) -> Result<Vec<String>, String> {
-    let text = std::fs::read_to_string(graph_path)
-        .map_err(|e| format!("{}: {e}", graph_path.display()))?;
+pub(crate) fn recommendation_index(graph_path: &Path) -> Verified<Vec<String>> {
+    let text = std::fs::read_to_string(graph_path).map_err(|e| {
+        VerificationError::new(
+            Code::GraphUnreadable,
+            format!("{}: {e}", graph_path.display()),
+        )
+    })?;
     let records = parse_text(&text)?;
     let mut items: Vec<&Value> = records
         .iter()
@@ -491,52 +575,29 @@ pub(crate) fn recommendation_index(graph_path: &Path) -> Result<Vec<String>, Str
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use super::{check_records, parse_text};
+    use crate::error::Code;
 
-    use serde_json::Value;
-
-    use super::{check_records, parse_text, verify};
-
-    fn snapshot() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/research/2026-09-28-typed-core/snapshot")
+    fn parse_code(text: &str) -> Code {
+        parse_text(text).expect_err("expected a rejection").code()
     }
 
     #[test]
-    fn shipped_snapshot_verifies_and_matches_its_own_report() {
-        let dir = snapshot();
-        let report = verify(
-            &dir.join("nomos-research.ndjson"),
-            Some(&dir.join("record.schema.json")),
-        )
-        .unwrap();
-        let shipped: Value = serde_json::from_str(
-            &std::fs::read_to_string(dir.join("validation-report.json")).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            report.graph_sha256(),
-            shipped["graph_sha256"].as_str().unwrap()
-        );
-        assert_eq!(Value::Object(report.counts().clone()), shipped["counts"]);
-        assert_eq!(shipped["negative_controls"].as_object().unwrap().len(), 6);
-    }
-
-    #[test]
-    fn parser_rejects_the_documented_corruptions() {
-        assert!(parse_text("\u{feff}{}\n").is_err());
-        assert!(parse_text("{}").is_err());
-        assert!(parse_text("{}\n\n").is_err());
-        assert!(parse_text("[]\n").is_err());
-        assert!(parse_text("").is_err());
+    fn the_parser_names_each_documented_corruption() {
+        assert_eq!(parse_code("\u{feff}{}\n"), Code::NdjsonBom);
+        assert_eq!(parse_code("{}"), Code::NdjsonNoFinalNewline);
+        assert_eq!(parse_code("{}\n\n"), Code::NdjsonBlankRecord);
+        assert_eq!(parse_code("[]\n"), Code::NdjsonNotObject);
+        assert_eq!(parse_code(""), Code::NdjsonEmpty);
+        assert_eq!(parse_code("{\"a\":1,\"a\":2}\n"), Code::JsonDuplicateKey);
+        assert_eq!(parse_code("{\"a\":NaN}\n"), Code::JsonNonFiniteNumber);
+        assert_eq!(parse_code("{\"a\":}\n"), Code::JsonSyntax);
     }
 
     #[test]
     fn metadata_must_come_first() {
         let records = parse_text("{\"record_type\":\"node\",\"id\":\"a\"}\n").unwrap();
-        assert_eq!(
-            check_records(&records).unwrap_err(),
-            "Metadata must be first"
-        );
+        let error = check_records(&records).unwrap_err();
+        assert_eq!(error.code(), Code::MetadataNotFirst);
     }
 }

@@ -17,7 +17,7 @@ A weighted property graph of 169 nodes and 348 edges in newline-delimited JSON (
 | Correction | 6 | Retractions of earlier design guidance from the same conversation |
 | Counterexample | 7 | Executed Python models of draft semantics, not Nomos tests |
 | Research direction | 6 | Contemporary work to borrow from selectively |
-| ADR candidate | 8 | Decision bundles, not accepted ADRs |
+| ADR candidate | 8 | Decision bundles in the snapshot; recorded in this repository as ADRs 0007 to 0014 |
 
 It is a design artifact. It built no Nomos code, checked no TLA+ model, and executed no Linux test. Its weights are ordinal editorial judgments on a 0–4 scale. The field that matters for reading it is `disposition`: 18 recommendations are `adopt_direction`, one is `trial`, 6 are `research_required`, and one is `defer_until_measured`.
 
@@ -52,16 +52,16 @@ Each finding was checked against the draft it cites. *Confirmed* means the draft
 | `budget-not-world` | `invariants.md` wrote N9 as $\forall f: \mathrm{Unavailable}(f) \le k_f$, a bound on the world. Spec §58 says budgets are never *intentionally* exceeded | Confirmed overstatement | N9 predicate is now about admission |
 | `bound-not-termination` | The termination proof counted iterations and said nothing about a call that never returns | Qualification | Termination names its deadline assumption; a fired deadline does not undo an effect |
 | `fingerprint-limits` | One repeated observation fingerprint meant oscillation | Qualification | A repeat counts only on the managed-resource projection and with no work in flight |
-| `fence-race` | `fencing-and-idempotency.md` checked the generation before dispatch; the effect came later | Confirmed gap | The N5 theorem now states its atomicity assumption. ADR candidate `recovery-authority` |
+| `fence-race` | `fencing-and-idempotency.md` checked the generation before dispatch; the effect came later | Confirmed gap | The N5 theorem now states its atomicity assumption. [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md), proposed |
 | `dedup-scope` | The idempotency key's scope was undefined. A semantic-content key would suppress later repairs | Design gap | The key names one execution within one Plan |
-| `lost-refresh` | The crash-window argument assumed every effect is visible in Variance. A lost restart is not | Design gap | Caveat in the crash window; Known Gaps in `warp.md`. ADR candidate `warp-gates` |
+| `lost-refresh` | The crash-window argument assumed every effect is visible in Variance. A lost restart is not | Design gap | Caveat in the crash window; Known Gaps in `warp.md`. [ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed |
 | `replay-not-reality` | `event-log.md` called the fold over $L$ "state" | Qualification | The fold is control state. Recovery re-observes the host |
 | `trace-scope` | N1 compared whole machines | Qualification | N1 compares a projection onto managed-resource properties |
 | `layer-policy` | ADR 0000 said the manifests make the build enforce the dependency rule | Confirmed overstatement | ADR 0000 amended. Experiment `layer-policy` |
 | `types-not-world` | The leverage section implied a constructor proves a property | Qualification | Note in `invariants.md` on what a type proves |
-| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Design input | Grounding plan, wave 3. ADR candidate `canon-artifact` |
-| `partial-assessment` | Spec §9 `diff` returns Variance or nothing | Design input | Grounding plan, wave 1. Known Gaps in `reconciliation.md`. ADR candidate `evidence-model` |
-| `single-controller` | The reconciliation model has one controller | Design input | Grounding plan, wave 4 |
+| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Adopted as direction | ADR 0004. Milestone 1 PR 5 closes the encoding and compatibility remainder |
+| `partial-assessment` | Spec §9 `diff` returned Variance or nothing | Adopted | ADR 0005: `assess` with three outcomes, none aggregated. Milestone 1 PR 2 |
+| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`, after milestone 1 PR 4 |
 | `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 10 and CONTRIBUTING.md |
 | `epoch-not-oracle`, `identity-path`, `secrets-scope`, `incremental-scope` | Beyond Phase 0 | Deferred | Listed under deferred experiments in the grounding plan |
 
@@ -69,38 +69,47 @@ The six corrections in the bundle retract guidance from the conversation that pr
 
 ## Conflicts With the Specification
 
-Three points in the bundle disagree with the specification or with the agent rules. They are recorded here and not adopted. Adopting any of them is a specification amendment plus an ADR, which is the user's decision.
+Three points in the bundle disagreed with the specification or with the agent rules when it was imported. Each is a specification amendment plus an ADR, which is the project owner's decision. Two have since been decided; one remains open.
 
-**Canon authoring surface.** Spec §5 shows Canon as YAML, §54 lists the syntax ablation as strict YAML against TOML with the same typed intermediate representation (IR) either way, and §5 says Canon does not embed a general-purpose programming language. The bundle takes a Rust-authored Canon, a crate that generates an inert artifact, as the intended direction. Its source for that is a conversation decision (`src:user-decisions`), not the specification, and the bundle itself notes that Rust authoring is code execution and needs an isolated build job without host credentials. The repository documents keep the specification's model. The grounding plan runs the Canon-boundary experiments on the typed IR, which is the same under either authoring surface, and gates the one experiment that only makes sense for Rust authoring (`build-hermeticity`) on decision D1.
+**Canon authoring surface.** *Resolved on 2026-09-28 by [ADR 0004](../../adr/0004-rust-typed-canon.md).* At import, spec §5 showed Canon as YAML, §54 listed the syntax ablation as strict YAML against TOML with the same typed intermediate representation (IR) either way, and §5 said Canon does not embed a general-purpose programming language. The bundle took a Rust-authored Canon, a crate that generates an inert artifact, as the intended direction, on the strength of a conversation decision (`src:user-decisions`) rather than the specification, while noting that Rust authoring is code execution and needs an isolated build job without host credentials. The project owner confirmed the direction, and the specification was amended: Rust is the authoring surface, hosts accept only the Canonical IR, and the build job is treated as code execution. The encoding profile of the IR is still the wave 3 experiment.
 
-**Vocabulary.** The bundle uses *Condition*, *Observation*, *Assessment*, and *Indeterminate*. Spec §3 fixes Canon, Trait, Cipher, Variance, Trace, Enforce, Event, and Event Log, and §9 already uses Observation and Variance in the driver contract. The mapping is:
-
-| Bundle term | Specification | Status |
-| --- | --- | --- |
-| Condition | A resource's `spec` in Canon, $D_r$ | Existing concept, no new name needed yet |
-| Observation | `Observation`, $O_r$ | Already in spec §9 |
-| Assessment: Satisfied, Variance, Indeterminate | The result of `diff` | `diff` has two outcomes today. The third, for evidence that supports neither, is proposed. ADR candidate `evidence-model` |
-
-The repository documents describe the third outcome in words where they need it and coin no term for it.
+**Vocabulary.** *Resolved on 2026-09-28 by [ADR 0005](../../adr/0005-assessment-vocabulary.md).* The bundle uses *Condition*, *Observation*, *Assessment*, and *Indeterminate*; at import, spec §3 fixed eight terms and §9's `diff` had two outcomes. The owner chose to expand the vocabulary. Spec §3 now carries the four bundle terms, a revised definition of Variance, and two terms the review of `main` at `013b9d0` showed were needed: *Obligation*, for a follow-up effect no Condition can observe, and *Settled*, for an effect that can cause no further change. `diff` became `assess` with three outcomes, and [ADR 0006](../../adr/0006-kernel-contract.md) moved assessment and planning semantics out of the adapters into core.
 
 **Package-manager invocation.** Recommendation `substrate` says a controlled `argv` invocation of an unavoidable package-manager command line is not shell interpolation. AGENTS.md rule 5 says no shell execution in Substrate, and spec §12 requires D-Bus for systemd. A direct `execve` with a fixed argument vector is not a shell, but nobody has decided whether it is allowed, and `package` is a Phase 1 resource (spec §10, §55). Recorded, not decided.
 
+## Historical Recommendation and Accepted Architecture
+
+The snapshot under `snapshot/` is a historical recommendation, preserved as received. Where its wording differs from the specification or an ADR, the specification and the ADR are the accepted architecture. The snapshot is never edited to agree with them.
+
+| Recommendation | Status in this repository |
+| --- | --- |
+| `typed-canon` | Accepted: [ADR 0004](../../adr/0004-rust-typed-canon.md). Rust authoring, inert artifact, build job treated as code execution |
+| `evidence-assessment` | Accepted: [ADR 0005](../../adr/0005-assessment-vocabulary.md). Condition, Observation, and three-way Assessment |
+| `pure-kernel` | Accepted: [ADR 0006](../../adr/0006-kernel-contract.md). Not implemented |
+| `validated-boundary`, `algebraic-model` | Accepted as direction in ADR 0004. Not implemented; milestone 1 PR 2 and PR 5 |
+| `canonical-profile` | Open. ADR 0004 §5 lists it unresolved |
+| `bounded-bindings` | Open, as Trait-dependent expressions. The snapshot's specific expression form is not adopted |
+| `compatibility` | Open, as the extensibility model and schema versioning |
+| `layer-enforcement` | Implemented: `cargo xtask check-layers`, in CI |
+| `agent-proof` | Rule adopted: AGENTS.md rule 11. The mechanical gate is not implemented |
+| Every other recommendation | Assigned to an experiment in the [milestone plan](grounding-plan.md); not decided |
+
 ## Recommendations and Where They Land
 
-The bundle groups its 26 recommendations into eight ADR candidates. The grounding plan assigns each candidate to the wave whose experiments produce its evidence.
+The bundle groups its 26 recommendations into eight ADR candidates. Each is now a numbered ADR; the milestone plan assigns each to the experiments that would accept it.
 
-| ADR candidate | Recommendations | Fed by |
-| --- | --- | --- |
-| `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | Wave 0, wave 4 |
-| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | Wave 1, wave 4. `identity-recovery` deferred |
-| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | Wave 1, wave 2 |
-| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | Wave 2. `fencing` deferred to before remote execution |
-| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | Wave 3, after decision D1 |
-| `event-history` | `log-boundary`, `log-retention` | Phase 2. Concerns recorded in `event-log.md` |
-| `boundary-security` | `substrate`, `cipher` | Phase 1 and Phase 6 |
-| `future-algorithms` | `incremental`, `plan-witness` | After Phase 0 |
+| ADR candidate | Recommendations | Recorded as | Status |
+| --- | --- | --- | --- |
+| `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | [ADR 0007](../../adr/0007-verification-gates.md) | Accepted |
+| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed |
+| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Proposed until milestone 1 PR 3 and PR 4 |
+| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Proposed until milestone 1 PR 4 |
+| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | 0004 accepted; 0011 proposed until milestone 1 PR 5 |
+| `event-history` | `log-boundary`, `log-retention` | [ADR 0012](../../adr/0012-event-history.md) | Proposed until Phase 2 |
+| `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
+| `future-algorithms` | `incremental`, `plan-witness` | [ADR 0014](../../adr/0014-deferred-planning-algorithms.md) | Accepted as a deferral |
 
-The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The wave order follows that DAG.
+The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The milestone's pull-request order follows that DAG.
 
 ## Querying the Graph
 

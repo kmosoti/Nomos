@@ -1,0 +1,16 @@
+# Layer-policy fixture: laid out like Nomos, every edge allowed. The positive control.
+[workspace]
+resolver = "3"
+members = [
+    "crates/core/nomos-core",
+    "crates/core/nomos-ids",
+    "crates/core/nomos-canon",
+    "crates/ports/nomos-substrate",
+    "crates/ports/nomos-cipher",
+    "crates/app/nomos-app",
+    "crates/adapters/nomos-substrate-linux",
+    "crates/adapters/nomos-substrate-mock",
+    "crates/adapters/nomos-cipher-vault",
+    "crates/bin/nomos-cell",
+    "crates/bin/nomos-xtask",
+]

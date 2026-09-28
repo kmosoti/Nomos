@@ -1,224 +1,321 @@
-# Phase 0 Grounding Plan
+# Milestone 1: An Executable Kernel Contract
 
-- **Status.** Proposed, 2026-09-28. No experiment has run.
-- **Scope.** The 14 experiments the research snapshot marks `phase0`, ordered by the dependencies between the recommendations they test.
-- **Exit.** Every experiment has a result record, the ADR candidates it feeds are accepted or explicitly deferred, and the seven counterexamples exist as Rust tests that fail against the draft semantics and pass against the corrected ones.
+- **Status.** Proposed, 2026-09-28, revised the same day after a review of `main` at `013b9d0`. No experiment has run.
+- **Goal.** One typed Canon, one shared assessment model, one deterministic planner, one replayable transition kernel, and a harness that demonstrably rejects broken boundaries and broken semantics.
+- **Not the goal.** Another round of adapters, networking, storage, or a testing platform with nothing meaningful to test.
 
-## Why a Grounding Phase
+## What Main Establishes Today
 
-Spec §55 defines Phase 0 as `nomos-core`, `nomos-canon`, `nomos-substrate-mock`, and `nomos-warp`, with one proof obligation: Canon, Observation, and Variance produce a Plan deterministically. The [snapshot evaluation](README.md) found that the drafts under `docs/formal/` admit outcomes that pipeline must not produce: a converged host reported as non-convergent, a service restarted by an unchanged file, a fence checked before the effect it guards, a repair suppressed by an old completion record. Seven of these reproduce as small models. Spec §54 says uncertain choices are settled by experiment before they are frozen. The grounding phase is that rule applied to the semantics the snapshot put in question, so that the ADRs which freeze them cite evidence rather than a draft.
+| Area | Evidence | Not established |
+| --- | --- | --- |
+| Build and basic checks | CI green: formatting, Clippy, workspace tests | Anything about the control system |
+| Research tooling | `nomos-xtask` verifies the snapshot as a whole and reproduces seven counterexample models | Convergence, fencing, or adapter correctness |
+| Domain kernel | Module documentation only | Any assessment or transition semantics |
+| Architecture | Dependency rules documented; ADR 0000 says Cargo alone does not enforce them | Rejection of a future forbidden dependency |
+| Formal verification | Written algorithms and proof sketches; `formal/tla/` holds a README | A checked executable model |
 
-The phase produces the first real code in the crates. AGENTS.md's skeleton rule lifts for the crates an experiment names, and only for those.
+A green research-import build is not a verified engine. The milestone exists to change the right-hand column, one row at a time, with evidence.
+
+## Decisions Already Made
+
+| Decision | Record | Still open |
+| --- | --- | --- |
+| Canon is authored in Rust and shipped as an inert Canonical IR | [ADR 0004](../../adr/0004-rust-typed-canon.md) | Encoding profile, schema versioning, migration rules, IR suffix |
+| Condition, Observation, Assessment, Indeterminate, Obligation, Settled | [ADR 0005](../../adr/0005-assessment-vocabulary.md) | Settlement evidence per resource kind |
+| Core owns semantics; the kernel is `step(snapshot, input) = decision`; adapters obtain evidence and perform operations | [ADR 0006](../../adr/0006-kernel-contract.md) | Port shapes as code |
+| Tooling is Rust in `nomos-xtask` | [ADR 0003](../../adr/0003-xtask-tooling-crate.md) | Layer checker, snapshot freeze in CI |
+
+Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 (Phase 1, recorded in [ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until PR 3 and PR 4). The research candidates are numbered ADRs 0007 to 0014; the [ADR index](../../adr/README.md) maps each.
 
 ## Rules
 
-- **Design before code.** Each experiment carries a hypothesis, a rival hypothesis, a procedure, measurements, and a decision rule. They are in the graph and repeated in the cards below. Code that does not serve one of them is not part of the phase.
-- **Negative controls.** Each experiment includes at least one case the draft semantics fail. A negative control that passes against the draft means the test is not testing. The seven bundle counterexamples are the first negative controls. They exist today as models in `nomos-xtask`; each is ported to a test in the crate whose semantics it concerns once that crate has the semantics.
-- **Result records.** An experiment ends with `results/<experiment>.md`: toolchain and crate versions, the bounds and seeds used, what was established, what was not, and the decision it feeds. Anything that regenerates a record is a `cargo xtask` command or a Rust test (ADR 0003), never a script. A record is written after the run, never before. No cell in a verification matrix says *passed* for planned work.
-- **Determinism applies to harnesses.** Property tests record their seeds. Generated graphs and fixtures are reproducible from a seed and a version. A flaky harness is a finding about the harness, not noise.
-- **Vocabulary and invariants.** Code and documents use spec §3 terms. An experiment that touches an invariant N1–N12 adds the test for it (AGENTS.md rule 4). A new term or a changed invariant is an ADR, not a commit message.
-- **ADR layout.** ADRs keep the repository layout: Status, Date, Context, Decision, Consequences. The candidate's extra sections (Assumptions, Alternatives, Evidence, Verification, Revisit trigger) become subsections of Decision and Consequences, so that an ADR born from an experiment says what was measured and when to look again.
-- **No wall-clock, no hash order, no randomness** in anything that feeds compilation or planning (AGENTS.md rule 7). Clocks, deadlines, and identifiers enter the kernel as data.
+- **Design before code.** Each experiment carries a question, a rival hypothesis, a harness, a negative control, measurements, and a decision rule. Code that serves none of them is not part of the milestone.
+- **Negative controls.** Every check includes a case the draft or a plausible wrong implementation fails. A negative control that passes against the wrong thing means the test is not testing. The seven bundle counterexamples stay as historical models in `nomos-xtask`; they assert the bad outcomes the old prose admitted. New tests call the kernel and assert the corrected behavior.
+- **Result records.** An experiment ends with `results/<experiment>.md` in the verification-record form below. A record is written after the run, never before. No cell in the verification matrix says *passed* for planned work; a timeout stays *inconclusive*.
+- **Determinism applies to harnesses.** Property tests record their seeds. Generated graphs and fixtures are reproducible from a seed and a version. A flaky harness is a finding about the harness.
+- **Vocabulary and invariants.** Code and documents use spec §3 terms as expanded by ADR 0005. A change that touches N1–N12 adds the test for it. A new term or a changed invariant is an ADR.
+- **Specifications are protected.** AGENTS.md rule 11. An `assume` in a harness is allowed when explicit, justified, reviewed separately, and shown non-vacuous.
+- **Tooling is Rust.** Anything that regenerates a record is a `cargo xtask` command or a Rust test.
 
-## Decisions Needed From the User
+## Pull Requests
 
-Three decisions gate parts of the plan. Waves 0 to 2 need none of them.
+Five focused pull requests, in order. Each names its exit condition, and the exit is a behavior a test demonstrates, not a file that exists.
 
-- **D1. Canon authoring surface.** The specification says YAML with a typed IR (§5, §54). The snapshot assumes a Rust-authored Canon compiled to an inert artifact. Wave 3's `typed-validation`, `canonical-encoding`, and `compatibility-matrix` run on the typed IR and are the same under either answer. `build-hermeticity` only exists for Rust authoring; under the specification's model it collapses into the N12 determinism test. Closing D1 is a specification amendment and the `canon-artifact` ADR.
-- **D2. The third `diff` outcome.** Spec §9's `diff` returns Variance or nothing. Wave 1 will implement a per-resource result that also carries *evidence supports neither* with a reason, because the experiment needs it. Whether that outcome gets a name in spec §3, and what it is called, is the `evidence-model` ADR.
-- **D3. Edge semantics.** Spec §62 already lists `after` and `on_change` semantics as needing an ADR. Wave 1's `warp-truth-table` produces the table that ADR (`warp-gates`) records. The working definitions in [warp.md](../../formal/warp.md) are the hypothesis.
+### PR 1: Align the Specification and Make the Gates Real
 
-## Waves
+*Landed 2026-09-28.* ADRs 0004 to 0006, the spec amendments, the corrected formal documents, strict whole-snapshot verification shared by the CLI and the tests, `cargo xtask check-layers` over the declared and resolved graphs with fixture cases for direct, renamed, optional, target-specific, build, and dev dependencies, an adapter naming two ports, a dependency on a bin crate, and core depending on a port, plus one allowed workspace so the checker cannot pass by rejecting everything. `cargo xtask research frozen --base <ref>` is the Git comparison checksums cannot replace. CI runs `--locked`, `verify-all`, and `check-layers` on every push, and `frozen` on pull requests. Exceptions to the dependency rule are none; the mock adapter does not become a dev-dependency of `nomos-app`.
 
-```mermaid
-flowchart TB
-    W0["Wave 0<br/>Gates<br/>layer-policy · agent-proof-gate · verification matrix"]
-    W1["Wave 1<br/>Kernel semantics<br/>assessment-algebra · warp-truth-table · bounded-convergence"]
-    W2["Wave 2<br/>Effects and recovery in the mock<br/>effect-recovery · refresh-recovery · scheduler-admission"]
-    W3["Wave 3<br/>Canon boundary<br/>typed-validation · canonical-encoding · compatibility-matrix · build-hermeticity"]
-    W4["Wave 4<br/>Conformance and composition<br/>kernel-conformance · controller-composition"]
-    D1(["D1 decided"])
-    W0 --> W1 --> W2 --> W4
-    W1 --> W3
-    D1 --> W3
-    W3 --> W4
-```
+Hardened the same day to the owner's PR 1 specification: one `verify_snapshot` with no weaker mode and a stable code on every failure, negative controls asserted by reason, the matching-port rule for adapters, `nomos-core`, dev, build, and tooling-crate cases, the real crate names in the fixtures, `cargo check --locked` in CI, and `--locked` in the `cargo xtask` alias.
 
-Waves 2 and 3 are independent of each other and can run in parallel once wave 1 is done. Wave 4 needs both, because the TLA+ models cover the transitions wave 2 defines and the conformance replay needs the artifact types wave 3 defines.
+Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, the allowed workspace passes, and restoring the valid input passes again. The owner scoped PR 1 to specification alignment, snapshot integrity, layer enforcement, and CI. The `agent-proof-gate` experiment and mutation runs over `nomos-xtask` therefore move to their own pull request after PR 1.
 
-| Wave | Experiments | Crates | Feeds |
-| --- | --- | --- | --- |
-| 0 | `layer-policy`, `agent-proof-gate`, verification matrix | `nomos-xtask` | ADR `verification-gates` |
-| 1 | `assessment-algebra`, `warp-truth-table`, `bounded-convergence` | `nomos-core`, `nomos-warp`, `nomos-app`, `nomos-substrate-mock` | ADRs `evidence-model`, `warp-gates` |
-| 2 | `effect-recovery`, `refresh-recovery`, `scheduler-admission` | `nomos-core`, `nomos-warp`, `nomos-app`, `nomos-substrate-mock` | ADRs `recovery-authority`, `warp-gates` |
-| 3 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `nomos-canon`, `nomos-core` | ADR `canon-artifact` |
-| 4 | `kernel-conformance`, `controller-composition` | `formal/tla/`, `nomos-app`, `nomos-substrate-mock` | ADRs `verification-gates`, `evidence-model` |
+### PR 2: The Assessment Algebra
 
-## Wave 0: Gates
+One resource family first: file presence and content requirements. In `nomos-core`: validated `Condition` types with private fields, `Observation` with provenance, collection window, and collection outcome, per-Condition `Assessment` with `Satisfied`, `Variance`, and `Indeterminate` carrying its reason, and a report that keeps every Assessment.
 
-Nothing here decides a domain question. It builds the things that make the later results trustworthy.
+Tests: exhaustive truth tables for pairs, property tests for longer conjunctions, compile-fail cases for the type boundaries in the table below, and the targeted mutations in the negative-control table.
+
+Exit: malformed values cannot enter through any supported construction path, and uncertainty is never converted into satisfaction or Variance.
+
+### PR 3: Warp's Decision Rules
+
+In `nomos-warp`: the activation truth table with group-level `on_change` resolution, satisfaction anchors for `requires`, `after`, and `on_change`, deterministic order, cycle witnesses restricted to cyclic components, and conflict-aware selection over `Reserved`. An independently written reference evaluator for small graphs, used differentially.
+
+Exit: the one-changed-one-unchanged predecessor case activates; the $A \leftrightarrow B$, $B \to C$ graph yields one witness and reports $C$ as blocked; conflicting Actions are never selected together; order is invariant under insertion-order permutation.
+
+### PR 4: The Transition Kernel and Recovery Simulator
+
+In `nomos-core` and `nomos-app`: `step(snapshot, input) = decision` as ADR 0006 states, driven by the application through ports and by the simulator with scripted inputs. The mock service gets separate disk and loaded configuration revisions. Crashes are dropped receipts; delays are reordered inputs; supersession is a second authority input. The first TLA+ model of the same transitions, with its counterexample traces replayed through `step`.
+
+Exit: a crash after configuration replacement cannot lose the refresh Obligation; a timeout cannot free an unsettled conflicting reservation; the final permitted successful execution is reported `Converged`; the model's traces and the kernel's decisions agree on the modeled transitions.
+
+### PR 5: The Inert Canon Boundary
+
+On the validated types: normalization, the encoding profile chosen by `canonical-encoding`, decoding through untrusted data-transfer objects, migrations, unknown variants, and two isolated builds compared byte for byte. Accepts [ADR 0011](../../adr/0011-canon-artifact-encoding.md) on top of ADR 0004, or records why not.
+
+Exit: artifact acceptance cannot bypass domain validation or silently change executable intent, and identical declared inputs produce identical IR bytes with every undeclared input denied or recorded.
+
+Only after PR 5 does the first Linux adapter start, with one narrowly scoped filesystem operation and the same conformance suite the mock passes.
+
+## Three Boundaries, Three Checks
+
+"Ports and adapters are enforced" is three properties.
+
+**Structural: who may depend on whom.** The layer checker in PR 1. Cargo metadata exposes declared dependency kinds, optionality, target conditions, and renames; its resolved graph omits inactive optional dependencies. Checking only one of the two leaves a hole.
+
+**Type: what callers can construct or request.** Compile-fail tests with `trybuild`, which works for ordinary APIs and checks the intended diagnostic. Used for promises Nomos makes, not for every wrong argument type.
+
+| Promise | Misuse that must fail to compile |
+| --- | --- |
+| A validated Canon cannot be fabricated | Constructing its private fields directly |
+| An absent file cannot specify contents | Constructing the contradictory combination |
+| Trace receives observation capability only | Calling a mutation operation through the interface Trace is given |
+| Success requires verification evidence | Manufacturing a `Succeeded` result outside the verification path |
+| Cipher material cannot enter ordinary serialization | Passing the secret wrapper through a prohibited serialization path |
+
+These establish API restrictions. They do not prove an adapter's Observation is truthful.
+
+**Behavioral: does an adapter honor its contract.** One conformance suite per port, run against each implementation, at a composition boundary (`crates/bin/nomos-cell/tests/` first). For `nomos-substrate`: absence differs from denied observation, Trace issues no mutation requests, postconditions are assessed by core, and an unresolved effect keeps its reservation. The workspace is virtual: a test belongs to a package target, and the root `tests/` directory holds only fixture data those targets load.
+
+## The Test Stack
+
+Organized by the question each layer answers, introduced when there is something to ask it of.
+
+| Category | Question | Introduced |
+| --- | --- | --- |
+| Unit and exhaustive truth tables | Does each finite decision rule handle every case? | PR 2 |
+| Property tests | Do the algebraic laws hold across generated Conditions, Observations, and graphs? | PR 2 |
+| Compile-fail tests | Can callers bypass the intended type boundaries? | PR 2 |
+| Architecture fixtures | Can a forbidden dependency or policy bypass enter the workspace? | PR 1 |
+| Port conformance tests | Do adapters honor the same observable contract? | PR 4 |
+| Differential and metamorphic tests | Does the implementation agree with an independent reference and preserve semantics under permitted transformations? | PR 3 |
+| Mutation tests | Would the tests notice a plausible wrong implementation? | PR 1 for tooling, then each kernel slice |
+| Deterministic simulation | What happens under delayed results, crashes, duplicates, and supersession? | PR 4 |
+| Executable formal models | Can modeled interleavings violate safety or conditional liveness? | PR 4 |
+| Fuzzing and real integration | Do untrusted inputs and actual OS behavior violate the boundaries? | PR 5 for decoding; Linux adapter for the OS |
+
+**Property laws first in line.** $\mathrm{Normalize}(\mathrm{Normalize}(C)) = \mathrm{Normalize}(C)$. Planning results invariant under permitted resource and map insertion-order permutations. Unknown evidence cannot manufacture satisfaction or a known mismatch. A report keeps a Variance beside an unrelated Indeterminate rather than collapsing. Warp generators cover valid dependencies, missing references, cycles, multiple activation sources, and overlapping footprints.
+
+**Seeds are not enough.** `proptest` persists failing seeds, and a changed generator can make an old seed produce a different value. Keep the seed, and promote important minimized failures into concrete regression fixtures. CI runs a reproducible seed bank as the required path and a broader exploration separately, recording its seeds and failing traces.
+
+**Mutation tests have teeth or they are decoration.** `cargo-mutants` on changed kernel modules, plus these semantic negative controls, each of which must be caught by a named test:
+
+| Deliberate defect | Test that must catch it |
+| --- | --- |
+| Remove the changed-source activation requirement | Unchanged configuration must not activate refresh |
+| Change *any* activation to *all* | One changed and one unchanged predecessor must activate |
+| Drop a reservation on timeout | A delayed old effect must block conflicting admission |
+| Reuse a semantic digest as a permanent idempotency key | Later drift must still be repaired |
+| Return convergence from empty Variance alone | A pending Obligation must prevent completion |
+| Skip manifest verification | A corrupted non-graph snapshot file must fail |
+| Ignore an optional dependency in the layer checker | A forbidden feature-gated edge must fail |
+
+Record surviving mutants, invalid mutations, exclusions, and inconclusive runs separately. A score is not the point; every surviving mutant on a safety contract is investigated.
+
+## Formal Modeling, Early and Small
+
+The first executable model arrives with PR 4, not after it. Two authority inputs can be simulated without a network coordinator. The model holds one Action, its reservation, an effect outcome, an Obligation, and a superseding authority input, and checks:
+
+- **Admission safety.** Conflicting effects never both hold permission to proceed.
+- **Uncertainty preservation.** A timeout establishes neither success, failure, nor settlement.
+- **Recovery safety.** An effect request is not forgotten because the process that requested it restarted.
+- **Completion soundness.** Convergence requires satisfied Conditions, discharged Obligations, and Settled relevant effects.
+
+The TLA+ model checker (TLC) checks the specified model under its bounds. The record says so, and never calls it a proof of the Rust or of Linux. One Kani harness on one pure predicate, admission or dependency resolution, learns the cost before any wider adoption; it includes `kani::cover` checks, because a satisfied assertion on an unreachable path is vacuous. The `loom` model checker waits for an actual shared-memory synchronization point; a component with the same name is not a reason.
+
+## The Verification Record
+
+Every important property gets a record with these fields, and `docs/formal/verification-matrix.md` is filled from records only.
+
+| Field | Purpose |
+| --- | --- |
+| Property ID and specification revision | Exactly what was checked |
+| Production function and harness | Where the model meets the implementation |
+| Toolchain, dependency lock, target, tool version | Reproduction context |
+| Bounds, seeds, fixtures, assumptions | Scope of exploration |
+| Positive and negative-control results | Whether the harness tells correct from incorrect |
+| Unchecked behavior | What the result does not cover |
+
+## Resequenced Deferrals
+
+The earlier plan deferred three areas because their concrete integrations do not exist. Their logical contracts do not need them.
+
+- **Secrets.** Test secret-wrapper redaction and serialization restrictions now, with fake values (PR 2's compile-fail row and a sentinel test). Vault integration waits.
+- **Fencing.** Model competing authority, atomic acceptance, and effect admission now (PR 4's model). Loom transport waits.
+- **Event durability.** Model the ordering of intent, dispatch, completion, and acknowledgment now against a fault-injectable in-memory store (PR 4's simulator). Physical crash and fsync testing waits for the storage adapter.
+
+## Experiments by Pull Request
+
+The research snapshot's experiments remain the evidence units. The cards below carry their question, rival, harness, negative control, measurements, and decision rule.
+
+| Experiment | Pull request |
+| --- | --- |
+| `layer-policy` | PR 1 |
+| `agent-proof-gate` | Its own pull request, after PR 1 |
+| `assessment-algebra` | PR 2 |
+| `warp-truth-table` | PR 3 |
+| `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | PR 4 |
+| `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | PR 5 |
+| `controller-composition` | After PR 4, before the Linux adapter |
 
 ### layer-policy
 
-- **Question.** Does a check over `cargo metadata` reject a forbidden workspace edge, including one hidden behind a feature or a target-specific dependency?
-- **Rival.** Conditional dependencies escape the check, and ordinary compilation is mistaken for policy conformance.
-- **Harness.** A `cargo xtask check-layers` command in `nomos-xtask` (ADR 0003) that reads the resolved graph from `cargo metadata` for each supported feature and target set and checks every edge against the table in ADR 0000. The negative control is a fixture workspace under `tests/fixtures/layer-policy/` with a `core` crate that depends on an adapter, once directly, once behind a feature, once under `[target.'cfg(unix)'.dependencies]`. The real workspace is never modified to test the gate.
-- **Measurements.** Forbidden edges detected per fixture; feature and target combinations covered.
-- **Decision rule.** All three fixture edges are rejected. Wiring the check into CI is a separate ask (AGENTS.md rule 9).
+- **Question.** Does the checker reject a forbidden workspace edge in both the declared and the resolved graph, including behind a feature, a rename, a target condition, or a dev or build dependency?
+- **Rival.** Conditional dependencies escape the check, or the checker succeeds by rejecting everything.
+- **Harness.** `cargo xtask check-layers` over fixture workspaces under `tests/fixtures/layer-policy/`, one per dependency kind, plus one allowed workspace.
+- **Negative control.** Each forbidden fixture; the allowed fixture is the positive control.
+- **Measurements.** Forbidden edges detected per kind; feature and target combinations covered.
+- **Decision rule.** Every forbidden fixture rejected, the allowed one accepted, and ordinary compilation never reported as policy conformance.
 
 ### agent-proof-gate
 
 - **Question.** Do the review rules catch a patch that passes a check by weakening what the check asserts?
-- **Rival.** The patch weakens a postcondition, adds an `assume`, `admit`, or `#[ignore]`, or moves code out of the verifier's view, and the green result is accepted.
-- **Harness.** Negative-control patches as fixtures under `tests/fixtures/agent-proof/`: one that loosens a postcondition, one that adds an escape hatch to a Kani or Verus harness, one that disables a test, one that unwraps a `forbid(unsafe_code)`. A `cargo xtask` command diffs specification and assumption changes separately from proof annotations. The gate is a review checklist plus that command; a regular expression cannot detect semantic weakening and the record says so.
-- **Measurements.** Escapes detected, false positives, review burden per patch.
-- **Decision rule.** Every known invalid shortcut fails the gate. Semantic weakening remains a human review item, recorded as such in AGENTS.md rule 10.
-
-### Verification matrix
-
-Write `docs/formal/verification-matrix.md`. Rows are N1–N12 and the six protocol invariants of spec §48. Columns are property test, TLA+, Kani or Verus, and failure test. Every cell starts as *not run* with a link to the experiment that will fill it. The matrix is the honest ledger the later waves write into, and its first version is entirely empty by design.
-
-## Wave 1: Kernel Semantics
-
-The heart of Phase 0. Three experiments, all on the mock, all in pure code, each with a bundle counterexample as its first negative control.
+- **Rival.** The patch loosens a postcondition, adds an `assume`, `admit`, or `#[ignore]`, or moves code out of the verifier's view, and the green result is accepted.
+- **Harness.** Negative-control patches under `tests/fixtures/agent-proof/`; a `cargo xtask` command that diffs specification and assumption changes separately from proof annotations; a review checklist. A regular expression cannot detect semantic weakening and the record says so.
+- **Decision rule.** Every known invalid shortcut fails the gate; semantic weakening remains a human review item under AGENTS.md rule 11.
 
 ### assessment-algebra
 
-- **Question.** Is a per-resource three-way result, with conjunction across a Canon, enough for the six initial resources?
-- **Rival.** An aggregate shortcut collapses unknown, absent, stale, or contradictory evidence into one of the two existing outcomes.
-- **Harness.** In `nomos-core`: a per-resource result type with satisfied, Variance carrying its evidence, and a third outcome carrying a reason (denied read, stale observation, conflicting observations). A truth table for conjunction, generated exhaustively for pairs and by `proptest` for longer conjunctions. Observation fixtures for present, absent, stale, denied, and conflicting. If D2 is not yet decided, the third outcome carries no spec §3 name.
-- **Negative controls.** `partial-assessment`: a known Variance beside an unknown must still report the Variance. A permission error must never become absent or Variance. An empty error list must not be read as satisfied.
-- **Measurements.** Truth-table agreement, count of mutation admissions from an unknown, evaluation bound for any bounded typed expressions Canon parameters need (spec §5 restricts conditional expressions; the bound is the test that they stay restricted).
-- **Decision rule.** No unknown is cast to Variance, and no unrelated unknown hides a known Variance. Feeds `evidence-model`.
+- **Question.** Are three Assessment outcomes per Condition, kept unaggregated, enough for the first resource family?
+- **Rival.** An aggregate shortcut collapses unknown, absent, stale, or contradictory evidence into one of the two old outcomes.
+- **Harness.** PR 2's types; exhaustive pair tables; `proptest` conjunctions; Observation fixtures for present, absent, stale, denied, and conflicting.
+- **Negative control.** `partial-assessment`: a Variance beside an Indeterminate must still be reported. A denied read must never assess as Satisfied or Variance. An empty error list must not mean Satisfied.
+- **Measurements.** Truth-table agreement; mutation admissions from an Indeterminate (target zero); evaluation bound for any bounded typed bindings.
+- **Decision rule.** No Indeterminate becomes Variance or Satisfied, and no unrelated Indeterminate hides a Variance.
 
 ### warp-truth-table
 
-- **Question.** Do explicit start conditions, activation, and satisfaction anchors fully specify v0 dependencies?
-- **Rival.** Terminal, changed, and succeeded are conflated, or a satisfied prerequisite with no Action breaks the graph.
-- **Harness.** In `nomos-warp`: the table of predecessor outcome by edge kind, resolved to waiting, satisfied, disabled, or blocked, as [warp.md](../../formal/warp.md) now defines them. Random DAGs from `proptest` with every insertion-order permutation of the same graph. Multi-source `on_change` under the *any* working definition. Cycle witnesses checked to be cycles in $E$.
-- **Negative controls.** `activation-missing`: an unchanged configuration must not activate a restart. A satisfied user prerequisite must let a directory Action run without a user Action. A failed partial write must not activate its dependent restart.
-- **Measurements.** Activation correctness against the table, order determinism across permutations (N12), witness validity.
-- **Decision rule.** Every case resolves to exactly one of the four states with no fallthrough. Feeds `warp-gates` and closes D3.
+- **Question.** Do Startable, group-level Activated, and satisfaction anchors fully specify v0 dependencies?
+- **Rival.** Terminal, changed, and succeeded are conflated; an unchanged source vetoes a changed one; a satisfied prerequisite without an Action breaks the graph.
+- **Harness.** PR 3's rules; exhaustive predecessor-outcome tables; random DAGs with insertion-order permutations; the reference evaluator, differentially.
+- **Negative control.** `activation-missing`; the one-changed-one-unchanged case; the $A \leftrightarrow B$, $B \to C$ witness case; a failed partial write must not activate its dependent.
+- **Measurements.** Activation correctness; order determinism (N12); witness validity.
+- **Decision rule.** Every case resolves to exactly one state with no fallthrough. Feeds [ADR 0009](../../adr/0009-warp-activation-semantics.md).
 
 ### bounded-convergence
 
-- **Question.** Does the loop report the right outcome at the bound without hiding effects still in flight?
-- **Rival.** The last successful execution is misreported, or slow asynchronous completion is classified as oscillation.
-- **Harness.** In `nomos-app` against `nomos-substrate-mock`: the loop as [reconciliation.md](../../formal/reconciliation.md) now states it. Mock resources with scripted behavior: converge on attempt $k$, never converge, complete one observation late, oscillate against a scripted external writer, change unrelated telemetry every observation. Deadlines injected as data.
-- **Negative controls.** `final-check`: $k = 1$ with a successful mutation must return `Converged`. A slow completion must not be reported as oscillation.
-- **Measurements.** Outcome classification per script, observation count, count of Actions left unsettled at exit.
-- **Decision rule.** The loop distinguishes converged, bound reached, known failure, and unknown outcome, and never reports converged with an Action unsettled. Feeds `evidence-model` (freshness) and the N2, N3, and N10 rows of the matrix.
-
-## Wave 2: Effects and Recovery in the Mock
-
-Still no operating system. The mock gains a scripted crash boundary: the kernel is driven step by step, and a crash is the harness dropping an effect's result.
+- **Question.** Does the loop report the right outcome at the bound without hiding effects still in flight, and does it distinguish Indeterminate from Converged and Failed?
+- **Rival.** The last successful execution is misreported, slow completion is classified as oscillation, or an Indeterminate run is reported as converged.
+- **Harness.** PR 4's kernel against the mock with scripted resources: converge on attempt $k$, never converge, complete one observation late, oscillate against a scripted writer, deny a read, change unrelated telemetry every observation.
+- **Negative control.** `final-check`; a slow completion must not be reported as oscillation; a denied read with nothing else to do must end `Indeterminate`.
+- **Measurements.** Outcome classification per script; observation count; effects left unsettled at exit.
+- **Decision rule.** Converged, bound reached, Indeterminate, known failure, and unknown outcome are distinguished, and Converged is never reported with an effect unsettled.
 
 ### effect-recovery
 
 - **Question.** Do run-scoped idempotency keys deduplicate retries within one execution while allowing later repairs?
 - **Rival.** A content-derived key suppresses drift repair, or a retry overlaps a still-live operation.
-- **Harness.** In `nomos-core` and `nomos-app`: the key scoping [fencing-and-idempotency.md](../../formal/fencing-and-idempotency.md) now states. Duplicate deliveries before, during, and after completion. New drift after completion followed by a new run with the same semantic Action. One scripted effect with no readable postcondition.
-- **Negative controls.** `dedup-scope`: a completed record from run one must not suppress the repair in run two.
-- **Measurements.** Duplicate live effects, suppressed repairs, unsafe retries, effects left explicitly unresolved.
-- **Decision rule.** No silent re-execution and no silent suppression. An effect without a readable postcondition stays unresolved and says so (N10). Feeds `recovery-authority`.
+- **Harness.** PR 4's simulator: duplicate receipts before, during, and after completion; new drift after completion followed by a new run with the same semantic Action; one scripted effect with no readable postcondition.
+- **Negative control.** `dedup-scope`.
+- **Measurements.** Duplicate live effects; suppressed repairs; unsafe retries; effects left explicitly unresolved.
+- **Decision rule.** No silent re-execution and no silent suppression; an effect without settlement evidence stays unresolved (N10).
 
 ### refresh-recovery
 
-- **Question.** Which of three designs keeps a service refresh obligation across a crash between file replacement and restart: a durable obligation persisted before the replacement, an observable loaded-revision property on the service, or the draft's transient `on_change`?
-- **Rival.** The file comparison after recovery sees no Variance and the refresh is lost, or a restart receipt is mistaken for evidence that the new revision loaded.
-- **Harness.** A mock service with separate disk and loaded configuration revisions. Crash at every step boundary before and after replacement and refresh. All three designs implemented against the same script.
-- **Negative controls.** `lost-refresh`: the transient design must lose the refresh; the test proves the harness sees it.
-- **Measurements.** Lost refreshes, unnecessary refreshes, outcomes left unresolved, per design.
-- **Decision rule.** No declared obligation disappears. For a service that cannot report its loaded revision, the record states the uncertainty and retry policy rather than claiming exactly-once refresh. Feeds `warp-gates`.
+- **Question.** Which design keeps a service refresh across a crash between file replacement and restart: a durable Obligation recorded before the replacement, a loaded-revision Condition, or the draft's transient `on_change`?
+- **Rival.** The file comparison after recovery sees Satisfied and the refresh is lost, or a restart receipt is mistaken for evidence that the new revision loaded.
+- **Harness.** PR 4's mock service with separate disk and loaded revisions; a crash at every step boundary; all three designs against the same script.
+- **Negative control.** `lost-refresh`: the transient design must lose the refresh, and the harness must see it.
+- **Measurements.** Lost refreshes; unnecessary refreshes; unresolved outcomes, per design.
+- **Decision rule.** No declared Obligation disappears; a service that cannot report its loaded revision gets a documented uncertainty and retry policy, not an exactly-once claim.
 
 ### scheduler-admission
 
-- **Question.** Is a serialized, reservation-based greedy selection safe under declared footprints, budgets, and involuntary failures?
-- **Rival.** Concurrent admission, aliased resource keys, implicit effects, or unresolved jobs bypass the reservations.
-- **Harness.** In `nomos-warp`: the selection in [warp.md](../../formal/warp.md) with reservations held through dispatch, verification, and unknown outcomes. Generated ready sets and footprints. Interleavings of reserve, dispatch, timeout, verify, and release explored with the `loom` model checker under its alias (spec §47). Scripted involuntary node failures and repeated task arrivals for the budget and fairness cases.
-- **Negative controls.** `budget-not-world`: an involuntary failure past the budget must pause further disruptive admission, not be reported as a budget violation by the scheduler. A reservation released at `Running` exit must allow a conflicting overlap with a timed-out Action, and the corrected reservation must not.
-- **Measurements.** Conflicting overlaps, budget admission violations, starvation under the stated fairness premise.
-- **Decision rule.** No modeled conflict or oversubscription. Maximality and fairness are claimed only under the premises the record states. Feeds `warp-gates` and `recovery-authority` (the N9 part).
+- **Question.** Is serialized, reservation-based greedy selection safe under declared footprints, budgets, and involuntary failures, with reservations held until settlement?
+- **Rival.** Concurrent admission, aliased keys, implicit effects, or unsettled effects bypass the reservations.
+- **Harness.** PR 3's selection over `Reserved`; generated ready sets and footprints; interleavings of reserve, dispatch, timeout, verify, settle, and release explored in the PR 4 simulator; scripted involuntary failures and repeated arrivals.
+- **Negative control.** `budget-not-world`; a reservation released at `Running` exit must allow an overlap with a timed-out Action, and the corrected reservation must not; two admissions against one stale snapshot must not both pass.
+- **Measurements.** Conflicting overlaps; budget violations; starvation under the stated fairness premise.
+- **Decision rule.** No modeled conflict or oversubscription; maximality and fairness claimed only under stated premises.
 
-## Wave 3: Canon Boundary
+### kernel-conformance
 
-Runs on the typed IR. Three of the four experiments are the same under either answer to D1.
+- **Question.** Can the PR 4 kernel be modeled in TLA+ with explicit bounds, and do its counterexample traces replay through `step`?
+- **Rival.** The model omits an implementation transition or assumes more of the adapters than they promise.
+- **Harness.** `formal/tla/` models of the transitions in the Formal Modeling section; TLC traces exported and replayed through `step`; one Kani harness with cover checks.
+- **Negative control.** A known-bad transition inserted into the kernel must produce a trace the model rejects; a vacuous harness must be exposed by its cover check.
+- **Measurements.** Transitions mapped; negative-control failures; model bounds; check time.
+- **Decision rule.** The record names exactly which properties were checked, under which bounds, with which adapters trusted, and never calls a finite-model check a proof.
 
 ### typed-validation
 
 - **Question.** Do construction, decoding, and migration enforce the same domain invariants?
 - **Rival.** Derived deserialization, a public field, or a migration constructs a value the constructor would reject.
-- **Harness.** In `nomos-canon` and `nomos-core`: decode into untrusted data-transfer objects, then fallible conversion into validated types with private fields. Generated valid and malformed inputs: bad ranges, duplicate resource identifiers, dangling `requires` references, unknown resource kinds, oversized inputs. Compile-fail cases for constructing a validated type outside its module. The sum-type countercase: an absent file with content must be unrepresentable, not merely rejected.
-- **Negative controls.** A `serde` derive on the validated type without a `try_from` boundary must let a malformed value through; the test proves the harness detects it.
-- **Measurements.** Rejection parity across the three paths, panic count (target zero), size of the smallest counterexample `proptest` finds.
-- **Decision rule.** No malformed input becomes a validated Canon by any supported path, and every error is typed and contains no Cipher material. Feeds `canon-artifact`.
+- **Harness.** PR 5 on PR 2's types; generated valid and malformed inputs; `trybuild` compile-fail cases; the absent-with-contents countercase.
+- **Negative control.** A `serde` derive without the `try_from` boundary must let a malformed value through, and the harness must detect it.
+- **Measurements.** Rejection parity across paths; panic count (target zero); smallest counterexample found.
+- **Decision rule.** No malformed input becomes a validated Canon by any supported path; every error is typed and secret-free.
 
 ### canonical-encoding
 
-- **Question.** Which restricted profile represents the IR so that semantic equivalence and byte equality coincide: deterministic Concise Binary Object Representation (CBOR), as Request for Comments (RFC) 8949 §4.2 defines it, or the JSON Canonicalization Scheme (JCS) of RFC 8785?
+- **Question.** Which restricted profile makes semantic equivalence and byte equality coincide on the IR: deterministic Concise Binary Object Representation (CBOR) per Request for Comments (RFC) 8949 §4.2, or the JSON Canonicalization Scheme (JCS) of RFC 8785?
 - **Rival.** Number, Unicode, map ordering, duplicate keys, or default handling breaks the equivalence in one of them.
-- **Harness.** Define the semantic equivalences first: field order, defaults, integer ranges, path bytes, forbidden floats. Golden vectors and adversarial fixtures encoded by both profiles, decoded by an independent decoder, and compared across two builds. `CanonID` is the hash of a domain tag, a version, and the normalized content; provenance stays outside the hash.
-- **Negative controls.** Two semantically different Canons that a naive normalization collapses must keep distinct identities.
-- **Measurements.** Golden-vector agreement, artifact size, encode and decode cost, dependency count.
-- **Decision rule.** The simpler profile that passes every semantic test. Throughput alone decides nothing. Feeds `canon-artifact` and closes the encoding open question.
+- **Harness.** Semantic equivalences defined first; golden and adversarial fixtures encoded by both profiles, decoded independently, compared across two builds; `CanonID` over a domain tag, a version, and the normalized content.
+- **Negative control.** Two semantically different Canons that a naive normalization collapses must keep distinct identities.
+- **Measurements.** Golden-vector agreement; artifact size; encode and decode cost; dependency count.
+- **Decision rule.** The simpler profile that passes every semantic test; throughput decides nothing.
 
 ### compatibility-matrix
 
 - **Question.** Do explicit schema versions and migrations preserve accepted semantics across old and new readers?
 - **Rival.** An unknown variant or a changed default silently changes executable intent.
-- **Harness.** Version 1 and version 2 fixtures exchanged between old and new readers. Unknown resource capabilities and unknown mutating variants. Migrations that keep the original bytes and record lineage.
-- **Negative controls.** An unknown mutating variant accepted for forward compatibility must be caught before any effect.
-- **Measurements.** Silent semantic changes, correct rejections, identity consistency across migration.
-- **Decision rule.** Unsupported execution fails before effect. Archival preservation never implies permission to execute. Feeds `canon-artifact`.
+- **Harness.** Version 1 and 2 fixtures across readers; unknown capabilities and unknown mutating variants; migrations that keep original bytes and lineage.
+- **Negative control.** An unknown mutating variant accepted for forward compatibility must be caught before any effect.
+- **Measurements.** Silent semantic changes; correct rejections; identity consistency across migration.
+- **Decision rule.** Unsupported execution fails before effect; archival preservation never implies permission to execute.
 
 ### build-hermeticity
 
-Only under D1 = Rust authoring. Otherwise the experiment reduces to the N12 determinism test in wave 3's other cards and is recorded as such.
-
-- **Question.** Do two isolated builds with the same declared inputs produce the same canonical artifact, and is every undeclared input denied?
-- **Rival.** Wall clock, locale, temporary paths, hash seeds, environment, or network reach the generator and change the output.
-- **Harness.** The same Canon crate built twice in isolated environments with each ambient input varied. Declared inputs recorded. Undeclared reads and network attempts observed, not assumed absent.
-- **Decision rule.** Adopt the pipeline only after each undeclared-input path is denied or recorded. Identical outputs alone prove nothing about hermeticity.
-
-## Wave 4: Conformance and Composition
-
-### kernel-conformance
-
-- **Question.** Can the transition kernel from waves 1 and 2 be modeled in TLA+ with explicit bounds, and do its counterexample traces replay through the Rust tests?
-- **Rival.** The model omits an implementation transition or assumes more of the adapters than they promise.
-- **Harness.** `formal/tla/ActionLifecycle.tla`, `PlanExecution.tla`, and `Fencing.tla` as spec §48 plans, with state bounds recorded. Counterexample traces from the TLA+ model checker (TLC) exported and replayed through `nomos-app` against the mock. One Kani or Verus harness on one pure function, the readiness predicate being the obvious candidate, to learn the cost before adopting a verifier.
-- **Negative controls.** A known-bad transition inserted into the Rust kernel must produce a trace the model rejects.
-- **Measurements.** Transitions mapped between model and code, negative-control failures, model bounds, check time.
-- **Decision rule.** The record names exactly which properties were checked, under which bounds, and with which adapters trusted. A finite-model check is not called a proof. Feeds `verification-gates` and fills the TLA+ column of the matrix.
+- **Question.** Do two isolated builds with the same declared inputs produce the same IR, and is every undeclared input denied or recorded? The contract is ADR 0004 §3.
+- **Rival.** Wall clock, locale, temporary paths, hash seeds, environment, or network reach the generator.
+- **Harness.** The same Canon crate built twice in isolation with each ambient input varied; undeclared reads and network attempts observed, not assumed absent.
+- **Decision rule.** Adopt the pipeline only after each undeclared-input path is denied or recorded; identical outputs alone prove nothing.
 
 ### controller-composition
 
-- **Question.** Do explicit read and write footprints with stated guarantees and reliance assumptions detect a harmful composition of two controllers that each converge alone?
-- **Rival.** The two controllers oscillate together and nothing in the model sees it.
-- **Harness.** Two mock controllers sharing a file or a sysctl. Three configurations: shared ownership, single owner, disjoint properties. Footprints, own guarantees, and peer assumptions declared as data. The discipline is Anvil's and Welder's; the object model is Nomos's, not Kubernetes's.
-- **Negative controls.** The shared-ownership configuration must oscillate and must be detected or rejected by the ownership rule.
-- **Measurements.** Composed convergence, interference counterexamples, annotation cost.
-- **Decision rule.** One safe composition demonstrated and one counterexample detected before any whole-host claim. Feeds `evidence-model` (ownership) and the Known Gaps in `reconciliation.md`.
+- **Question.** Do explicit footprints with stated guarantees and reliance assumptions detect a harmful composition of two controllers that each converge alone?
+- **Rival.** The two oscillate together and nothing in the model sees it.
+- **Harness.** Two mock controllers sharing a file or a sysctl, in shared, single-owner, and disjoint configurations, on the PR 4 simulator.
+- **Negative control.** The shared-ownership configuration must oscillate and be detected or rejected.
+- **Decision rule.** One safe composition demonstrated and one counterexample detected before any whole-host claim.
 
-## Deferred Beyond Grounding
-
-These experiments are in the graph and are not Phase 0 work. They are listed so nobody mistakes their absence for an oversight.
+## Deferred Beyond the Milestone
 
 | Experiment | Phase | Reason |
 | --- | --- | --- |
-| `substrate-contract` | 1 | Needs Linux: symlink races, aliases, foreign writers |
-| `event-crash-replay` | 2 | Needs the durable store and the outbox decision |
-| `fence-interleavings` | 3–4 | Needs Loom and a second authority to supersede |
+| `substrate-contract` | Linux adapter | Needs Linux: symlink races, aliases, foreign writers |
+| `event-crash-replay` | 2 | The logical ordering is modeled in PR 4; physical fsync and crash testing needs the storage adapter |
+| `fence-interleavings` | 3–4 | The authority model is in PR 4; transport races need Loom |
 | `identity-rollback` | 3–4 | Needs enrollment, snapshots, and clones |
-| `secret-nondisclosure` | 6 | Needs a Cipher provider adapter |
-| `incremental-ablation` | after 0 | Needs the full recomputation path as the reference |
-| `plan-witness` | after 0 | Needs a baseline planner to check against |
+| `secret-nondisclosure` | 6 | Wrapper and serialization checks are in PR 2; provider paths need an adapter |
+| `incremental-ablation` | after milestone | Needs the full recomputation path as the reference |
+| `plan-witness` | after milestone | Needs a baseline planner to check against |
 
 ## Exit Criteria
 
-1. Fourteen result records under `results/`, each with a decision, none claiming more than it ran.
-2. The seven bundle counterexamples exist as Rust tests, fail against the draft semantics, and pass against the corrected ones.
-3. ADRs accepted or explicitly deferred: `verification-gates`, `evidence-model`, `warp-gates`, `recovery-authority` (the Phase 0 part), and `canon-artifact` or a recorded deferral of D1.
-4. `docs/formal/verification-matrix.md` filled from the records, with *not run* wherever nothing ran.
-5. Spec §62 updated: edge semantics closed, the third `diff` outcome closed or named as open, the encoding question closed.
-6. The four Cargo checks and the docs lint pass on the closing commit.
+1. Five pull requests merged, each with its stated exit demonstrated by a named test.
+2. A result record under `results/` for every experiment in the table above, none claiming more than it ran.
+3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true.
+4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell, and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md) is already accepted.
+5. Spec §62 updated: edge semantics closed, the encoding question closed.
+6. The required CI path is small and green, with `--locked`, the layer checker, and the snapshot freeze in it.

@@ -22,9 +22,14 @@ Run these before opening a pull request. CI runs the same checks.
 
 ```sh
 cargo fmt    --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test   --workspace
+cargo check  --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test   --workspace --locked
+cargo xtask  check-layers
+cargo xtask  research verify-all docs/research
 ```
+
+`cargo xtask check-layers` is the dependency rule as a check, over the declared and resolved graphs ([ADR 0000](docs/adr/0000-foundations.md)). Dev and build dependencies get no exemption, and nothing depends on a `bin/` crate. The fixtures it is tested against are under `tests/fixtures/layer-policy/`. `research verify-all` runs the same snapshot verification the tests run.
 
 ## Where Code Goes
 
@@ -46,7 +51,7 @@ flowchart LR
 
 ## Design Rules
 
-- **Vocabulary.** Use the terms from spec §3 exactly: Canon, Trait, Cipher, Variance, Trace, Enforce, Event, Event Log. One concept, one name.
+- **Vocabulary.** Use the terms from spec §3 exactly: Canon, Condition, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Action, Plan, Trait, Cipher, Trace, Enforce, Event, Event Log. One concept, one name. A failed observation is Indeterminate, never a Variance.
 - **Invariants first.** A change must not weaken N1–N12. If it touches one, say which, and add or extend a test for it.
 - **Typed operations, not shell.** Substrate uses native interfaces such as D-Bus and syscalls. Arbitrary command execution is not a reconciliation primitive.
 - **No secret plaintext.** Cipher values never appear in Events, Plans, Trace output, errors, or logs.

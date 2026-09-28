@@ -1,0 +1,13 @@
+# Case direct-app-adapter: forbidden app -> adapter, direct.
+[package]
+name = "nomos-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-canon = { path = "../../core/nomos-canon" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
+nomos-cipher = { path = "../../ports/nomos-cipher" }
+nomos-substrate-mock = { path = "../../adapters/nomos-substrate-mock" }

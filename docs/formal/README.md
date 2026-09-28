@@ -16,15 +16,16 @@ These are written arguments, for humans. The machine-checked models of the contr
 
 Everything here is **draft v0.1**, derived from the [project specification](../PROJECT-SPEC.md). Anything marked *working definition* needs an ADR before it binds the implementation.
 
-The 2026-09-28 research snapshot reviewed these drafts and reproduced seven counterexamples against them. The corrections are in place. What remains open is in each document's Known Gaps section and is assigned to an experiment in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
+The 2026-09-28 research snapshot reviewed these drafts and reproduced seven counterexamples against them, and a review of `main` at `013b9d0` found four further inconsistencies (multi-source activation, convergence with Obligations, settlement against satisfaction, and the cycle witness on blocked singletons). All are corrected here. What remains open is in each document's Known Gaps section and is assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
 ## Notation
 
 | Symbol | Meaning |
 | --- | --- |
-| $D_r$ | Desired state of resource $r$ (from Canon) |
-| $O_r$ | Observed state of resource $r$ |
-| $\mathrm{diff}(D, O)$ | Variance; $\varnothing$ when $O$ satisfies $D$ |
+| $C_r$ | Condition on resource $r$ (from Canon) |
+| $O_r$ | Observation of resource $r$ |
+| $\mathrm{assess}(C, O)$ | Assessment: $\mathrm{Satisfied}$, $\mathrm{Variance}(\delta)$, or $\mathrm{Indeterminate}(\rho)$ |
+| $S$ | The host itself, as Substrate exposes it; $\pi(S)$ its managed-resource projection |
 | $G = (V, E)$ | Warp graph; $V$ = Actions, $E$ = dependency edges |
 | $g$ | Plan generation (fencing token) |
 | $g^{acc}_n$ | Highest generation accepted by node $n$ |

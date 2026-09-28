@@ -6,23 +6,33 @@ $$
 G = (V, E), \qquad E = E_{req} \cup E_{after} \cup E_{chg}
 $$
 
-$G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from Variance, plus the satisfaction anchors defined below. An edge $(u, v)$ means "$u$ constrains $v$".
+$G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from Assessments and Obligations, plus the satisfaction anchors defined below. An edge $(u, v)$ means "$u$ constrains $v$".
 
 | Edge | Canon | Working definition: $v$ may start when… | $v$ activated when… |
 | --- | --- | --- | --- |
 | $E_{req}$ | `requires` | $\sigma(u) = \mathrm{Succeeded}$ | Always |
 | $E_{after}$ | `after` | $u$ is terminal (any outcome) | Always |
-| $E_{chg}$ | `on_change` | $u$ is terminal | $u$ succeeded and produced a verified state change |
+| $E_{chg}$ | `on_change` | $u$ is terminal | Some `on_change` source of $v$ succeeded and produced a verified change |
 
-**Failure propagation.** If $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}\}$ and $(u, v) \in E_{req}$, then $v$ never becomes ready. This propagates transitively along $E_{req}$.
+**Failure propagation.** If $\sigma(u) \in \{\mathrm{Failed}, \mathrm{TimedOut}, \mathrm{Cancelled}, \mathrm{Rejected}, \mathrm{Indeterminate}\}$ and $(u, v) \in E_{req}$, then $v$ never becomes ready. This propagates transitively along $E_{req}$. Every one of these outcomes is terminal, so an `after` edge from $u$ is met; the last is the outcome of an Indeterminate anchor, defined below.
 
 **Well-formedness.** The whole edge set $E$ must be acyclic. A cycle in any edge kind is a compilation error.
 
 ## Satisfaction Anchors
 
-$V$ is produced from Variance, so a resource whose Variance is $\varnothing$ produces no Action. Read literally, that leaves `cell-config requires config-directory` with a dangling edge whenever the directory already exists, and the file Action either never starts or starts without its prerequisite being represented at all.
+$V$ is produced from Assessments, so a resource whose Assessment is Satisfied produces no Action. Read literally, that leaves `cell-config requires config-directory` with a dangling edge whenever the directory already exists, and the file Action either never starts or starts without its prerequisite being represented at all.
 
-*Working definition.* For every resource that a `requires` or `on_change` edge refers to, Warp adds a vertex. If the resource has Variance, the vertex is its Action. If it does not, the vertex is a *satisfaction anchor*: no operation, $\sigma = \mathrm{Succeeded}$ on entry, $\mathrm{changed} = \mathrm{false}$. Anchors mutate nothing, so N3 holds with them present. An anchor for a resource whose observation supported neither satisfaction nor Variance (see [reconciliation, Known Gaps](reconciliation.md#known-gaps)) is not `Succeeded`. It blocks its dependents, because a prerequisite that might be missing is not a prerequisite that is met.
+*Working definition.* For every resource that a `requires`, `after`, or `on_change` edge refers to, Warp adds a vertex. If the resource has a Variance or an Obligation, the vertex is its Action. If its Assessment is Satisfied, the vertex is a *satisfaction anchor*: no operation, $\sigma = \mathrm{Succeeded}$ on entry, $\mathrm{changed} = \mathrm{false}$. An anchor is terminal on entry, so an `after` edge from it is met immediately, a `requires` edge from it is met immediately, and an `on_change` edge from it never activates. Anchors mutate nothing, so N3 holds with them present.
+
+An anchor for a resource whose Assessment is Indeterminate is an *Indeterminate anchor*: no operation, terminal on entry with outcome $\sigma = \mathrm{Indeterminate}$, which is not `Succeeded`, and $\mathrm{changed} = \mathrm{false}$. Its effect depends on the edge, because the three edge kinds ask different questions:
+
+| Edge from an Indeterminate anchor | Resolves to | Why |
+| --- | --- | --- |
+| `requires` | Blocked, and it propagates | A prerequisite that might be missing is not a prerequisite that is met |
+| `after` | Satisfied | `after` is ordering, not success. The anchor is terminal, so anything ordered after it may start |
+| `on_change` | Terminal without a verified change | The edge waits for a change Nomos made and verified, and an anchor made none. It never activates the group, and it counts toward Disabled like any unchanged source |
+
+An Indeterminate source does not make the dependent's own Condition uncertain. If the dependent needs a refresh because of drift nobody observed, that is a Variance or an Obligation of the dependent, not an activation.
 
 ## Cycle Detection and Topological Order
 
@@ -53,24 +63,28 @@ kahn(G):
 
 *Proof.* (⇐) Every non-empty DAG has a vertex with in-degree zero. Removing the popped vertices leaves a DAG, so $Q$ is empty only once every vertex is output. (⇒) Suppose a cycle $c_1 \to \dots \to c_m \to c_1$ exists, and let $c_i$ be the first cycle vertex output. Its cycle predecessor must have been output earlier, which is a contradiction. So no cycle vertex is ever output and $|order| < |V|$. $\square$
 
-The remainder $V \setminus order$ contains every cycle. Strongly connected components partition it, but a component is not a cycle: one component can contain many, and none of them is *minimal* without an objective to minimize. The diagnostic therefore extracts one explicit witness per component, a closed walk found by depth-first search from any vertex of the component, and reports that. The test for the diagnostic is that the witness is a cycle in $E$, not that it is short.
+The remainder $V \setminus order$ contains every cycle, and more: it also contains every vertex downstream of a cycle. For $A \leftrightarrow B$ and $B \to C$, the remainder is $\{A, B, C\}$, and the singleton component $\{C\}$ has no cycle in it. Strongly connected components partition the remainder, and only a component with more than one vertex, or a single vertex with a self-loop, contains a cycle. One component can contain many cycles, and none of them is *minimal* without an objective to minimize. The diagnostic therefore extracts one explicit witness per cyclic component, a closed walk found by depth-first search from any vertex of the component, and reports every acyclic remainder vertex as blocked by the component upstream of it. The test for the diagnostic is that each witness is a cycle in $E$ and that the $A \leftrightarrow B$, $B \to C$ graph yields exactly one witness.
 
 **Claim 3 (determinism, N12).** Ties are broken by a stable, content-derived Action ID. So `order` is a function of $G$ alone and does not depend on hash seeds or insertion order.
 
 ## Execution Frontier
 
-At runtime, a pending vertex is ready when it may start and it is activated:
+Readiness is two questions, answered separately and both required.
 
 $$
 \mathrm{Ready} = \{\, v \in \mathrm{Pending} \mid \mathrm{Startable}(v) \wedge \mathrm{Activated}(v) \,\}
 $$
 
+**Startable** asks whether $v$'s prerequisites are met and its ordering predecessors have finished, edge by edge:
+
 $$
 \mathrm{Startable}(v) \iff
-\forall (u,v) \in E_{req}: \sigma(u) = \mathrm{Succeeded}
+\underbrace{\forall (u,v) \in E_{req}: \sigma(u) = \mathrm{Succeeded}}_{\text{hard prerequisites satisfied}}
 \ \wedge\
-\forall (u,v) \in E_{after} \cup E_{chg}: \mathrm{terminal}(u)
+\underbrace{\forall (u,v) \in E_{after} \cup E_{chg}: \mathrm{terminal}(u)}_{\text{ordering predecessors settled}}
 $$
+
+**Activated** asks whether $v$ has a reason to run, as a property of its `on_change` sources taken together:
 
 $$
 \mathrm{Activated}(v) \iff
@@ -81,18 +95,24 @@ $$
 
 Here $\mathrm{chg}(v)$ is the set of `on_change` edges into $v$, and $\mathrm{changed}(u)$ means the verification of $u$ observed a state change. $\mathrm{changed}$ is defined only for $\sigma(u) = \mathrm{Succeeded}$: a failed partial write is terminal and may have altered bytes, but it did not produce the change the edge waits for.
 
-$\mathrm{Startable}$ alone was the earlier definition. It let a service restart run after its configuration Action finished without changing anything, which is the one thing `on_change` exists to prevent (counterexample [`activation-missing`](../research/2026-09-28-typed-core/README.md)). $\mathrm{Ready}$ contains an Action only once every hard dependency has succeeded, which gives **N4**.
+Consider a service refresh with two `on_change` sources, configuration A and configuration B. A succeeded and changed; B succeeded and did not. The refresh is Activated: one changed source is a reason to run. B's unchanged outcome is not a "disabled edge" that vetoes the group. Activation is decided over the group, and the group is Disabled only when every source is terminal and none changed. The earlier table in this document said the dependent runs when every edge is Satisfied, which contradicted the formula for exactly this case, and the formula is the definition.
 
-**Dependency resolution.** Each incoming edge of $v$ resolves to one state, and the states are exhaustive.
+$\mathrm{Startable}$ alone was the earlier definition of readiness. It let a service restart run after its configuration Action finished without changing anything, which is the one thing `on_change` exists to prevent (counterexample [`activation-missing`](../research/2026-09-28-typed-core/README.md)). $\mathrm{Ready}$ contains an Action only once every hard dependency has succeeded, which gives **N4**.
 
-| State | Meaning | $v$ |
+**Resolution.** Each `requires` and `after` edge resolves on its own; the `on_change` sources of $v$ resolve as a group. The states are exhaustive.
+
+| Unit | State | Meaning |
 | --- | --- | --- |
-| Waiting | $u$ is not terminal | Stays pending |
-| Satisfied | The start condition holds and, for $E_{chg}$, $u$ changed | Runs when every edge is Satisfied |
-| Disabled | Every `on_change` source is terminal and none changed | Skipped. Not failed, and its own dependents see it as terminal without change |
-| Blocked | A `requires` source did not succeed, or an anchor is not `Succeeded` | Never runs. Failure propagation |
+| `requires` edge | Waiting | $u$ is not terminal |
+| `requires` edge | Satisfied | $\sigma(u) = \mathrm{Succeeded}$ |
+| `requires` edge | Blocked | $u$ ended other than `Succeeded`, an Indeterminate anchor included. Propagates |
+| `after` edge | Waiting | $u$ is not terminal |
+| `after` edge | Satisfied | $u$ is terminal, any outcome, an Indeterminate anchor included |
+| `on_change` group | Waiting | Some source is not terminal |
+| `on_change` group | Activated | Some source succeeded and changed |
+| `on_change` group | Disabled | Every source is terminal and none changed; an Indeterminate anchor is a source that did not change |
 
-*Working definition* for several `on_change` sources: *any* one changed source activates $v$. The alternative, *all*, has no use case yet. Spec §62 already lists edge semantics as needing an ADR (candidate `warp-gates`); experiment `warp-truth-table` in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md) produces the table that ADR records.
+$v$ runs when every `requires` and `after` edge is Satisfied and its `on_change` group is Activated or empty. $v$ is Skipped when no edge is Blocked and the group is Disabled: not failed, terminal without change, so its own dependents see it that way. $v$ is Blocked when any `requires` edge is. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table, and milestone 1 pull request 3 produces the truth table that ADR records.
 
 ## Conflict Keys
 
@@ -102,7 +122,9 @@ $$
 a \ne b \wedge \mathrm{Reserved}(a) \wedge \mathrm{Reserved}(b) \Rightarrow K(a) \cap K(b) = \varnothing
 $$
 
-$\mathrm{Reserved}$ is wider than $\mathrm{Running}$. An Action holds its keys from dispatch until its outcome is known: through acceptance, execution, and verification, and past a timeout for as long as the outcome stays unknown (N10). An Action that timed out may still be mutating; releasing its keys would let a conflicting Action run beside it. Keys are released on a terminal outcome that is known, or when re-observation settles an unknown one. *Working definition;* experiment `scheduler-admission`.
+$\mathrm{Reserved}$ is wider than $\mathrm{Running}$. An Action holds its keys from dispatch until its effect is Settled: through acceptance, execution, and verification, and past a timeout for as long as the outcome stays unknown (N10). An Action that timed out may still be mutating; releasing its keys would let a conflicting Action run beside it.
+
+**Settlement is not satisfaction.** Keys are released when the effect is Settled, its outcome known and no further change possible. Re-observing the Condition does not settle anything: the file holding the desired bytes does not show that an earlier writer has finished, and an active service does not show that an earlier service-manager job has completed or cannot still change the unit. What counts as settlement evidence is resource-specific and belongs to core ([ADR 0006](../adr/0006-kernel-contract.md)): a completed job result for a systemd unit, a completed rename and directory fsync for a file, a platform deadline past which an opaque effect can have no further consequence. Until an effect is Settled its reservation holds, a retry of it is not admitted, and a superseding Plan cannot claim its keys. This is the same obligation fencing has at the effect boundary ([fencing](fencing-and-idempotency.md#fencing)); a lock around the call that starts an effect does not cover the effect.
 
 ## Runnable Set
 
@@ -128,11 +150,13 @@ select(Ready, Reserved, p):
 
 *Proof.* By induction. It holds for $\mathrm{Reserved}$ before selection. Each chosen $v$ is disjoint from `held`, which contains the keys of every reserved Action and every Action already chosen. $\square$
 
+The claim holds for one selection over one snapshot. Two selections evaluated concurrently against the same snapshot can each be correct and together over-admit, so reservation updates are serialized: one admission path per Cell, and one per failure domain at Loom.
+
 The greedy pass optimizes nothing. It is safe and deterministic, which is the job. The set it picks is maximal only relative to this snapshot and to constraints that are downward closed, and it says nothing about fairness: a task that keeps losing the tie to new arrivals is a scheduling policy question, not a safety one. Priority schemes such as critical path or fair queuing are later research (spec §22).
 
 ## Known Gaps
 
-Identified by the 2026-09-28 research snapshot ([evaluation](../research/2026-09-28-typed-core/README.md)) and assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
+Assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
-- **Durable change consumption.** Activation is computed from the outcomes of this run. A crash after the configuration file is replaced and before the dependent restart runs leaves the next run seeing no file Variance and no pending activation; the restart is lost. Either the obligation is persisted before the file is replaced, or the service exposes the configuration revision it loaded and that revision is part of its observation. Experiment `refresh-recovery`, ADR candidate `warp-gates`. The same gap is stated from the idempotency side in [fencing-and-idempotency.md](fencing-and-idempotency.md#idempotency).
-- **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived from the driver, not typed by hand. Experiment `scheduler-admission`.
+- **Obligations across runs.** Activation is computed from the outcomes of this run. A crash after the configuration file is replaced and before the dependent restart runs leaves the next run seeing a Satisfied file and no pending activation. The Obligation to refresh is recorded durably before the file is replaced, or the service exposes the configuration revision it loaded and that revision is a Condition. Milestone 1 pull request 4, [ADR 0009](../adr/0009-warp-activation-semantics.md), proposed. The same gap is stated from the idempotency side in [fencing-and-idempotency.md](fencing-and-idempotency.md#idempotency).
+- **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived in core from the resource kind, not typed by hand. Experiment `scheduler-admission`.

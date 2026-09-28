@@ -1,0 +1,9 @@
+# Case root-core: forbidden: nomos-core depends on no workspace crate, not even core.
+[package]
+name = "nomos-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-ids = { path = "../nomos-ids" }

@@ -4,9 +4,9 @@ Guidance for automated coding agents in this repository. It applies to any agent
 
 ## Project
 
-Nomos is a host-state convergence and fleet-control system for Linux, written in Rust. It compares desired state (Canon) with observed state, computes the Variance, plans Actions as a dependency graph (Warp), applies them through the OS boundary (Substrate), verifies the result, and records Events.
+Nomos is a host-state convergence and fleet-control system for Linux, written in Rust. Canon is compiled desired intent, authored in typed Rust and consumed as an inert artifact. Nomos assesses each Condition of the Canon against Observations from the OS boundary (Substrate) as Satisfied, Variance, or Indeterminate, plans Actions for the known Variances as a dependency graph (Warp), applies them through Substrate, verifies the result, and records Events. Unknown evidence does not imply noncompliance.
 
-The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next step is the Phase 0 grounding phase in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its experiments is such an ask, for the crates that experiment names.
+The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next step is milestone 1, an executable kernel contract, planned in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its pull requests or experiments is such an ask, for the crates it names.
 
 ## Source of Truth
 
@@ -27,15 +27,22 @@ If a task conflicts with these documents, stop and report the conflict. Do not s
 The toolchain is pinned to Rust 1.98.1 in `rust-toolchain.toml`.
 
 ```sh
-cargo check  --workspace
 cargo fmt    --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test   --workspace
+cargo check  --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test   --workspace --locked
 ```
 
-A change is complete only when all four pass.
+A change is complete only when all four pass. `--locked` is not optional: CI never lets dependency resolution change silently, and neither should you.
 
-Development tooling runs as `cargo xtask <command>` (ADR 0003). `cargo xtask research verify docs/research/<snapshot>/snapshot` checks a research snapshot, and `cargo test --workspace` runs the same checks.
+Development tooling runs as `cargo xtask <command>` (ADR 0003). CI also runs, and so should you:
+
+```sh
+cargo xtask research verify-all docs/research   # every accepted snapshot: manifest, graph, schema
+cargo xtask check-layers                         # the dependency rule, declared and resolved graphs
+```
+
+`cargo test --workspace` runs the same checks as unit tests, through the same functions. A failure prints a stable code: `[checksum-mismatch]` or `[uncovered-file]` from the snapshot verifier, `FORBIDDEN [app-depends-outside-core-and-ports] ...` from the layer checker. Changing what either gate accepts is a trust-boundary change under rule 11. CI also runs `cargo xtask research frozen` on every push and pull request: an accepted snapshot never changes. It compares against the base branch for a pull request, the previous head for a push to the default branch, and the default branch otherwise, and fails when it cannot resolve that revision.
 
 ## Layout
 
@@ -53,7 +60,7 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 
 1. **Never break the dependency rule.** An adapter dependency in `app/`, `core/`, or `ports/` is always wrong.
 2. **New crates, new ports, and changes to the rule need an ADR** in `docs/adr/`, with the next number.
-3. **Use the spec's vocabulary exactly:** Canon, Trait, Cipher, Variance, Trace, Enforce, Event, Event Log. No synonyms.
+3. **Use the spec's vocabulary exactly:** Canon, Condition, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Action, Plan, Trait, Cipher, Trace, Enforce, Event, Event Log. No synonyms. A failed observation is Indeterminate, never a Variance. "State" is still the right word for Action lifecycle state, protocol and scheduler state machines, and internal control state; it is the wrong word for a Condition or an Observation.
 4. **Preserve invariants N1–N12** (spec §58). A change that touches one needs a test for it.
 5. **No shell execution in Substrate.** Use native APIs, for example systemd over D-Bus.
 6. **Never log, serialize, or embed Cipher plaintext.**

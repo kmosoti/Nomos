@@ -1,0 +1,12 @@
+# Case cell-to-tooling: forbidden: a composition root depends on the tooling crate.
+[package]
+name = "nomos-cell"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-app = { path = "../../app/nomos-app" }
+nomos-substrate-linux = { path = "../../adapters/nomos-substrate-linux" }
+nomos-cipher-vault = { path = "../../adapters/nomos-cipher-vault" }
+nomos-xtask = { path = "../nomos-xtask" }

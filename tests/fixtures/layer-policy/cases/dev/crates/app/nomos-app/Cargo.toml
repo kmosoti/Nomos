@@ -1,0 +1,15 @@
+# Case dev: forbidden app -> mock adapter as a dev dependency, "only for testing". Policy: no exemption by kind.
+[package]
+name = "nomos-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+nomos-canon = { path = "../../core/nomos-canon" }
+nomos-substrate = { path = "../../ports/nomos-substrate" }
+nomos-cipher = { path = "../../ports/nomos-cipher" }
+
+[dev-dependencies]
+nomos-substrate-mock = { path = "../../adapters/nomos-substrate-mock" }
