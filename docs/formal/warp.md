@@ -102,7 +102,7 @@ $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a ser
 | `on_change` group | Activated | Some source succeeded and changed |
 | `on_change` group | Disabled | Every source is terminal and none changed |
 
-$v$ runs when every `requires` and `after` edge is Satisfied and its `on_change` group is Activated or empty. $v$ is Skipped when no edge is Blocked and the group is Disabled: not failed, terminal without change, so its own dependents see it that way. $v$ is Blocked when any `requires` edge is. Spec §62 already lists edge semantics as needing an ADR (candidate `warp-gates`); milestone 1 pull request 3 produces the truth table that ADR records.
+$v$ runs when every `requires` and `after` edge is Satisfied and its `on_change` group is Activated or empty. $v$ is Skipped when no edge is Blocked and the group is Disabled: not failed, terminal without change, so its own dependents see it that way. $v$ is Blocked when any `requires` edge is. Spec §62 lists edge semantics as needing an ADR; [ADR 0009](../adr/0009-warp-activation-semantics.md) proposes this table, and milestone 1 pull request 3 produces the truth table that ADR records.
 
 ## Conflict Keys
 
@@ -148,5 +148,5 @@ The greedy pass optimizes nothing. It is safe and deterministic, which is the jo
 
 Assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
-- **Obligations across runs.** Activation is computed from the outcomes of this run. A crash after the configuration file is replaced and before the dependent restart runs leaves the next run seeing a Satisfied file and no pending activation. The Obligation to refresh is recorded durably before the file is replaced, or the service exposes the configuration revision it loaded and that revision is a Condition. Milestone 1 pull request 4, ADR candidate `warp-gates`. The same gap is stated from the idempotency side in [fencing-and-idempotency.md](fencing-and-idempotency.md#idempotency).
+- **Obligations across runs.** Activation is computed from the outcomes of this run. A crash after the configuration file is replaced and before the dependent restart runs leaves the next run seeing a Satisfied file and no pending activation. The Obligation to refresh is recorded durably before the file is replaced, or the service exposes the configuration revision it loaded and that revision is a Condition. Milestone 1 pull request 4, [ADR 0009](../adr/0009-warp-activation-semantics.md), proposed. The same gap is stated from the idempotency side in [fencing-and-idempotency.md](fencing-and-idempotency.md#idempotency).
 - **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived in core from the resource kind, not typed by hand. Experiment `scheduler-admission`.

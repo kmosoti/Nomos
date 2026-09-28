@@ -25,7 +25,7 @@ A green research-import build is not a verified engine. The milestone exists to 
 | Core owns semantics; the kernel is `step(snapshot, input) = decision`; adapters obtain evidence and perform operations | [ADR 0006](../../adr/0006-kernel-contract.md) | Port shapes as code |
 | Tooling is Rust in `nomos-xtask` | [ADR 0003](../../adr/0003-xtask-tooling-crate.md) | Layer checker, snapshot freeze in CI |
 
-Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 (Phase 1), and edge semantics as an ADR (`warp-gates`, closed by PR 3).
+Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 (Phase 1, recorded in [ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until PR 3 and PR 4). The research candidates are numbered ADRs 0007 to 0014; the [ADR index](../../adr/README.md) maps each.
 
 ## Rules
 
@@ -71,7 +71,7 @@ Exit: a crash after configuration replacement cannot lose the refresh Obligation
 
 ### PR 5: The Inert Canon Boundary
 
-On the validated types: normalization, the encoding profile chosen by `canonical-encoding`, decoding through untrusted data-transfer objects, migrations, unknown variants, and two isolated builds compared byte for byte. Closes the remainder of the `canon-artifact` candidate on top of ADR 0004.
+On the validated types: normalization, the encoding profile chosen by `canonical-encoding`, decoding through untrusted data-transfer objects, migrations, unknown variants, and two isolated builds compared byte for byte. Accepts [ADR 0011](../../adr/0011-canon-artifact-encoding.md) on top of ADR 0004, or records why not.
 
 Exit: artifact acceptance cannot bypass domain validation or silently change executable intent, and identical declared inputs produce identical IR bytes with every undeclared input denied or recorded.
 
@@ -210,7 +210,7 @@ The research snapshot's experiments remain the evidence units. The cards below c
 - **Harness.** PR 3's rules; exhaustive predecessor-outcome tables; random DAGs with insertion-order permutations; the reference evaluator, differentially.
 - **Negative control.** `activation-missing`; the one-changed-one-unchanged case; the $A \leftrightarrow B$, $B \to C$ witness case; a failed partial write must not activate its dependent.
 - **Measurements.** Activation correctness; order determinism (N12); witness validity.
-- **Decision rule.** Every case resolves to exactly one state with no fallthrough. Feeds ADR `warp-gates`.
+- **Decision rule.** Every case resolves to exactly one state with no fallthrough. Feeds [ADR 0009](../../adr/0009-warp-activation-semantics.md).
 
 ### bounded-convergence
 
@@ -316,6 +316,6 @@ The research snapshot's experiments remain the evidence units. The cards below c
 1. Five pull requests merged, each with its stated exit demonstrated by a named test.
 2. A result record under `results/` for every experiment in the table above, none claiming more than it ran.
 3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true.
-4. ADRs closed: `warp-gates`, `recovery-authority` (the Cell part), `verification-gates`, and the remainder of `canon-artifact`.
+4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell, and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md) is already accepted.
 5. Spec §62 updated: edge semantics closed, the encoding question closed.
 6. The required CI path is small and green, with `--locked`, the layer checker, and the snapshot freeze in it.

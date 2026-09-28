@@ -55,7 +55,7 @@ None of these is decided by this ADR, and none may be treated as decided until i
 - **Trait-dependent expressions.** How a Condition may depend on a Trait value. One constraint already binds any answer, because it follows from §2: what reaches the host is data, not a closure or a template, and its evaluation is bounded.
 - **Schema versioning and migration rules.** Experiment `compatibility-matrix`.
 
-The `canon-artifact` candidate in the ADR index closes with the encoding, versioning, and migration decisions, on top of this one.
+[ADR 0011](0011-canon-artifact-encoding.md), proposed, carries the encoding, identity, and versioning decisions on top of this one.
 
 ### Assumptions
 

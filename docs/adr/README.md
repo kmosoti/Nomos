@@ -9,20 +9,34 @@
 | [0004](0004-rust-typed-canon.md) | Canon is authored in Rust and shipped as an inert Canonical IR | Accepted |
 | [0005](0005-assessment-vocabulary.md) | Condition, Observation, Assessment, Indeterminate, Obligation, and Settled | Accepted |
 | [0006](0006-kernel-contract.md) | The kernel is a pure transition function and owns reconciliation semantics | Accepted |
+| [0007](0007-verification-gates.md) | Verification scope and development gates | Accepted |
+| [0008](0008-ownership-and-identity.md) | Resource ownership, controller composition, and identity | Proposed |
+| [0009](0009-warp-activation-semantics.md) | Warp prerequisite, activation, and reservation semantics | Proposed |
+| [0010](0010-effect-recovery-and-fencing.md) | Effect recovery, authority fencing, and disruption budgets | Proposed |
+| [0011](0011-canon-artifact-encoding.md) | Canon artifact encoding, identity, and versioning | Proposed |
+| [0012](0012-event-history.md) | Event history, durability, and retention | Proposed |
+| [0013](0013-trust-boundaries.md) | Substrate and Cipher trust boundaries | Proposed |
+| [0014](0014-deferred-planning-algorithms.md) | Incremental planning and Plan witnesses wait for measurement | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
-## Candidates
+## Statuses
 
-The 2026-09-28 research snapshot proposes eight decision bundles. None is an ADR yet. Each becomes one, with the next number, when the experiments that feed it have run; the mapping from candidate to experiment is in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
+- **Proposed.** The direction the documents follow as a working definition. It does not bind the implementation. Its Acceptance Criteria section names the experiments whose result records would accept it, and until they exist it stays Proposed.
+- **Accepted.** Binding. A decision is accepted when the project owner made it, or when the evidence it needs exists. The ADR says which.
+- **Superseded** or **Rejected.** Kept, with a pointer to what replaced it. Accepted ADRs are amended only by a dated note or a successor.
 
-| Candidate | Decides | Waits on |
+## From Research Candidates
+
+The 2026-09-28 research snapshot proposed eight decision bundles. Each is now a numbered ADR.
+
+| Candidate | ADR | Status |
 | --- | --- | --- |
-| `verification-gates` | Verification scope, the layer-policy check, and protection of specifications from being weakened to pass a check | Wave 0, wave 4 |
-| `evidence-model` | Resource ownership across controllers and identity. The three-way Assessment and its vocabulary are decided in [ADR 0005](0005-assessment-vocabulary.md); semantic ownership in [ADR 0006](0006-kernel-contract.md) | Milestone 1 PR 4 for composition; identity later |
-| `warp-gates` | Edge semantics (spec §62), satisfaction anchors, durable change consumption, reservations | Wave 1, wave 2 |
-| `recovery-authority` | Effect recovery contracts, fencing at the effect boundary, admission-scoped budgets | Wave 2 |
-| `canon-artifact` | Canonical encoding profile, schema versioning, and migration rules. The authoring surface and the inert-artifact boundary are decided in [ADR 0004](0004-rust-typed-canon.md), which lists every Canon question still open | Milestone 1 PR 5 |
-| `event-history` | Outbox, retention, and disk-pressure behavior | Phase 2 |
-| `boundary-security` | Substrate privilege boundary and Cipher sinks | Phases 1 and 6 |
-| `future-algorithms` | Incremental planning and Plan witnesses | After Phase 0, measured first |
+| `verification-gates` | [0007](0007-verification-gates.md) | Accepted: the gates exist with their negative controls |
+| `evidence-model` | [0005](0005-assessment-vocabulary.md), [0008](0008-ownership-and-identity.md) | Assessment accepted; ownership and identity proposed |
+| `warp-gates` | [0009](0009-warp-activation-semantics.md) | Proposed until milestone 1 PR 3 and PR 4 |
+| `recovery-authority` | [0010](0010-effect-recovery-and-fencing.md) | Proposed until milestone 1 PR 4 |
+| `canon-artifact` | [0004](0004-rust-typed-canon.md), [0011](0011-canon-artifact-encoding.md) | Authoring accepted; encoding proposed until milestone 1 PR 5 |
+| `event-history` | [0012](0012-event-history.md) | Proposed until Phase 2 |
+| `boundary-security` | [0013](0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
+| `future-algorithms` | [0014](0014-deferred-planning-algorithms.md) | Accepted: deferred until measured |

@@ -1055,14 +1055,14 @@ Anything beyond this is subsequent architecture. Nomos earns its complexity one 
 
 The unresolved parts, stated so they can be argued with:
 
-- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions. They need an ADR.
+- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions, and [ADR 0009](adr/0009-warp-activation-semantics.md) proposes them until the truth tables of milestone 1 PR 3 run.
 - **Idempotency key retention.** The Cell persists accepted keys. For how long? Unbounded retention is a slow disk leak. Bounded retention reopens the duplicate window for very late retransmissions.
 - **Leases vs. clock skew.** Plan leases expire in time, and clocks drift. Does expiry use Loom's clock, the Cell's clock, or a monotonic budget measured from receipt?
-- **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it assess that Condition as Indeterminate?
+- **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it assess that Condition as Indeterminate? [ADR 0013](adr/0013-trust-boundaries.md) proposes the second, unless a provider can compare without exposing plaintext.
 - **Mesh identity vs. Nomos identity.** Headscale authenticates nodes on the network. Nomos authorizes Cells to act. How are the two bound, so a compromised tailnet key does not become fleet authority?
 - **Persistence.** redb, SQLite, or an LMDB-family store. The ablation in §54 decides.
 
-Canon ([ADR 0004](adr/0004-rust-typed-canon.md) decides the authoring surface and the inert-artifact boundary; these remain open):
+Canon ([ADR 0004](adr/0004-rust-typed-canon.md) decides the authoring surface and the inert-artifact boundary, and [ADR 0011](adr/0011-canon-artifact-encoding.md) proposes identity and versioning rules; these remain open):
 
 - **Artifact encoding.** A restricted deterministic CBOR profile or canonical JSON (§54).
 - **Artifact container and file extension.**

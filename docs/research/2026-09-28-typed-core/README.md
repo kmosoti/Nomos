@@ -17,7 +17,7 @@ A weighted property graph of 169 nodes and 348 edges in newline-delimited JSON (
 | Correction | 6 | Retractions of earlier design guidance from the same conversation |
 | Counterexample | 7 | Executed Python models of draft semantics, not Nomos tests |
 | Research direction | 6 | Contemporary work to borrow from selectively |
-| ADR candidate | 8 | Decision bundles, not accepted ADRs |
+| ADR candidate | 8 | Decision bundles in the snapshot; recorded in this repository as ADRs 0007 to 0014 |
 
 It is a design artifact. It built no Nomos code, checked no TLA+ model, and executed no Linux test. Its weights are ordinal editorial judgments on a 0–4 scale. The field that matters for reading it is `disposition`: 18 recommendations are `adopt_direction`, one is `trial`, 6 are `research_required`, and one is `defer_until_measured`.
 
@@ -52,9 +52,9 @@ Each finding was checked against the draft it cites. *Confirmed* means the draft
 | `budget-not-world` | `invariants.md` wrote N9 as $\forall f: \mathrm{Unavailable}(f) \le k_f$, a bound on the world. Spec §58 says budgets are never *intentionally* exceeded | Confirmed overstatement | N9 predicate is now about admission |
 | `bound-not-termination` | The termination proof counted iterations and said nothing about a call that never returns | Qualification | Termination names its deadline assumption; a fired deadline does not undo an effect |
 | `fingerprint-limits` | One repeated observation fingerprint meant oscillation | Qualification | A repeat counts only on the managed-resource projection and with no work in flight |
-| `fence-race` | `fencing-and-idempotency.md` checked the generation before dispatch; the effect came later | Confirmed gap | The N5 theorem now states its atomicity assumption. ADR candidate `recovery-authority` |
+| `fence-race` | `fencing-and-idempotency.md` checked the generation before dispatch; the effect came later | Confirmed gap | The N5 theorem now states its atomicity assumption. [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md), proposed |
 | `dedup-scope` | The idempotency key's scope was undefined. A semantic-content key would suppress later repairs | Design gap | The key names one execution within one Plan |
-| `lost-refresh` | The crash-window argument assumed every effect is visible in Variance. A lost restart is not | Design gap | Caveat in the crash window; Known Gaps in `warp.md`. ADR candidate `warp-gates` |
+| `lost-refresh` | The crash-window argument assumed every effect is visible in Variance. A lost restart is not | Design gap | Caveat in the crash window; Known Gaps in `warp.md`. [ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed |
 | `replay-not-reality` | `event-log.md` called the fold over $L$ "state" | Qualification | The fold is control state. Recovery re-observes the host |
 | `trace-scope` | N1 compared whole machines | Qualification | N1 compares a projection onto managed-resource properties |
 | `layer-policy` | ADR 0000 said the manifests make the build enforce the dependency rule | Confirmed overstatement | ADR 0000 amended. Experiment `layer-policy` |
@@ -96,20 +96,20 @@ The snapshot under `snapshot/` is a historical recommendation, preserved as rece
 
 ## Recommendations and Where They Land
 
-The bundle groups its 26 recommendations into eight ADR candidates. The grounding plan assigns each candidate to the wave whose experiments produce its evidence.
+The bundle groups its 26 recommendations into eight ADR candidates. Each is now a numbered ADR; the milestone plan assigns each to the experiments that would accept it.
 
-| ADR candidate | Recommendations | Fed by |
-| --- | --- | --- |
-| `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | Wave 0, wave 4 |
-| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | Wave 1, wave 4. `identity-recovery` deferred |
-| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | Wave 1, wave 2 |
-| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | Wave 2. `fencing` deferred to before remote execution |
-| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | Wave 3, after decision D1 |
-| `event-history` | `log-boundary`, `log-retention` | Phase 2. Concerns recorded in `event-log.md` |
-| `boundary-security` | `substrate`, `cipher` | Phase 1 and Phase 6 |
-| `future-algorithms` | `incremental`, `plan-witness` | After Phase 0 |
+| ADR candidate | Recommendations | Recorded as | Status |
+| --- | --- | --- | --- |
+| `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | [ADR 0007](../../adr/0007-verification-gates.md) | Accepted |
+| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed |
+| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Proposed until milestone 1 PR 3 and PR 4 |
+| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Proposed until milestone 1 PR 4 |
+| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | 0004 accepted; 0011 proposed until milestone 1 PR 5 |
+| `event-history` | `log-boundary`, `log-retention` | [ADR 0012](../../adr/0012-event-history.md) | Proposed until Phase 2 |
+| `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
+| `future-algorithms` | `incremental`, `plan-witness` | [ADR 0014](../../adr/0014-deferred-planning-algorithms.md) | Accepted as a deferral |
 
-The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The wave order follows that DAG.
+The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The milestone's pull-request order follows that DAG.
 
 ## Querying the Graph
 

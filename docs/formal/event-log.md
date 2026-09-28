@@ -69,7 +69,7 @@ Altering any $e_i$ changes every $H_j$ for $j \ge i$. Signed checkpoints over $H
 
 ## Known Gaps
 
-Identified by the 2026-09-28 research snapshot ([evaluation](../research/2026-09-28-typed-core/README.md)). Both belong to Phase 2 and ADR candidate `event-history`.
+Identified by the 2026-09-28 research snapshot ([evaluation](../research/2026-09-28-typed-core/README.md)). Both belong to Phase 2 and to [ADR 0012](../adr/0012-event-history.md), proposed.
 
 - **Decision before effect.** A crash between an operating-system effect and its Event leaves started work with no record. The proposal is an outbox: the decision Event and the dispatch intent are appended in one transaction *before* the effect, and the terminal Event follows it. A local database transaction cannot include a Linux mutation, so the outbox records intent, and recovery treats an intent without a terminal Event as an unknown outcome (N10). Experiment `event-crash-replay`.
 - **Retention and pressure.** Append-only is a logical property of $L$. Whether an acknowledged spool entry may ever be deleted, who owns archival, and what happens when the disk is full are undecided. One rule is fixed now: a full disk fails mutation admission closed, because an Action whose Event cannot be written is an Action whose outcome would be lost. Spec §31 covers backpressure. Same experiment.
