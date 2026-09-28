@@ -1,0 +1,20 @@
+# Popularity is not a technical argument.
+extends: existence
+message: "KEN009: '%s' is a popularity argument. State the property or contract that matters."
+level: warning
+ignorecase: true
+tokens:
+  - industry standard
+  - industry-standard
+  - widely adopted
+  - widely used
+  - widely-used
+  - popular
+  - modern
+  - de facto standard
+  - best practice
+  - best practices
+  - state-of-the-art
+  - cutting-edge
+  - battle-tested
+  - everyone uses

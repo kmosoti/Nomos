@@ -55,7 +55,7 @@ flowchart LR
     B --> N2(["i = k<br/>NonConvergent: bound"])
 ```
 
-## Fixed point (N3)
+## Fixed Point (N3)
 
 **Claim.** If $\mathrm{Enforce}(C, S) = S'$ with $\mathrm{diff}(C, S') = \varnothing$, then $\mathrm{Enforce}(C, S')$ performs no mutating Action.
 

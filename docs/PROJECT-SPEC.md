@@ -1,4 +1,4 @@
-# Nomos project specification
+# Nomos Project Specification
 
 | | |
 | --- | --- |
@@ -31,7 +31,7 @@ Nomos is not Salt rewritten in Rust. Salt is one source of lessons. So are recon
 
 The goal is a smaller, more principled model.
 
-## 2. Core architecture
+## 2. Core Architecture
 
 ```mermaid
 flowchart TB
@@ -141,7 +141,7 @@ flowchart LR
 
 systemd exposes units, jobs, state, and operations through its D-Bus object model. That is a far stronger contract than parsing output written for humans.
 
-## 3. Public vocabulary
+## 3. Public Vocabulary
 
 | Term | Definition |
 | --- | --- |
@@ -232,7 +232,7 @@ Canon is versioned, typed, deterministic, declarative, statically validated, and
 
 Canon does not embed a general-purpose programming language. Configuration systems have repeatedly shown humanity's talent for turning templating engines into badly documented programming languages. Nomos declines. Conditional expressions stay deliberately restricted.
 
-## 6. Canon compilation
+## 6. Canon Compilation
 
 Human-readable Canon is not what gets executed.
 
@@ -274,7 +274,7 @@ Candidate providers: a local protected file, an environment-backed development p
 
 Nomos does not become a secrets database.
 
-## 8. Reconciliation model
+## 8. Reconciliation Model
 
 The central abstraction is a level-triggered reconciliation loop. Kubernetes controllers work this way. Nomos adopts the principle without the Kubernetes object model.
 
@@ -290,9 +290,9 @@ else:
   verify(D_r, O'_r)
 ```
 
-A successful Action means *the intended postcondition was observed*. It does not mean *a command exited with status zero*. Everything else builds on this distinction.
+What actually establishes success? A successful Action means *the intended postcondition was observed*. It does not mean *a command exited with status zero*. Everything else builds on this distinction.
 
-## 9. Substrate resource contract
+## 9. Substrate Resource Contract
 
 Every managed resource implements roughly:
 
@@ -321,7 +321,7 @@ flowchart TB
 
 The mock backend is not scaffolding. It is a first-class backend for deterministic reconciliation tests.
 
-## 10. Initial Substrate resources
+## 10. Initial Substrate Resources
 
 Start with `file`, `directory`, `system_user`, `package`, `systemd_unit`, and `sysctl`.
 
@@ -329,7 +329,7 @@ Later: `mount`, `network`, `cgroup`, `kernel_module`, `timer`, `socket`, and con
 
 Do not start by reproducing Salt's execution-module surface. Prove the resource contract first.
 
-## 11. Atomic filesystem operations
+## 11. Atomic Filesystem Operations
 
 `open → truncate → write` can destroy a valid configuration if it fails halfway. File convergence does this instead:
 
@@ -340,7 +340,7 @@ flowchart LR
 
 Replacement is a transaction wherever Linux allows it. Observed content is compared by hash before anything reads or ships whole files.
 
-## 12. systemd integration
+## 12. systemd Integration
 
 systemd is the authoritative service manager on the initial platform. Substrate talks to it over D-Bus (`org.freedesktop.systemd1`) for `GetUnit`, `StartUnit`, `StopUnit`, `RestartUnit`, `ReloadUnit`, unit properties, and job state. It does not scrape `systemctl`.
 
@@ -359,7 +359,7 @@ flowchart LR
 
 Nomos cooperates with systemd through `Delegate=`. It does not fight PID 1 for the cgroup hierarchy. PID 1 tends to win those fights.
 
-## 14. Warp graph model
+## 14. Warp Graph Model
 
 Warp builds $G = (V, E)$, where $V$ is the set of Actions and $E$ the dependency constraints. The initial edge kinds:
 
@@ -369,7 +369,7 @@ Warp builds $G = (V, E)$, where $V$ is the set of Actions and $E$ the dependency
 
 `watch` stays out of v0 unless it expresses something these three cannot.
 
-## 15. Warp algorithms
+## 15. Warp Algorithms
 
 Warp needs surprisingly little machinery.
 
@@ -401,7 +401,7 @@ classDiagram
 
 Plan identity derives from canonical content where practical. Plans are immutable after acceptance. Changing a Plan produces a new Plan.
 
-## 17. Optimistic planning
+## 17. Optimistic Planning
 
 Nomad separates evaluation, planning, validation, and execution, and rejects plans made stale by concurrent changes. Nomos uses a simpler version.
 
@@ -455,7 +455,7 @@ Plans carry monotonically increasing generations (fencing tokens). A Cell that h
 
 This stops stale controllers, delayed packets, and reconnect races from resurrecting obsolete Actions. It matters even more once Loom is highly available.
 
-## 21. Loom targeting
+## 21. Loom Targeting
 
 Fleet selection evaluates predicates over Traits:
 
@@ -471,7 +471,7 @@ $$
 
 For small fleets, scan an in-memory indexed map. At larger scale, common equality predicates can use roaring bitmaps (Trait → value → bitmap of NodeIDs). Add that when measurements demand it, not before.
 
-## 22. Loom scheduling
+## 22. Loom Scheduling
 
 Once Warp exposes a frontier, Loom applies operational constraints:
 
@@ -492,7 +492,7 @@ v0 needs bounded concurrency, dependency readiness, per-node exclusivity, confli
 
 Weighted fair queuing, work stealing, critical-path prioritization, adaptive concurrency, and topology-aware scheduling are later research.
 
-## 23. Cell architecture
+## 23. Cell Architecture
 
 ```mermaid
 flowchart TB
@@ -505,7 +505,7 @@ flowchart TB
 
 The Cell owns execution semantics. Loom may ask it to converge resource X. The Cell decides whether the local operation actually achieved its postcondition. Operating-system truth stays close to the operating system.
 
-## 24. Cell offline behavior
+## 24. Cell Offline Behavior
 
 A disconnected Cell may:
 
@@ -559,7 +559,7 @@ The Event Log is an append-only sequence of immutable operational Events. It sup
 
 Conceptually, $\mathit{State}_t = \mathrm{fold}(\mathit{Event}_0, \ldots, \mathit{Event}_t)$. In practice, implementations keep materialized state so that queries do not replay all of history.
 
-## 27. Event ordering
+## 27. Event Ordering
 
 Wall-clock timestamps do not establish causality.
 
@@ -567,7 +567,7 @@ Each writer maintains a `writer_sequence`, which orders its own Events strictly.
 
 Hybrid logical clocks are a reasonable later candidate. Vector clocks need a concrete requirement first, because fleet-wide vector metadata scales poorly.
 
-## 28. Event Log integrity
+## 28. Event Log Integrity
 
 Append-only is not the same as tamper-proof. v0 guarantees:
 
@@ -580,13 +580,13 @@ A later integrity mode can add a hash chain, $H_n = H(H_{n-1} \Vert \mathit{Even
 
 ## 29. Persistence
 
-The storage API stays abstract. `redb`, a pure-Rust embedded ACID key-value store, is a strong v0 candidate.
+The storage API stays abstract. What does the engine actually have to do? Append durably, look records up by key, and survive a crash mid-transaction. `redb`, a pure-Rust embedded ACID key-value store built on copy-on-write B-trees, does all three and is a strong v0 candidate. That is a hypothesis for the ablation to test, not a verdict.
 
 Possible layout: `events`, `event_by_id`, `actions`, `action_idempotency`, `traits`, `materialized_nodes`, `plans`, `canons`, `metadata`.
 
 Before the choice is frozen, an ablation compares redb, SQLite, and an LMDB-family option on append throughput, crash recovery, fsync behavior, query ergonomics, binary size, dependency burden, corruption recovery, and operational transparency.
 
-## 30. Control protocol
+## 30. Control Protocol
 
 Protocol and transport are separate abstractions. The starting point is a Protocol Buffers schema, a tonic-compatible service model, and HTTP/2 with TLS.
 
@@ -596,7 +596,7 @@ The stream carries registration, Traits, heartbeats, Plan assignments, Action st
 
 ## 31. Backpressure
 
-Loom never produces work faster than Cells can safely consume it.
+Loom never produces work at a higher rate than Cells can safely consume it.
 
 Each Cell advertises its capacity, for example `max_parallel_actions = 4` and `queue_capacity = 32`. Loom keeps bounded queues. When capacity runs out, the producer slows down. Memory usage does not approach infinity.
 
@@ -608,9 +608,9 @@ Nomos uses `NodeID`, `CanonID`, `PlanID`, `ActionID`, and `EventID`. Identity is
 
 Cell identity will be cryptographically verifiable. Nomos borrows SPIFFE's principles (workload identity, trust domains, short-lived certificates, mutual authentication, automatic rotation) without requiring a SPIRE deployment. SPIFFE compatibility can come later as an integration.
 
-## 33. Security boundary
+## 33. Security Boundary
 
-A Cell can change `/etc`, packages, services, users, and kernel parameters. That makes it a remote root-management system. Pretending otherwise only gives root access better branding.
+A Cell can change `/etc`, packages, services, users, and kernel parameters. That makes it a remote root-management system. Pretending otherwise only gives root access nicer branding.
 
 The Cell is therefore privilege-separated:
 
@@ -621,9 +621,9 @@ flowchart TB
     P --> S["Substrate"]
 ```
 
-The privileged side accepts typed operations only, never serialized shell commands. It listens on a root-owned Unix-domain socket and validates peer credentials. Parsing, networking, and protocol complexity stay out of the most privileged process.
+The privileged side accepts typed operations only, never serialized shell commands. The two halves talk over local inter-process communication (IPC): a root-owned Unix-domain socket, with the kernel's peer credentials (`SO_PEERCRED`) identifying the caller. Parsing, networking, and protocol complexity stay out of the most privileged process.
 
-## 34. Shell escape hatch
+## 34. Shell Escape Hatch
 
 Arbitrary shell execution is not a reconciliation primitive. If it is ever added, it is explicitly opaque:
 
@@ -637,7 +637,7 @@ spec:
 
 Policy can forbid it entirely. Arbitrary commands make idempotence, expected mutation, authorization scope, rollback, affected resources, verification, and permissions much harder to reason about. Typed operations come first.
 
-## 35. Linux hardening
+## 35. Linux Hardening
 
 Nomos services use systemd hardening where their responsibilities allow: `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`, `RestrictSUIDSGID`, capability bounding, seccomp, cgroup limits, and resource controls.
 
@@ -684,13 +684,13 @@ Convergence ends when $\mathit{Variance} = \varnothing$ or a defined failure con
 
 Reconciliation loops are bounded. If A changes X and B changes it back, over and over, Nomos detects the non-convergence. It does not cheerfully consume electricity forever.
 
-## 39. Fixed-point property
+## 39. Fixed-Point Property
 
 If $\mathrm{Enforce}(\mathit{Canon}, S) = S'$ and $\mathit{Variance}(\mathit{Canon}, S') = \varnothing$, then $\mathrm{Enforce}(\mathit{Canon}, S') = S'$.
 
 The second application performs no mutating Actions. This is one of Nomos's most important property-based tests.
 
-## 40. Failure semantics
+## 40. Failure Semantics
 
 Nomos treats all of these as normal operating conditions, not exotic theory:
 
@@ -704,27 +704,27 @@ Nomos treats all of these as normal operating conditions, not exotic theory:
 
 Every outcome must be representable.
 
-## 41. Availability model
+## 41. Availability Model
 
 Version 0 runs one Loom and many Cells.
 
-Losing Loom pauses new fleet coordination. It does not corrupt Cell state, and Cells stay locally inspectable. That is intentional. Do not add consensus merely because Nomos involves more than one computer.
+What fails if the coordinator disappears? New fleet decisions. Nothing a Cell has already observed or been authorized to do. Cell state is not corrupted, and Cells stay locally inspectable. That is intentional. Do not add consensus merely because Nomos involves more than one computer.
 
-## 42. Future Loom high availability
+## 42. Future Loom High Availability
 
-If real requirements call for multiple authoritative Loom replicas, authoritative metadata needs consensus. Raft fits Canon registrations, Plan generations, ownership and leases, and critical control metadata. OpenRaft is a current Rust implementation.
+Is that actually consensus, or coordination wearing a consensus hat? Single-writer metadata with failover is a narrower problem than replicated state-machine consensus. Consensus becomes necessary once multiple replicas must agree on an ordered sequence of state changes despite failures. If real requirements get there, Raft fits Canon registrations, Plan generations, ownership and leases, and critical control metadata. OpenRaft is a current Rust implementation.
 
 Consensus does not replicate Trait samples, debug logs, metrics, or high-volume telemetry just because a consensus engine is available. Not everything deserves a quorum.
 
-## 43. CAP position
+## 43. Consistency Under Partition (CAP)
 
-Nomos does not solve CAP. It chooses consistency semantics per subsystem.
+Nomos does not solve the consistency, availability, and partition-tolerance trade-off. It chooses consistency semantics per subsystem.
 
 During a partition, authoritative Loom state prefers refusing conflicting control decisions to letting multiple authorities mutate the same fleet. That part leans toward consistency.
 
 Cells keep local availability for observation, Trace, cached state, and explicitly authorized local convergence. The system does not need one universal CAP choice.
 
-## 44. Event Log vs. telemetry
+## 44. Event Log vs. Telemetry
 
 Nomos Events are control-plane records, not an observability pipeline. CPU samples, log lines, packets, and metrics do not belong in the authoritative Event Log.
 
@@ -737,7 +737,7 @@ flowchart LR
 
 The adapter exports Events such as Action started, Action completed, Canon changed, Variance detected, Cell disconnected, Plan rejected, and convergence failed. FabricO11y observes systems. Nomos controls them. Their storage architectures stay independent.
 
-## 45. Testing architecture
+## 45. Testing Architecture
 
 Nomos is built for aggressive testing from day one.
 
@@ -746,7 +746,7 @@ flowchart LR
     U["Unit"] --> P["Property"] --> G["Graph"] --> C["Concurrency"] --> CR["Crash"] --> I["Integration"] --> D["Distributed failure"]
 ```
 
-## 46. Property-based testing
+## 46. Property-Based Testing
 
 - **Idempotence.** $\mathrm{enforce}(\mathrm{enforce}(S)) = \mathrm{enforce}(S)$.
 - **Trace purity.** $\mathit{SubstrateBefore} = \mathit{SubstrateAfter}$ for every Trace.
@@ -756,7 +756,7 @@ flowchart LR
 - **Event monotonicity.** For every writer, $\mathit{sequence}_{n+1} > \mathit{sequence}_n$.
 - **Stale fencing.** An Action with a generation below the latest accepted generation never executes.
 
-## 47. Concurrency testing
+## 47. Concurrency Testing
 
 There is a wonderfully inconvenient naming collision here. Rust already has a crate called `loom`. It systematically explores thread interleavings to expose concurrency bugs, instead of hoping random tests eventually hit them.
 
@@ -768,7 +768,7 @@ loom-model = { package = "loom", version = "..." }
 
 Queues, leases, and state transitions then get deterministic concurrency tests. The universe has apparently decided to participate in the naming scheme.
 
-## 48. Formal specification
+## 48. Formal Specification
 
 Nomos keeps a small TLA+ model next to the implementation in `formal/tla/`. It models the control protocol, not Linux.
 
@@ -785,7 +785,7 @@ Initial invariants:
 
 TLA+ finds illegal interleavings before they become Rust integration tests. Written statements and proof sketches live in [formal/](formal/).
 
-## 49. Crash testing
+## 49. Crash Testing
 
 Every persistent transition gets killed on purpose:
 
@@ -800,7 +800,7 @@ Recovery must be deterministic. This is how the Event Log earns its existence in
 
 ## 50. Workspace
 
-The workspace follows a hexagonal layout. See [architecture/hexagon.md](architecture/hexagon.md) and [ADR 0000](adr/0000-foundations.md).
+The workspace follows a hexagonal layout. See [architecture/hexagon.md](architecture/hexagon.md) and architecture decision record (ADR) [0000](adr/0000-foundations.md).
 
 Crates beyond the four components (`nomos-canon`, `nomos-store`, `nomos-protocol`, and the port and adapter crates) are implementation boundaries, not user-facing concepts.
 
@@ -836,7 +836,7 @@ nomos-cell events
 | `enforce` | Standalone convergence |
 | `events` | Inspect the local Event Log |
 
-## 52. Design lineage
+## 52. Design Lineage
 
 Nomos inherits principles, not products.
 
@@ -856,7 +856,7 @@ Nomos inherits principles, not products.
 
 Nomos takes these properties selectively. It does not absorb their architectures.
 
-## 53. Explicit non-goals for v0
+## 53. Explicit Non-Goals for v0
 
 Nomos v0 is not:
 
@@ -875,7 +875,7 @@ Nomos v0 is not:
 
 The reference problem is simpler: *reliably describe, inspect, change, and verify Linux host state, locally and across a fleet.* That problem is hard enough without trying to colonize computing.
 
-## 54. Initial research ablations
+## 54. Initial Research Ablations
 
 Uncertain choices are settled by experiment before they are frozen.
 
@@ -888,7 +888,7 @@ Uncertain choices are settled by experiment before they are frozen.
 
 Do not pick sophisticated algorithms because their papers have attractive diagrams.
 
-## 55. Development phases
+## 55. Development Phases
 
 - **Phase 0: Semantics.** No networking. Build `nomos-core`, `nomos-canon`, `nomos-substrate-mock`, and `nomos-warp`. Prove that Canon → Observation → Variance → Plan is deterministic.
 - **Phase 1: Masterless Cell.** Add the Linux Substrate, Debian first, with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
@@ -901,7 +901,7 @@ Do not pick sophisticated algorithms because their papers have attractive diagra
 
 Consensus is an extension of the architecture, not a prerequisite for compiling a file manifest.
 
-## 56. First end-to-end demonstration
+## 56. First End-to-End Demonstration
 
 The first serious demonstration manages a sibling project: Nomos deploys the FabricO11y agent onto Debian hosts. The Canon covers a system user, directories, the binary artifact, configuration, the systemd service, resource limits, service enablement, and service health.
 
@@ -914,7 +914,7 @@ flowchart TB
 
 Then break the host on purpose: delete the config, stop the service, change permissions, and alter a sysctl. Trace must identify the exact Variance. Enforce must restore the Canon.
 
-## 57. Failure demonstration
+## 57. Failure Demonstration
 
 The second demonstration is deliberately hostile to Nomos itself. During convergence:
 
@@ -935,7 +935,7 @@ Expected outcome:
 
 This proves more than a benchmark of 40,000 meaningless no-op commands per second.
 
-## 58. Core safety invariants
+## 58. Core Safety Invariants
 
 The constitutional layer.
 
@@ -954,7 +954,7 @@ The constitutional layer.
 
 These invariants matter more than any implementation technology. Formal statements: [formal/invariants.md](formal/invariants.md).
 
-## 59. Architectural thesis
+## 59. Architectural Thesis
 
 Nomos is five transformations. Canon, Traits, and Observation produce Variance. Variance produces a Warp graph. Warp produces Actions. Actions operate through Substrate. Every meaningful transition produces Events.
 
@@ -990,7 +990,7 @@ flowchart TB
 
 The three stay independently useful, with narrow integration surfaces. They do not slowly merge into one enormous platform. That separation is architecture, not branding.
 
-## 61. Definition of v0 success
+## 61. Definition of v0 Success
 
 Nomos v0 succeeds when it demonstrates all of the following on real Debian hosts:
 
@@ -1016,3 +1016,14 @@ Nomos v0 succeeds when it demonstrates all of the following on real Debian hosts
 20. Demonstrate the key protocol invariants through model, property, and failure testing.
 
 Anything beyond this is subsequent architecture. Nomos earns its complexity one invariant at a time.
+
+## 62. Open Questions
+
+The unresolved parts, stated so they can be argued with:
+
+- **Edge semantics.** Does `after` wait for any terminal outcome, and does `on_change` imply ordering? [formal/warp.md](formal/warp.md) has working definitions. They need an ADR.
+- **Idempotency key retention.** The Cell persists accepted keys. For how long? Unbounded retention is a slow disk leak. Bounded retention reopens the duplicate window for very late retransmissions.
+- **Leases vs. clock skew.** Plan leases expire in time, and clocks drift. Does expiry use Loom's clock, the Cell's clock, or a monotonic budget measured from receipt?
+- **Secrets during Trace.** Some observations may need a Cipher, for example comparing the hash of a rendered file that contains a password. Does Trace resolve secrets, or does it report that Variance as unknown?
+- **Mesh identity vs. Nomos identity.** Headscale authenticates nodes on the network. Nomos authorizes Cells to act. How are the two bound, so a compromised tailnet key does not become fleet authority?
+- **Persistence.** redb, SQLite, or an LMDB-family store. The ablation in §54 decides.

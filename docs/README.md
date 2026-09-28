@@ -1,4 +1,4 @@
-# Nomos documentation
+# Nomos Documentation
 
 | Document | Contents |
 | --- | --- |
@@ -6,6 +6,7 @@
 | [architecture/](architecture/) | System components, hexagonal layout, and runtime flows |
 | [formal/](formal/) | Algorithms, invariants, and proof sketches |
 | [adr/](adr/) | Architecture decision records |
+| [style/](style/) | Prose style specification and linting |
 | [CANON.md](CANON.md) | Canon language reference (not yet written) |
 | [PROTOCOL.md](PROTOCOL.md) | Loom ↔ Cell control protocol (not yet written) |
 | [security-model.md](security-model.md) | Security model and hardening (not yet written) |

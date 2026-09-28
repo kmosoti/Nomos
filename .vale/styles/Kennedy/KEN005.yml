@@ -1,0 +1,21 @@
+# Evaluative claims need a dimension or evidence.
+extends: existence
+message: "KEN005: '%s' needs a dimension or evidence. Better at what, measured how?"
+level: warning
+ignorecase: true
+tokens:
+  - faster
+  - safer
+  - better
+  - scalable
+  - scalability
+  - robust
+  - robustness
+  - efficient
+  - resilient
+  - performant
+  - high-performance
+  - lightweight
+  - blazing
+  - seamless
+  - seamlessly

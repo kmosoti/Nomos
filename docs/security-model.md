@@ -1,4 +1,4 @@
-# Security model
+# Security Model
 
 Not written yet. It will cover the Cell trust boundary, privilege separation, Cipher handling, Loom ↔ Cell authentication, and systemd hardening.
 

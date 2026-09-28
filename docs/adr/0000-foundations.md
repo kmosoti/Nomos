@@ -1,4 +1,4 @@
-# ADR 0000: Foundations, hexagonal layout, and pinned toolchain
+# ADR 0000: Foundations, Hexagonal Layout, and Pinned Toolchain
 
 - **Status.** Accepted
 - **Date.** 2026-09-27
@@ -11,11 +11,11 @@ Its central promises are determinism (N12) and reproducible behavior under test.
 
 ## Decision
 
-### 1. Hexagonal architecture
+### 1. Hexagonal Architecture
 
 The domain sits at the center. Everything external is reached through a port and implemented by an adapter.
 
-### 2. The directory layout mirrors the hexagon
+### 2. The Directory Layout Mirrors the Hexagon
 
 ```mermaid
 flowchart LR
@@ -35,11 +35,12 @@ flowchart LR
     docs --> arch["architecture/<br/>system, hexagon, runtime views"]
     docs --> fdocs["formal/<br/>algorithms, invariants, proof sketches"]
     docs --> adr["adr/<br/>architecture decision records"]
+    docs --> prose["style/<br/>prose specification and linting"]
 ```
 
 A crate's layer is visible from its path. Every new crate belongs in exactly one of these directories.
 
-### 3. Dependencies point inward
+### 3. Dependencies Point Inward
 
 1. `core/nomos-core` depends on no workspace crate.
 2. Other `core/` crates depend only on `core/` crates.
@@ -50,7 +51,7 @@ A crate's layer is visible from its path. Every new crate belongs in exactly one
 
 The `Cargo.toml` manifests encode these edges, so the build enforces them.
 
-### 4. Rust is pinned to 1.98.1
+### 4. Rust Is Pinned to 1.98.1
 
 - `rust-toolchain.toml` pins `channel = "1.98.1"` with `rustfmt` and `clippy`.
 - The workspace declares `rust-version = "1.98.1"`.

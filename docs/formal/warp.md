@@ -1,12 +1,12 @@
 # Warp
 
-## Graph model
+## Graph Model
 
 $$
 G = (V, E), \qquad E = E_{req} \cup E_{after} \cup E_{chg}
 $$
 
-$V$ is the set of Actions produced from Variance. An edge $(u, v)$ means "$u$ constrains $v$".
+$G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from Variance. An edge $(u, v)$ means "$u$ constrains $v$".
 
 | Edge | Canon | Working definition: $v$ may start when… | $v$ activated when… |
 | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ $V$ is the set of Actions produced from Variance. An edge $(u, v)$ means "$u$ co
 
 **Well-formedness.** The whole edge set $E$ must be acyclic. A cycle in any edge kind is a compilation error.
 
-## Cycle detection and topological order
+## Cycle Detection and Topological Order
 
 Kahn's algorithm gives both results in one pass.
 
@@ -51,7 +51,7 @@ The remainder $V \setminus order$ contains every cycle. Strongly connected compo
 
 **Claim 3 (determinism, N12).** Ties are broken by a stable, content-derived Action ID. So `order` is a function of $G$ alone and does not depend on hash seeds or insertion order.
 
-## Execution frontier
+## Execution Frontier
 
 At runtime:
 
@@ -64,7 +64,7 @@ $$
 
 $\mathrm{Ready}$ contains an Action only once every hard dependency has succeeded, which gives **N4**.
 
-## Conflict keys
+## Conflict Keys
 
 Each Action carries a set of exclusive keys $K(a)$, for example `package-manager:dpkg`, `file:/etc/hosts`, or `systemd:nginx.service`. Independence in the graph does not imply independence in operation:
 
@@ -72,7 +72,7 @@ $$
 a \ne b \wedge \mathrm{Running}(a) \wedge \mathrm{Running}(b) \Rightarrow K(a) \cap K(b) = \varnothing
 $$
 
-## Runnable set
+## Runnable Set
 
 $$
 \mathrm{Runnable} = \mathrm{Ready} \cap \mathrm{PolicyAllowed} \cap \mathrm{CapacityAvailable}

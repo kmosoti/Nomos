@@ -1,4 +1,4 @@
-# TLA+ models
+# TLA+ Models
 
 Machine-checked models of the control protocol. They model the protocol, not Linux.
 

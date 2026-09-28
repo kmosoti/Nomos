@@ -1,0 +1,14 @@
+# Avoid recap sections.
+extends: existence
+message: "KEN017: A '%s' section usually repeats the conclusion. Cut it unless it adds something."
+level: warning
+scope: heading
+ignorecase: true
+tokens:
+  - summary
+  - recap
+  - conclusions?
+  - key takeaways
+  - tl;dr
+  - wrapping up
+  - in summary

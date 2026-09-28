@@ -23,10 +23,10 @@ flowchart TB
 | --- | --- | --- |
 | Loom | `nomos-loom` | Accepts Canon, tracks Cells, resolves targets, plans, dispatches, and ingests Events. The single authority in v0. |
 | Cell | `nomos-cell` | Discovers Traits, observes, executes, verifies, and spools Events. Works without Loom. |
-| Warp | `nomos-warp` | Compiles resources and Variance into an Action DAG. |
+| Warp | `nomos-warp` | Compiles resources and Variance into a directed acyclic graph (DAG) of Actions. |
 | Substrate | `nomos-substrate` and its adapters | Typed operations against the OS, through native APIs instead of shell. |
 
-## The control loop
+## The Control Loop
 
 ```mermaid
 flowchart TB
@@ -53,7 +53,7 @@ flowchart LR
     Diff --> Plan["Variance ≠ ∅<br/>Warp → Plan"] --> Apply --> Verify --> Observe
 ```
 
-## Deployment topology (v0)
+## Deployment Topology (v0)
 
 One Loom, many Cells. Cells connect **outward** to Loom over the Mesh (Headscale, [ADR 0001](../adr/0001-headscale-mesh-adapter.md)). Secrets resolve at the point of use through the Cipher port (Vault, [ADR 0002](../adr/0002-vault-cipher-adapter.md)).
 

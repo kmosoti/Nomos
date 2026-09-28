@@ -1,0 +1,16 @@
+# Speculation stated as established fact. Heuristic: flags certainty words.
+extends: existence
+message: "KEN006: '%s' asserts certainty. Is this established, deduced, or speculative? Say which."
+level: error
+ignorecase: true
+tokens:
+  - obviously
+  - clearly
+  - undoubtedly
+  - certainly
+  - definitely
+  - proves that
+  - it is proven
+  - will always
+  - never fails
+  - guaranteed to

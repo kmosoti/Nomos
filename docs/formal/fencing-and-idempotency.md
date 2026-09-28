@@ -1,4 +1,4 @@
-# Fencing and idempotency
+# Fencing and Idempotency
 
 Delivery between Loom and Cell is **at least once**. Safety comes from two mechanisms: fencing rejects obsolete authority, and idempotency keys deduplicate retransmissions. Nomos does not claim exactly-once execution (spec §19–§20).
 
@@ -59,6 +59,6 @@ on_action(a):
 
 **The crash window.** A crash between `apply` and recording `Completed` leaves the key `InFlight`. The outcome is unknown (**N10**). Nomos does not blindly re-apply. It observes again, and because reconciliation is level-triggered, the new plan comes from the new $\mathrm{diff}(D, O)$. If the first attempt took effect, Variance is $\varnothing$ and nothing is re-applied (see [reconciliation](reconciliation.md#fixed-point-n3)). Effect-level idempotence therefore comes from observing again, not from delivery guarantees. The network is allowed to be unreliable. The Cell is not.
 
-## Optimistic planning
+## Optimistic Planning
 
 A Plan compiled against node-state generation $s$ carries `expected_generation = s`. Before execution, the authority checks that the current generation still equals $s$. If it does not, the Plan is rejected, state is observed again, and the Plan is recompiled (spec §17).

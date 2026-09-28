@@ -10,7 +10,7 @@ $$
 
 **N7.** $e \in L_t \Rightarrow \forall t' > t:\ L_{t'}[\mathrm{pos}(e)] = e$.
 
-## State as a fold
+## State as a Fold
 
 $$
 \mathrm{State}_t = \mathrm{fold}(\mathrm{apply}, \mathrm{State}_0, L_t)
@@ -53,7 +53,7 @@ flowchart LR
 
 The Cell's spool uploads in `seq` order. Loom acknowledges the highest contiguous `seq` it has persisted, and the Cell advances its checkpoint to that value. Loom deduplicates re-uploads by $(w, \mathrm{seq}_w)$, so replaying the spool after a crash is safe.
 
-## Integrity (later mode)
+## Integrity (Later Mode)
 
 v0 guarantees append-only behavior through the API. It does not guarantee tamper evidence. A later mode adds a hash chain:
 

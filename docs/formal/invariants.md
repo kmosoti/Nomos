@@ -17,7 +17,7 @@ The constitutional layer (spec §58). Each invariant appears as a predicate, nex
 | N11 | Losing Loom does not invalidate Cell state | Cell observations are independent of Loom liveness | Cell owns observation and local Event Log | Failure |
 | N12 | Canon compilation is deterministic | $\mathrm{compile}(C) = \mathrm{compile}(C') \text{ when } \mathrm{canon}(C)=\mathrm{canon}(C')$ | Canonical IR encoding; content-derived `CanonID` | Property (determinism) |
 
-## Architectural leverage
+## Architectural Leverage
 
 The cheapest way to enforce an invariant is to make its violation fail to compile. These proposals need an ADR:
 

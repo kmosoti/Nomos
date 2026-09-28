@@ -8,7 +8,7 @@ Nomos is a host-state convergence and fleet-control system for Linux, written in
 
 The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it.
 
-## Source of truth
+## Source of Truth
 
 | Need | Read |
 | --- | --- |
@@ -17,6 +17,7 @@ The repository is at the **skeleton stage**. Crates contain module docs only. Do
 | Runtime behavior | `docs/architecture/runtime.md` |
 | Algorithms and proof obligations | `docs/formal/` |
 | Past decisions | `docs/adr/` |
+| Prose style | `docs/style/prose-spec.yaml`, `docs/style/README.md` |
 
 If a task conflicts with these documents, stop and report the conflict. Do not silently diverge.
 
@@ -57,11 +58,14 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 8. **No `unsafe`.** Workspace lints forbid it.
 9. **Leave the pinned toolchain, the license, and CI alone** unless asked.
 
-## Documentation conventions
+## Documentation Conventions
 
+- Prose follows [docs/style/prose-spec.yaml](docs/style/prose-spec.yaml), in *polished* mode. Its `agent_instruction.system_prompt` is your writing instruction. Apply its `rewrite_algorithm` to any prose you write or edit.
+- Run `.vale/lint.sh`. Fix every error. Fix warnings unless the fix damages clarity.
+- The review-only rules (KEN004, KEN008, KEN010–KEN012, KEN014–KEN016) are your job, not the linter's. [docs/style/README.md](docs/style/README.md) lists them.
+- Humor is dry, understated, and rare. Never forced.
 - The README is narrative. Technical detail goes under `docs/`.
-- Voice: plain, direct statements. A dry aside is fine in prose, never in rules or definitions.
-- American spelling, sentence-case headings, Oxford comma, one paragraph per line.
+- American spelling, Title Case headings, Oxford comma, one paragraph per line.
 - Diagrams are **Mermaid only** and must render on GitHub. Never use ASCII or box-drawing art.
 - Never label Mermaid arrows or state transitions (`-- text -->`, `-->|text|`, `S1 --> S2: text`). They fail to render on GitHub. Put the text in a node or a label node (`A --> L(["text"]) --> B`).
 - Math uses GitHub math syntax (`$...$`, `$$...$$`).

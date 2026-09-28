@@ -1,4 +1,4 @@
-# Hexagon: ports and adapters
+# Hexagon: Ports and Adapters
 
 Nomos is a hexagonal Rust workspace. The domain sits at the center and knows nothing about Linux, Vault, Headscale, storage engines, or transports. It just knows what a Canon is and what convergence means.
 
@@ -54,7 +54,7 @@ Solid arrows are Cargo dependencies. Dotted arrows mean "implements". Every arro
 | Driven adapters | `crates/adapters/` | `nomos-substrate-linux`, `nomos-substrate-mock`, `nomos-cipher-vault`, `nomos-mesh-headscale` |
 | Driving adapters and composition roots | `crates/bin/` | `nomos-cell`, `nomos-loom` |
 
-## Dependency rule
+## Dependency Rule
 
 Dependencies point inward. [ADR 0000](../adr/0000-foundations.md) records the decision.
 
@@ -65,7 +65,7 @@ Dependencies point inward. [ADR 0000](../adr/0000-foundations.md) records the de
 5. An adapter depends on `nomos-core` and on **exactly one port**, the one it implements.
 6. Only the binaries in `crates/bin/` depend on adapters. They are the only place concrete adapters meet ports.
 
-## Ports and their adapters
+## Ports and Their Adapters
 
 | Port | Concept | Adapters |
 | --- | --- | --- |

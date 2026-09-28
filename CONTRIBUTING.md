@@ -2,14 +2,14 @@
 
 Thanks for being here. Nomos is at the skeleton stage, so the most valuable contributions are careful ones: sharper semantics, cleaner boundaries, and tests that pin invariants down.
 
-## Before you start
+## Before You Start
 
 Read these, in order:
 
 1. [README](README.md): what Nomos is for.
 2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary, and safety invariants N1–N12.
 3. [Architecture](docs/architecture/): how the code is organized.
-4. [ADR 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule, and the pinned toolchain.
+4. [Architecture decision record (ADR) 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule, and the pinned toolchain.
 
 For anything bigger than a small fix, open an issue first. Agreeing on the design is cheaper than rewriting the code.
 
@@ -25,7 +25,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test   --workspace
 ```
 
-## Where code goes
+## Where Code Goes
 
 The workspace is arranged as ports and adapters:
 
@@ -43,7 +43,7 @@ flowchart LR
 - **One port per adapter.** A new technology, such as a storage engine, a secrets backend, or a transport, is a new adapter crate named `nomos-<port>-<technology>`. It never adds a dependency to the core.
 - **ADRs for structure.** Any new crate, new port, or change to the dependency rule needs an ADR.
 
-## Design rules
+## Design Rules
 
 - **Vocabulary.** Use the terms from spec §3 exactly: Canon, Trait, Cipher, Variance, Trace, Enforce, Event, Event Log. One concept, one name.
 - **Invariants first.** A change must not weaken N1–N12. If it touches one, say which, and add or extend a test for it.
@@ -53,25 +53,14 @@ flowchart LR
 
 ## Documentation
 
-### Voice
+### Voice and Mechanics
 
-Nomos docs state things as they are. Short sentences, active voice, no hedging. A dry line is welcome where it makes a point stick. Keep it out of rules and definitions, where it only adds ambiguity.
+Prose follows the [Kennedy prose specification](docs/style/prose-spec.yaml). Direct, compact, skeptical, and built on mechanisms rather than labels. Humor is welcome when it is dry and rare. [docs/style/README.md](docs/style/README.md) has the short form, the formatting mechanics, and which rules are automated.
 
-### Mechanics
-
-- **Where things go.** The README tells the story. Technical material lives in `docs/`.
-- **Spelling.** American English: behavior, organize, artifact.
-- **Headings.** Sentence case. Component and vocabulary terms keep their capitals.
-- **Commas.** Use the Oxford comma.
-- **Paragraphs.** One paragraph per line, no hard wrapping.
-- **Lists.** Fragments take no final period. Full sentences do. Bold lead-ins end with a period: `- **Label.** Text.`
-- **Abbreviations.** Write "for example", not "e.g.".
-- **Math.** GitHub math syntax (`$...$` and `$$...$$`).
-
-Check formatting with [markdownlint](https://github.com/DavidAnson/markdownlint-cli2), which reads `.markdownlint-cli2.jsonc`:
+Run the prose linter before opening a pull request:
 
 ```sh
-npx markdownlint-cli2 "**/*.md"
+.vale/lint.sh
 ```
 
 ### Diagrams
@@ -79,19 +68,19 @@ npx markdownlint-cli2 "**/*.md"
 - **Mermaid only.** GitHub renders Mermaid. ASCII art and box-drawing characters fall apart across fonts and viewers. Fenced code blocks are for code, commands, pseudocode, and sample output.
 - **No labels on arrows or state transitions.** GitHub's renderer can fail on labeled arrows (`A -- text --> B`, `A -->|text| B`, `S1 --> S2: text`) with "Could not find a suitable point for the given distance". Put the text in a node, route the arrow through a small label node (`A --> L(["text"]) --> B`), or explain transitions in a table under the diagram.
 
-### Where documents go
+### Where Documents Go
 
 - Algorithms and proofs go in `docs/formal/`. Machine-checked TLA+ models go in `formal/tla/`.
 - Decisions go in `docs/adr/`, numbered sequentially, with the Status, Date, Context, Decision, and Consequences layout.
 
-## Commits and pull requests
+## Commits and Pull Requests
 
 - Keep each pull request to one change. Refactors and behavior changes go separately.
 - Write commit subjects in the imperative ("Add Warp cycle detection") and explain *why* in the body.
 - Update docs and ADRs in the same pull request as the change they describe.
 - CI is green before review.
 
-## Security issues
+## Security Issues
 
 Do not open a public issue. Follow [SECURITY.md](SECURITY.md).
 

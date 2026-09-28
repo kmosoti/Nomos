@@ -1,6 +1,6 @@
 # Runtime
 
-## Canon compilation
+## Canon Compilation
 
 Human-readable Canon is never executed directly (spec §6).
 
@@ -13,7 +13,7 @@ flowchart LR
 
 The canonical IR serializes deterministically, so identical Canon always gets the same `CanonID`. That is invariant N12; see [formal/invariants.md](../formal/invariants.md).
 
-## Trace and Enforce share one pipeline
+## Trace and Enforce Share One Pipeline
 
 Trace is Enforce with the execution stage removed. There is no separate dry-run implementation to drift out of sync (spec §37).
 
@@ -27,7 +27,7 @@ flowchart LR
     Observe2 --> NC(["bound exceeded or oscillation<br/>non-convergence"])
 ```
 
-## Action lifecycle
+## Action Lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -60,7 +60,7 @@ stateDiagram-v2
 
 `TimedOut` does not mean the Action failed. The remote side may have finished the work after the connection dropped. The outcome is recorded as unknown and settled by observing again (invariant N10).
 
-## Cell internals
+## Cell Internals
 
 ```mermaid
 flowchart TB
@@ -109,7 +109,7 @@ sequenceDiagram
     end
 ```
 
-### Disconnection and recovery
+### Disconnection and Recovery
 
 ```mermaid
 sequenceDiagram
@@ -124,7 +124,7 @@ sequenceDiagram
     C->>C: checkpoint advances
 ```
 
-## Optimistic planning
+## Optimistic Planning
 
 Loom plans against a generation and checks it before executing, instead of locking the fleet while it thinks (spec §17).
 

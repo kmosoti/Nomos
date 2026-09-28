@@ -8,9 +8,11 @@ Nomos asks a different question. You describe how your machines **should** be. T
 
 It observes each host and measures the **Variance** between reality and the Canon. It works out the smallest safe set of changes, applies them, and looks again to confirm that reality moved. Every step is written down as immutable history.
 
+What does "done" mean here? The intended postcondition was observed on the machine. An exit code is a rumor.
+
 > Observe reality, compare it with Canon, derive the smallest valid change, apply that change under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
 
-## The cast
+## The Cast
 
 - **Cell** lives on each machine. It observes, reconciles, and verifies, and it keeps working when cut off from everything else.
 - **Loom** coordinates the fleet. It decides which machines a change applies to, plans the rollout, and never takes down more than you allowed.
@@ -19,7 +21,7 @@ It observes each host and measures the **Variance** between reality and the Cano
 
 **Trace** shows what would change without touching anything. **Enforce** makes it so. Run Enforce twice and the second run does nothing, because there is nothing left to do. That is the point.
 
-## What Nomos is not
+## What Nomos Is Not
 
 Nomos is not a container orchestrator, a secrets manager, a telemetry platform, or a way to broadcast shell commands. It solves one problem, and solves it properly:
 
@@ -33,7 +35,7 @@ Nomos is part of **Moiric**. FabricO11y observes systems, Nomos controls them, a
 
 Skeleton. The architecture and crate boundaries are in place, and the code is still empty. Phase 0 comes next: a deterministic Canon → Variance → Plan pipeline against a simulated machine.
 
-## Learn more
+## Learn More
 
 Everything technical lives in [`docs/`](docs/):
 

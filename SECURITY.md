@@ -1,8 +1,8 @@
-# Security policy
+# Security Policy
 
 Nomos changes files, packages, services, users, and kernel parameters on the machines it manages. It is a remote root-management system, and we treat it like one. Security reports are the highest-priority work in the project.
 
-## Supported versions
+## Supported Versions
 
 Nomos has no releases yet. Until the first one, only `main` receives security fixes.
 
@@ -11,7 +11,7 @@ Nomos has no releases yet. Until the first one, only `main` receives security fi
 | `main` | Yes |
 | Any other branch or fork | No |
 
-## Reporting a vulnerability
+## Reporting a Vulnerability
 
 **Do not report vulnerabilities in public issues, discussions, or pull requests.**
 
@@ -24,7 +24,7 @@ Include:
 - steps to reproduce, or a proof of concept
 - any safety invariant ([N1–N12](docs/PROJECT-SPEC.md#58-core-safety-invariants)) you believe is violated
 
-## What to expect
+## What to Expect
 
 - Acknowledgement within **5 business days**.
 - An assessment and remediation plan within **30 days**.
