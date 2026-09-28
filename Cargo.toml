@@ -36,6 +36,8 @@ publish = false
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+# `cfg(kani)` guards the bounded-verifier harnesses; cargo kani sets it.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
@@ -64,3 +66,6 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 jsonschema = { version = "0.58", default-features = false }
 toml = "1"
+# Testing. Dev-dependencies only; exempt from the core purity policy (ADR 0016).
+proptest = { version = "1", default-features = false, features = ["std"] }
+trybuild = "1"
