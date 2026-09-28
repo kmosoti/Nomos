@@ -45,6 +45,22 @@ Every survivor of run 1, by hand:
 
 Unviable mutants of run 1: 25 of the 28 replaced a `Verified<T>`-returning function with `Verified::new(..)`, `Verified::from(..)`, or `Verified::from_iter(..)`, which do not exist because `Verified<T>` is a `Result` alias. They cost a build attempt each and carry no information, so `.cargo/mutants.toml` now excludes the pattern `with Verified::`. The exclusion was written after every one of them had been recorded as unviable, which is the order rule 11 requires. The remaining three unviable in run 2 are a deleted `!` and two `Default::default()` replacements that do not type-check.
 
+## Deliberate Breaks of the New Gates
+
+`cargo-mutants` mutated only tooling that existed before this milestone. The four gates the milestone added were broken by hand, one semantic change each, on the final tree, and the tests that failed are named. The source was restored from Git after each break; `git status` was clean and `cargo fmt --check` passed afterward.
+
+| Break | Tests that failed |
+| --- | --- |
+| Purity ignores the deny classes | `a_randomness_crate_is_rejected_by_class`, `an_async_runtime_is_rejected_by_class` |
+| Purity accepts a missing `#![no_std]` | `dropping_no_std_is_rejected_even_when_a_doc_comment_mentions_it` |
+| Trust skips the escape-hatch scan | `an_ignored_test_is_an_undeclared_escape_hatch`, `a_declared_escape_hatch_passes_for_review`, `every_commit_in_the_range_is_checked_and_named` |
+| Trust requires no declaration for verifier paths | `an_undeclared_verifier_change_is_rejected`, `loosening_a_gate_test_is_an_undeclared_verifier_change`, `removing_a_ci_step_is_an_undeclared_verifier_change`, `a_declaration_without_a_matching_change_is_rejected` |
+| Receipts drop the passed-without-evidence rule | `passed_without_evidence_is_rejected_by_schema_and_by_rule` |
+| Receipts skip the schema | five tests, `a_missing_required_field_is_a_schema_violation` among them |
+| Semantic runner reports a passing named test as caught | `every_outcome_is_reported_for_the_mutant_that_earns_it` |
+
+Seven breaks, seven detections, each by a test whose name says what it protects. This is the section-27 control "mutation of existing gate semantics is detected by existing tests," for the gates this milestone added; the `cargo-mutants` runs above are the same control for the gates it inherited.
+
 ## Negative Control
 
 The run itself: a mutation run in which every mutant is caught, on a suite that has never been mutated, would be suspicious. Run 1 produced seven survivors and 28 unviable mutants, three of the survivors were real, and the tests written for them changed the outcome in run 2. The tool distinguishes tested from untested code here.

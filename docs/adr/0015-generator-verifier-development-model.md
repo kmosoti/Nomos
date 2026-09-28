@@ -66,7 +66,7 @@ A failing input found by a property test, a model checker, a fuzzer, or a mutati
 
 ### 12. Completion Reports Are Structured
 
-A task's completion report lists the branch and the base and final commits, the documents and ADRs touched, the commands actually run with their results, the test counts, the negative controls and their codes, the experiments and their results, the receipts written, what remains unchecked, and the decisions left open. A command not run is listed as not run. AGENTS.md carries the form.
+A task's completion report lists the branch and the base and final commits, the documents and ADRs touched, the commands actually run with their results, the test counts, the negative controls and their codes, the experiments and their results, the receipts written, what remains unchecked, and the decisions left open. A command not run is listed as not run. The evidence a report cites is what ran and what changed: commands, receipts, diffs, and test names. It never includes, and no reviewer asks for, a transcript of the generator's reasoning; reasoning is not evidence, and asking for it invites a narrative in place of a record. AGENTS.md carries the form.
 
 ## Not Decided
 
@@ -90,7 +90,8 @@ These were considered and are left open on purpose, each with a pointer:
 
 ## Evidence
 
-- `agent-proof-gate`: 19 tests over 13 fixture commits, each shortcut named by its code; the branch's own commits pass the gate.
+- `agent-proof-gate`: 20 tests over 14 fixture commits, each shortcut named by its code; the branch's own commits pass the gate.
+- Seven hand-written breaks of the four new gates, each caught by a named test; the table is in the `mutation-calibration` record.
 - `core-purity`: 21 tests over 14 fixture cases; the real workspace conforms.
 - `mutation-calibration`: 66 mutants on three tooling modules, 31 caught, 28 unviable, 7 survived; after the follow-up tests and the exclusion of the unviable pattern, 41 mutants, 34 caught, 3 unviable, 4 survived and classified.
 - Receipts: 13 tests over eight rejection cases and one valid file.

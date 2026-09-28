@@ -104,7 +104,7 @@ Hold these across every task, whatever it asks:
 
 ## Completion Report
 
-End a task with a report in this form. A field with nothing to say says so.
+End a task with a report in this form. A field with nothing to say says so. The evidence is what ran and what changed: commands, receipts, diffs, and test names. Do not include, and nobody will ask for, a transcript of your reasoning; a narrative is not a record.
 
 1. **Branch**, base commit, and final commit.
 2. **Documents and ADRs** created or changed.
