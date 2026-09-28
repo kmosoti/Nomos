@@ -1,0 +1,3 @@
+Add a should_panic pattern to the escape-hatch list
+
+Trust-Boundary: verifier

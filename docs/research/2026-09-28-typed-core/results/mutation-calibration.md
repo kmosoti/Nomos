@@ -13,7 +13,7 @@
 | Command | `cargo mutants -p nomos-xtask -f manifest.rs -f strict_json.rs -f snapshot.rs --no-shuffle -j 2 -C --locked --output <dir>` |
 | Machine | The milestone's cloud container, 2 parallel jobs; timings are indicative of this machine only |
 | Run 1 tree | Commit `cb53404` with the trust-boundary work uncommitted; none of the mutated files differed from `cb53404` |
-| Run 2 tree | The working tree that became commit `bc6ab80`, with `.cargo/mutants.toml` and the new tests in place |
+| Run 2 tree | The working tree that became commit `ee1621c`, with `.cargo/mutants.toml` and the new tests in place |
 
 ## Measurements
 

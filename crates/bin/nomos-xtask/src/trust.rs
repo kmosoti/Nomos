@@ -157,7 +157,19 @@ struct Policy {
     protected: Protected,
     implementation: PathSet,
     #[serde(default)]
+    scan: Scan,
+    #[serde(default)]
     escape_hatch: Vec<EscapeHatch>,
+}
+
+/// Paths the escape-hatch scan skips: the policy itself, which lists the
+/// patterns, and fixture trees that exist to contain them. They stay
+/// verifier paths, so a change to them is still declared.
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct Scan {
+    #[serde(default)]
+    exempt: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -419,9 +431,12 @@ pub(crate) fn check(root: &Path, base: &str) -> Result<Report, String> {
         }
 
         let mut hatches = 0usize;
+        let exempt = PathSet {
+            paths: policy.scan.exempt.clone(),
+        };
         for (file, line) in added_lines(&commit.diff) {
             let class = policy.classify(&file);
-            if !matches!(class, Class::Implementation | Class::Verifier) {
+            if !matches!(class, Class::Implementation | Class::Verifier) || exempt.contains(&file) {
                 continue;
             }
             for hatch in policy.escape_hatch.iter().filter(|h| h.matches(&line)) {
@@ -574,6 +589,11 @@ mod tests {
     #[test]
     fn a_lint_allowed_only_under_test_is_not_an_escape_hatch() {
         assert_passes("test-scoped-allow");
+    }
+
+    #[test]
+    fn a_pattern_added_to_the_policy_itself_is_not_an_escape_hatch() {
+        assert_passes("pattern-in-policy");
     }
 
     #[test]
@@ -743,6 +763,6 @@ mod tests {
                 "fixture case {case} has no test"
             );
         }
-        assert_eq!(cases.len(), 13);
+        assert_eq!(cases.len(), 14);
     }
 }

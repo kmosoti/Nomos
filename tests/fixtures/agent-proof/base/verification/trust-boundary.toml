@@ -34,6 +34,17 @@ paths = [
     "crates/bin/nomos-loom/",
 ]
 
+# The escape-hatch scan skips these: the policy itself, which lists the
+# patterns, and fixture trees that exist to contain them. They remain
+# verifier paths, so a change to them is still declared.
+[scan]
+exempt = [
+    "verification/trust-boundary.toml",
+    "tests/fixtures/agent-proof/",
+    "tests/fixtures/semantic-mutants/patches/",
+    "tests/semantic-mutants/patches/",
+]
+
 # Lines that weaken a check when added to implementation or verifier code.
 # A commit adding one declares `Trust-Boundary: escape-hatch`, or fails.
 # `unless_line_contains` exempts a line, for a lint allowed only under test.

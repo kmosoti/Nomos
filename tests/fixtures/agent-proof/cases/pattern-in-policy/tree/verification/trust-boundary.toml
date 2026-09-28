@@ -90,3 +90,7 @@ reason = "an assumption in a proof harness narrows what the proof covers (ADR 00
 [[escape_hatch]]
 pattern = "admit()"
 reason = "an admitted obligation is unproved"
+
+[[escape_hatch]]
+pattern = "#[should_panic"
+reason = "fixture: a new pattern added to the policy is not itself a hatch"
