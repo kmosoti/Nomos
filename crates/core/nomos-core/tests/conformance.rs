@@ -61,11 +61,11 @@ fn parse(text: &str) -> Vec<State> {
             if let Some(state) = current.take() {
                 states.push(state);
             }
-        } else if let (Some(state), Some(name)) = (current.as_mut(), var.as_ref()) {
-            if let Some(value) = state.get_mut(name) {
-                value.push(' ');
-                value.push_str(line.trim());
-            }
+        } else if let (Some(state), Some(name)) = (current.as_mut(), var.as_ref())
+            && let Some(value) = state.get_mut(name)
+        {
+            value.push(' ');
+            value.push_str(line.trim());
         }
     }
     states.extend(current);
