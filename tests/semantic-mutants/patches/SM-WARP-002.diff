@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-warp/src/frontier.rs b/crates/core/nomos-warp/src/frontier.rs
+index 6ebcb67..93bd937 100644
+--- a/crates/core/nomos-warp/src/frontier.rs
++++ b/crates/core/nomos-warp/src/frontier.rs
+@@ -175,7 +175,7 @@ pub fn resolve_requires(state: SourceState) -> EdgeState {
+ 
+ /// An `after` edge from a source in `state`.
+ pub fn resolve_after(state: SourceState) -> AfterState {
+-    if state.is_terminal() {
++    if state.is_met() {
+         AfterState::Satisfied
+     } else {
+         AfterState::Waiting

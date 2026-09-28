@@ -4,7 +4,7 @@ Dated research snapshots, the evaluation of each against the repository, and the
 
 | Snapshot | Scope | Status |
 | --- | --- | --- |
-| [2026-09-28-typed-core](2026-09-28-typed-core/README.md) | Typed core: algebraic Canon model, evidence and assessment, Warp gates, effect recovery, fencing, Event Log boundaries, verification discipline | Imported and evaluated. Decisions D1 and D2 recorded as ADRs 0004 to 0006. [Grounding plan](2026-09-28-typed-core/grounding-plan.md): `01-foundation-gates` to `03-assessment-kernel` landed; five result records under `results/` |
+| [2026-09-28-typed-core](2026-09-28-typed-core/README.md) | Typed core: algebraic Canon model, evidence and assessment, Warp gates, effect recovery, fencing, Event Log boundaries, verification discipline | Imported and evaluated. Decisions D1 and D2 recorded as ADRs 0004 to 0006. [Grounding plan](2026-09-28-typed-core/grounding-plan.md): `01-foundation-gates` to `04-warp-kernel` landed; six result records under `results/` |
 | [2026-09-28-generator-verifier](2026-09-28-generator-verifier/README.md) | Digest: generator-verifier asymmetry, specification gaming, generated-test oracles, mutation, metamorphic and differential testing, receipts | Written from primary sources during `02-verification-foundation`; exploratory, fed [ADR 0015](../adr/0015-generator-verifier-development-model.md) |
 
 ## Layout

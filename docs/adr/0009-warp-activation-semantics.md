@@ -49,6 +49,15 @@ An Action holds its conflict keys from dispatch until its effect is Settled, pas
 - **`04-warp-kernel`, `warp-truth-table`.** Exhaustive predecessor-outcome tables over every source outcome, the Indeterminate anchor included, for each edge kind. Also the one-changed-one-unchanged case, the cycle-witness case, and insertion-order invariance, all against production functions and an independent reference evaluator. The Indeterminate-anchor rows in §3 are part of the table the tests must reproduce, not a detail left to the implementation.
 - **`05-transition-kernel`, `refresh-recovery` and `scheduler-admission`.** No declared Obligation lost at any crash boundary, and no conflicting overlap or budget oversubscription under adversarial interleavings.
 
+## Note, 2026-09-28: The Warp Kernel's Truth Tables
+
+Milestone `04-warp-kernel` produced the tables this ADR's first acceptance criterion asks for, against production functions and an independent reference evaluator ([record](../research/2026-09-28-typed-core/results/warp-truth-table.md)). Two points the text above left open are recorded as working definitions and stand until this ADR is accepted or amended:
+
+- **A Skipped vertex is met.** A vertex whose `on_change` group is Disabled is Skipped: terminal without change and, as §2 says, not failed. Its `requires` dependents see a met prerequisite, its `after` dependents see a terminal source, and its `on_change` dependents see a source without a change. The alternative reading, Skipped as "ended other than Succeeded", would block every prerequisite chain through a refresh that had no reason to run.
+- **An `after` edge has no Blocked state.** The kernel gives `after` edges their own two-state type. A Kani harness on the vertex-resolution predicate found that a state type shared with `requires` let an `after` edge marked Blocked reach the predicate, which then reported the vertex Ready with an unmet edge. The type now makes the row unwritable.
+
+The second acceptance criterion, `refresh-recovery` and `scheduler-admission`, still waits for `05-transition-kernel`; this ADR stays Proposed.
+
 ## Consequences
 
 - Spec §62's edge-semantics question closes when this ADR is accepted.

@@ -1,0 +1,16 @@
+diff --git a/crates/core/nomos-warp/src/frontier.rs b/crates/core/nomos-warp/src/frontier.rs
+index 6ebcb67..9d3d5bb 100644
+--- a/crates/core/nomos-warp/src/frontier.rs
++++ b/crates/core/nomos-warp/src/frontier.rs
+@@ -166,10 +166,8 @@ pub enum Resolution {
+ pub fn resolve_requires(state: SourceState) -> EdgeState {
+     if !state.is_terminal() {
+         EdgeState::Waiting
+-    } else if state.is_met() {
+-        EdgeState::Satisfied
+     } else {
+-        EdgeState::Blocked
++        EdgeState::Satisfied
+     }
+ }
+ 

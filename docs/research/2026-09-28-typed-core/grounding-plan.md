@@ -1,6 +1,6 @@
 # Grounding Plan: An Executable Kernel Contract
 
-- **Status.** In progress, 2026-09-28. Three milestones landed; four remain. Five experiments have result records under [results/](results/).
+- **Status.** In progress, 2026-09-28. Four milestones landed; three remain. Six experiments have result records under [results/](results/).
 - **Goal.** One typed Canon, one shared assessment model, one deterministic planner, one replayable transition kernel, and a harness that demonstrably rejects broken boundaries and broken semantics.
 - **Not the goal.** Another round of adapters, networking, storage, or a testing platform with nothing meaningful to test.
 
@@ -16,7 +16,7 @@ The plan is organized as seven milestones with stable names. A milestone is a br
 | Core purity | `#![no_std]`, panic lints, and `cargo xtask check-core-purity` over `crates/core/PURITY.toml` | Purity of behavior; the crates are still empty |
 | Oracle protection | `cargo xtask check-trust-boundary` fails an undeclared specification or verifier change and an undeclared escape hatch | Semantic weakening inside a declared change |
 | Records | Receipts under `verification/receipts/`, validated; the matrix is filled from them | Any semantic property: every invariant row is `not run` or `planned` |
-| Domain kernel | The assessment algebra for the file family: truth table, laws on generated inputs, compile-fail boundaries, two Kani harnesses, three semantic mutants caught | Any transition semantics; every resource family but files |
+| Domain kernel | The assessment algebra for the file family and the Warp graph, frontier, and selection: truth tables, laws on generated inputs against independent references, compile-fail boundaries, five Kani harnesses, six semantic mutants caught | Any transition semantics, Obligations, budgets; every resource family but files |
 | Formal verification | Written algorithms and proof sketches; `formal/tla/` holds a README | A checked executable model |
 
 A green build is not a verified engine. The milestones exist to change the right-hand column, one row at a time, with evidence.
@@ -81,9 +81,11 @@ Exit, met: a malformed path, digest, window, or Condition cannot be built; an ab
 
 ### 04-warp-kernel
 
-In `nomos-warp`: the activation truth table with group-level `on_change` resolution, satisfaction anchors for `requires`, `after`, and `on_change`, deterministic order, cycle witnesses restricted to cyclic components, and conflict-aware selection over `Reserved`. An independently written reference evaluator for small graphs, in its own module, used differentially with the generators' coverage stated in the record. `SM-WARP-001` to `SM-WARP-003` activated. `petgraph` enters the allowlist here if it is used, with `default-features = false`.
+*Landed 2026-09-28 on branch `milestone/04-warp-kernel`.* In `nomos-warp`: vertices from Assessments with satisfaction and Indeterminate anchors, edges of the three kinds, Kahn's algorithm with an ordered queue, one witness per cyclic component with the acyclic remainder reported blocked, the frontier with per-edge and per-group resolution and Blocked and Skipped propagation, and greedy conflict-key selection over the reserved set with a capacity. No `petgraph`: the graph is a few hundred lines over `alloc`, and the allowlist stays empty. Two working definitions are recorded in ADR 0009's note: a Skipped source is met, and an `after` edge has its own state type because a Kani harness showed a shared one admitted an ill-typed row.
 
-Exit: the one-changed-one-unchanged predecessor case activates; the $A \leftrightarrow B$, $B \to C$ graph yields one witness and reports $C$ as blocked; conflicting Actions are never selected together; order is invariant under insertion-order permutation; the reference and the production evaluator agree on every generated graph or the disagreement is recorded.
+Evidence, in the [record](results/warp-truth-table.md): exhaustive edge and group truth tables including the Indeterminate-anchor rows; the one-changed-one-unchanged, cycle-witness, and self-loop cases; four laws on generated graphs, cycles included, against a reference written by another route (depth-first coloring and whole-graph fixed-point passes); three Kani harnesses; `SM-WARP-001` to `SM-WARP-003` active and caught; `cargo-mutants` over the crate with every survivor classified.
+
+Exit, met: the one-changed-one-unchanged predecessor case activates; the $A \leftrightarrow B$, $B \to C$ graph yields one witness and reports $C$ as blocked; conflicting Actions are never selected together; order and frontier are invariant under insertion-order permutation; the reference and the production evaluator agree on every generated graph. Not here: Obligations as vertices, failure-domain budgets, and derived footprints, all `05-transition-kernel`.
 
 ### 05-transition-kernel
 
@@ -182,7 +184,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 | `mutation-calibration` | `02-verification-foundation` | [results/mutation-calibration.md](results/mutation-calibration.md) |
 | `generator-variance` | `02-verification-foundation` designed; runs when a kernel exists | [results/generator-variance.md](results/generator-variance.md) |
 | `assessment-algebra` | `03-assessment-kernel` | [results/assessment-algebra.md](results/assessment-algebra.md) |
-| `warp-truth-table` | `04-warp-kernel` | none |
+| `warp-truth-table` | `04-warp-kernel` | [results/warp-truth-table.md](results/warp-truth-table.md) |
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | none |
 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | none |
 | `controller-composition` | After `05-transition-kernel`, before `07-substrate-conformance` | none |
@@ -239,10 +241,10 @@ The research snapshot's experiments remain the evidence units, joined by four th
 
 - **Question.** Do Startable, group-level Activated, and satisfaction anchors fully specify v0 dependencies?
 - **Rival.** Terminal, changed, and succeeded are conflated; an unchanged source vetoes a changed one; a satisfied prerequisite without an Action breaks the graph.
-- **Harness.** `04-warp-kernel`'s rules; exhaustive predecessor-outcome tables; random DAGs with insertion-order permutations; the reference evaluator, differentially; `SM-WARP-001` to `SM-WARP-003`.
-- **Negative control.** `activation-missing`; the one-changed-one-unchanged case; the $A \leftrightarrow B$, $B \to C$ witness case; a failed partial write must not activate its dependent.
-- **Measurements.** Activation correctness; order determinism (N12); witness validity; generator coverage as stated.
-- **Decision rule.** Every case resolves to exactly one state with no fallthrough. Feeds [ADR 0009](../../adr/0009-warp-activation-semantics.md).
+- **Harness.** `04-warp-kernel`'s rules; exhaustive predecessor-outcome tables; generated graphs with insertion-order permutations; the reference evaluator, differentially; three Kani harnesses; `SM-WARP-001` to `SM-WARP-003`.
+- **Negative control.** `activation-missing`; the one-changed-one-unchanged case; the $A \leftrightarrow B$, $B \to C$ witness case; a failed partial write must not activate its dependent; each semantic mutant caught.
+- **Measurements.** Activation correctness; order determinism (N12); witness validity; generator coverage as stated; survivors of `cargo-mutants`, classified.
+- **Decision rule, met.** Every case resolves to exactly one state with no fallthrough. Feeds [ADR 0009](../../adr/0009-warp-activation-semantics.md), which stays Proposed until `05-transition-kernel` runs its second criterion.
 
 ### bounded-convergence
 
