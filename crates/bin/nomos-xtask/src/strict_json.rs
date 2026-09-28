@@ -10,12 +10,44 @@ use std::fmt;
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Value};
 
+use crate::error::{Code, VerificationError, Verified};
+
+const DUPLICATE_KEY: &str = "Duplicate JSON object key";
+const NON_FINITE: &str = "Non-finite JSON number";
+
 /// Parses one JSON text into a `Value`, rejecting duplicate object keys.
-pub(crate) fn parse(text: &str) -> Result<Value, String> {
+///
+/// Failures are classified: a duplicate key, a non-finite number (`NaN`,
+/// `Infinity`, `-Infinity`, which JSON does not have), or any other syntax error.
+pub(crate) fn parse(text: &str) -> Verified<Value> {
     let mut de = serde_json::Deserializer::from_str(text);
-    let value = Strict::deserialize(&mut de).map_err(|e| e.to_string())?;
-    de.end().map_err(|e| e.to_string())?;
+    let value = Strict::deserialize(&mut de)
+        .and_then(|value| de.end().map(|()| value))
+        .map_err(|error| classify(text, &error))?;
     Ok(value.0)
+}
+
+fn classify(text: &str, error: &serde_json::Error) -> VerificationError {
+    let message = error.to_string();
+    if message.starts_with(DUPLICATE_KEY) {
+        return VerificationError::new(Code::JsonDuplicateKey, message);
+    }
+    if message.starts_with(NON_FINITE) || non_finite_token_near(text, error.column()) {
+        return VerificationError::new(Code::JsonNonFiniteNumber, message);
+    }
+    VerificationError::new(Code::JsonSyntax, message)
+}
+
+/// `serde_json` reports a bare `NaN` as a syntax error at the token. Look there.
+fn non_finite_token_near(text: &str, column: usize) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let start = column.saturating_sub(3);
+    (start..column).any(|index| {
+        let tail: String = chars.iter().skip(index).take(9).collect();
+        ["NaN", "Infinity", "-Infinity"]
+            .iter()
+            .any(|token| tail.starts_with(token))
+    })
 }
 
 struct Strict(Value);
@@ -50,7 +82,7 @@ impl<'de> Visitor<'de> for StrictVisitor {
     fn visit_f64<E: de::Error>(self, v: f64) -> Result<Value, E> {
         serde_json::Number::from_f64(v)
             .map(Value::Number)
-            .ok_or_else(|| E::custom(format!("Non-finite JSON number: {v}")))
+            .ok_or_else(|| E::custom(format!("{NON_FINITE}: {v}")))
     }
 
     fn visit_str<E: de::Error>(self, v: &str) -> Result<Value, E> {
@@ -81,9 +113,7 @@ impl<'de> Visitor<'de> for StrictVisitor {
         let mut object = Map::new();
         while let Some(key) = map.next_key::<String>()? {
             if object.contains_key(&key) {
-                return Err(de::Error::custom(format!(
-                    "Duplicate JSON object key: {key}"
-                )));
+                return Err(de::Error::custom(format!("{DUPLICATE_KEY}: {key}")));
             }
             let Strict(value) = map.next_value()?;
             object.insert(key, value);
@@ -95,6 +125,11 @@ impl<'de> Visitor<'de> for StrictVisitor {
 #[cfg(test)]
 mod tests {
     use super::parse;
+    use crate::error::Code;
+
+    fn code(text: &str) -> Code {
+        parse(text).expect_err("expected a rejection").code()
+    }
 
     #[test]
     fn accepts_ordinary_objects() {
@@ -104,20 +139,24 @@ mod tests {
     }
 
     #[test]
-    fn rejects_duplicate_keys_at_any_depth() {
-        assert!(parse(r#"{"x": 1, "x": 2}"#).is_err());
-        assert!(parse(r#"{"a": {"x": 1, "x": 2}}"#).is_err());
-        assert!(parse(r#"[{"x": 1, "x": 2}]"#).is_err());
+    fn rejects_duplicate_keys_at_any_depth_as_duplicate_keys() {
+        assert_eq!(code(r#"{"x": 1, "x": 2}"#), Code::JsonDuplicateKey);
+        assert_eq!(code(r#"{"a": {"x": 1, "x": 2}}"#), Code::JsonDuplicateKey);
+        assert_eq!(code(r#"[{"x": 1, "x": 2}]"#), Code::JsonDuplicateKey);
     }
 
     #[test]
-    fn rejects_non_finite_constants() {
-        assert!(parse(r#"{"x": NaN}"#).is_err());
-        assert!(parse(r#"{"x": Infinity}"#).is_err());
+    fn rejects_non_finite_constants_as_non_finite() {
+        assert_eq!(code(r#"{"x": NaN}"#), Code::JsonNonFiniteNumber);
+        assert_eq!(code(r#"{"x":NaN}"#), Code::JsonNonFiniteNumber);
+        assert_eq!(code(r#"{"x": Infinity}"#), Code::JsonNonFiniteNumber);
+        assert_eq!(code(r#"{"x": -Infinity}"#), Code::JsonNonFiniteNumber);
     }
 
     #[test]
-    fn rejects_trailing_garbage() {
-        assert!(parse(r#"{"x": 1} {"y": 2}"#).is_err());
+    fn rejects_other_malformed_text_as_syntax() {
+        assert_eq!(code(r#"{"x": 1} {"y": 2}"#), Code::JsonSyntax);
+        assert_eq!(code(r#"{"x": }"#), Code::JsonSyntax);
+        assert_eq!(code(r#"{"x": Nope}"#), Code::JsonSyntax);
     }
 }

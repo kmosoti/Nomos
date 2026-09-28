@@ -6,11 +6,11 @@
 //!
 //! Commands:
 //!
-//! - `research verify <snapshot-dir>`: verify a research snapshot as a whole.
-//!   The manifest is required and must cover every file; then the NDJSON graph
-//!   is parsed strictly, the referential and structural checks and negative
-//!   controls run, and every record is validated against the snapshot's JSON
-//!   Schema. Prints a report with one block per stage.
+//! - `research verify <snapshot-dir>`: verify a research snapshot as a whole
+//!   through `snapshot::verify_snapshot`, the same function the tests call.
+//!   Manifest, coverage, strict NDJSON, JSON Schema, references, structural
+//!   invariants, and negative controls all run; there is no weaker mode.
+//!   Prints a report with one block per stage, or the failure's stable code.
 //! - `research list <snapshot-dir>`: print the recommendations in review order.
 //! - `research verify-all <research-dir>`: verify every `*/snapshot` under it.
 //! - `research reproduce`: run the seven counterexample models of the draft
@@ -24,6 +24,7 @@
 //! nothing about Nomos semantics.
 
 mod counterexamples;
+mod error;
 mod freeze;
 mod graph;
 mod layers;
@@ -35,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const USAGE: &str = "usage:
-  cargo xtask research verify     <snapshot-dir> [--report <file>] [--no-schema]
+  cargo xtask research verify     <snapshot-dir> [--report <file>]
   cargo xtask research verify-all <research-dir>
   cargo xtask research list       <snapshot-dir>
   cargo xtask research reproduce  [--out <file>]
@@ -77,10 +78,9 @@ fn option<'a>(rest: &'a [&'a str], flag: &str) -> Result<Option<&'a str>, String
 
 fn verify(dir: &Path, rest: &[&str]) -> Result<(), String> {
     let report_path = option(rest, "--report")?.map(PathBuf::from);
-    let with_schema = !rest.contains(&"--no-schema");
-    let (files, report) = snapshot::verify_snapshot(dir, with_schema)?;
-    for (name, ok) in files {
-        eprintln!("{name}: {}", if ok { "OK" } else { "FAILED" });
+    let report = snapshot::verify_snapshot(dir)?;
+    for name in report.files() {
+        eprintln!("{name}: OK");
     }
     let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
     if let Some(path) = report_path {
@@ -102,8 +102,12 @@ fn verify_all(research: &Path) -> Result<(), String> {
         return Err(format!("{}: no */snapshot directories", research.display()));
     }
     for dir in dirs {
-        let (files, _) = snapshot::verify_snapshot(&dir, true)?;
-        println!("{}: verified ({} files)", dir.display(), files.len());
+        let report = snapshot::verify_snapshot(&dir)?;
+        println!(
+            "{}: verified ({} files)",
+            dir.display(),
+            report.files().len()
+        );
     }
     Ok(())
 }
