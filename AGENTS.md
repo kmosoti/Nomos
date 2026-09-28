@@ -27,13 +27,13 @@ If a task conflicts with these documents, stop and report the conflict. Do not s
 The toolchain is pinned to Rust 1.98.1 in `rust-toolchain.toml`.
 
 ```sh
-cargo check  --workspace
 cargo fmt    --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test   --workspace
+cargo check  --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test   --workspace --locked
 ```
 
-A change is complete only when all four pass.
+A change is complete only when all four pass. `--locked` is not optional: CI never lets dependency resolution change silently, and neither should you.
 
 Development tooling runs as `cargo xtask <command>` (ADR 0003). CI also runs, and so should you:
 
@@ -42,7 +42,7 @@ cargo xtask research verify-all docs/research   # every accepted snapshot: manif
 cargo xtask check-layers                         # the dependency rule, declared and resolved graphs
 ```
 
-`cargo test --workspace` runs the same checks as unit tests. Pull-request CI additionally runs `cargo xtask research frozen --base origin/<base>`: an accepted snapshot never changes.
+`cargo test --workspace` runs the same checks as unit tests, through the same functions. A failure prints a stable code: `[checksum-mismatch]` or `[uncovered-file]` from the snapshot verifier, `FORBIDDEN [app-depends-outside-core-and-ports] ...` from the layer checker. Changing what either gate accepts is a trust-boundary change under rule 11. Pull-request CI additionally runs `cargo xtask research frozen --base origin/<base>`: an accepted snapshot never changes.
 
 ## Layout
 

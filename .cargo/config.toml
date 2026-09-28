@@ -1,3 +1,4 @@
 # `cargo xtask <subcommand>` runs the development tooling crate (ADR 0003).
+# --locked: tooling never rewrites Cargo.lock, locally or in CI.
 [alias]
-xtask = "run --quiet --package nomos-xtask --"
+xtask = "run --locked --quiet --package nomos-xtask --"

@@ -15,11 +15,16 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
       # --locked: a changed resolution fails instead of silently rewriting Cargo.lock.
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - run: cargo test --locked --workspace
-      # Accepted research snapshots verify as a whole: manifest, graph, schema.
+      # The cargo xtask alias passes --locked too (.cargo/config.toml).
+      - run: cargo check --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # Integrity gate: every accepted research snapshot through the same
+      # verify_snapshot the tests call (manifest, coverage, strict NDJSON,
+      # schema, references, negative controls). Failures print a stable code.
       - run: cargo xtask research verify-all docs/research
-      # The dependency rule of ADR 0000, over declared and resolved graphs.
+      # Architecture gate: the dependency rule of ADR 0000 over declared and
+      # resolved graphs. Violations print rule, packages, layers, and kind.
       - run: cargo xtask check-layers
 
   # Accepted research snapshots never change; a revision is a new dated snapshot.
