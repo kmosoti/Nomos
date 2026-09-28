@@ -821,6 +821,13 @@ fn limits_hold_at_their_boundaries() {
             Value::Text("a".repeat(MAX_TEXT)),
             Value::Text("a".repeat(MAX_TEXT + 1)),
         ),
+        // Text whose JSON form is all escapes, so the parser's check inside
+        // the escape loop is the one that decides.
+        (
+            "escaped text",
+            Value::Text("\n".repeat(MAX_TEXT)),
+            Value::Text("\n".repeat(MAX_TEXT + 1)),
+        ),
         (
             "array",
             Value::Array(vec![Value::Uint(0); MAX_ARRAY]),
