@@ -1,8 +1,8 @@
 # Semantic-mutant corpus. Format and meaning in README.md; run with
 # `cargo xtask mutants semantic`. A mutant becomes active, with a patch under
 # patches/, in the milestone that lands its kernel, and the named test must
-# fail against it before the milestone is complete. The Assessment Kernel's
-# three are active; the rest are planned.
+# fail against it before the milestone is complete. The Assessment and Warp
+# Kernels' six are active; the Transition Kernel's three are planned.
 
 [[mutant]]
 id = "SM-ASSESS-001"
@@ -42,17 +42,17 @@ wrong_behavior = "the execution frontier admits an Action whose requires edge po
 crate = "nomos-warp"
 patch = "patches/SM-WARP-001.diff"
 test = "frontier::tests::a_failed_requirement_blocks_the_dependent"
-status = "planned"
+status = "active"
 
 [[mutant]]
 id = "SM-WARP-002"
 property = "N4"
 threat = "an after edge is treated as a requires edge, or the reverse"
-wrong_behavior = "the frontier blocks on an after edge whose source failed"
+wrong_behavior = "an after edge from a source that ended other than Succeeded keeps its dependent Waiting forever"
 crate = "nomos-warp"
 patch = "patches/SM-WARP-002.diff"
 test = "frontier::tests::a_failed_after_edge_does_not_block"
-status = "planned"
+status = "active"
 
 [[mutant]]
 id = "SM-WARP-003"
@@ -62,7 +62,7 @@ wrong_behavior = "cycle detection ignores after edges, so an after cycle compile
 crate = "nomos-warp"
 patch = "patches/SM-WARP-003.diff"
 test = "graph::tests::a_cycle_through_after_edges_is_rejected"
-status = "planned"
+status = "active"
 
 [[mutant]]
 id = "SM-TRANSITION-001"
