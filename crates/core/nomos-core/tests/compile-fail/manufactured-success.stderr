@@ -1,0 +1,9 @@
+error[E0451]: fields `resource` and `since` of struct `Verified` are private
+  --> tests/compile-fail/manufactured-success.rs:12:13
+   |
+11 |         verified: Verified {
+   |                   -------- in this type
+12 |             resource: ResourcePath::new("/etc/hosts").unwrap(),
+   |             ^^^^^^^^ private field
+13 |             since: Instant(0),
+   |             ^^^^^ private field

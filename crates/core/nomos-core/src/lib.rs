@@ -12,12 +12,15 @@
 //!   and the per-Condition Report the Plan reads Variances from
 //! - [`cipher`]      — the Secret wrapper; Cipher references come later
 //!
+//! Implemented, milestone `05-transition-kernel`, the transition rules:
+//! - [`action`]      — the Action lifecycle and verification (N6, N10)
+//! - [`plan`]        — Plan identity and the generation fence (N5)
+//! - [`effect`]      — idempotency keys, effect requests, receipts, settlement
+//!
 //! Planned modules (none implemented yet):
 //! - `canon`       — Canon (compiled desired intent) domain types
 //! - `trait_`      — Trait (value, provenance, observation time, stability)
 //! - `id`          — NodeID, CanonID, PlanID, ActionID, EventID
-//! - `action`      — Action and its lifecycle
-//! - `plan`        — Plan (immutable compiled artifact, generation/fencing)
 //! - `event`       — Event and Event Log semantics
 #![no_std]
 // Core purity (ADR 0016, `crates/core/PURITY.toml`): a panic is not an
@@ -33,10 +36,13 @@
 
 extern crate alloc;
 
+pub mod action;
 pub mod assessment;
 pub mod cipher;
 pub mod condition;
+pub mod effect;
 pub mod observation;
+pub mod plan;
 pub mod resource;
 
 #[cfg(kani)]
