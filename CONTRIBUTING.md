@@ -10,6 +10,7 @@ Read these, in order:
 2. [Project specification](docs/PROJECT-SPEC.md): the model, the vocabulary, and safety invariants N1–N12.
 3. [Architecture](docs/architecture/): how the code is organized.
 4. [Architecture decision record (ADR) 0000](docs/adr/0000-foundations.md): the hexagonal layout, the dependency rule, and the pinned toolchain.
+5. [Research](docs/research/): what has been questioned, what was corrected, and which experiments come next.
 
 For anything bigger than a small fix, open an issue first. Agreeing on the design is cheaper than rewriting the code.
 
@@ -50,6 +51,8 @@ flowchart LR
 - **Typed operations, not shell.** Substrate uses native interfaces such as D-Bus and syscalls. Arbitrary command execution is not a reconciliation primitive.
 - **No secret plaintext.** Cipher values never appear in Events, Plans, Trace output, errors, or logs.
 - **Deterministic by default.** Nothing that feeds compilation or planning depends on iteration order, hash seeds, or wall-clock time.
+- **Tooling is Rust.** Checks, generators, and reproducers live in `crates/bin/nomos-xtask` and run as `cargo xtask <command>` ([ADR 0003](docs/adr/0003-xtask-tooling-crate.md)), not in scripts.
+- **Specifications are protected.** A check that passes because its specification was weakened proves nothing. Loosened postconditions, added assumptions, ignored tests, and code moved out of a verifier's view are trust-boundary changes: keep them in their own commit and say what they weaken.
 
 ## Documentation
 

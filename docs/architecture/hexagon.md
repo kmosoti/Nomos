@@ -7,6 +7,7 @@ flowchart TB
     subgraph bin["bin/ · driving adapters &amp; composition roots"]
         cell["nomos-cell"]
         loom["nomos-loom"]
+        xtask["nomos-xtask<br/>tooling, no workspace edges"]
     end
     subgraph app["app/ · use cases"]
         napp["nomos-app"]
@@ -52,7 +53,7 @@ Solid arrows are Cargo dependencies. Dotted arrows mean "implements". Every arro
 | Driven ports | `crates/ports/` | `nomos-substrate`, `nomos-store`, `nomos-cipher`, `nomos-mesh`, `nomos-protocol` |
 | Application | `crates/app/` | `nomos-app` |
 | Driven adapters | `crates/adapters/` | `nomos-substrate-linux`, `nomos-substrate-mock`, `nomos-cipher-vault`, `nomos-mesh-headscale` |
-| Driving adapters and composition roots | `crates/bin/` | `nomos-cell`, `nomos-loom` |
+| Driving adapters and composition roots | `crates/bin/` | `nomos-cell`, `nomos-loom`, and the tooling crate `nomos-xtask` ([ADR 0003](../adr/0003-xtask-tooling-crate.md)) |
 
 ## Dependency Rule
 
@@ -64,6 +65,7 @@ Dependencies point inward. [ADR 0000](../adr/0000-foundations.md) records the de
 4. `nomos-app` depends on the domain and the ports, **never on adapters**.
 5. An adapter depends on `nomos-core` and on **exactly one port**, the one it implements.
 6. Only the binaries in `crates/bin/` depend on adapters. They are the only place concrete adapters meet ports.
+7. `nomos-xtask` depends on no workspace crate and nothing depends on it. It is invoked as `cargo xtask` and never linked.
 
 ## Ports and Their Adapters
 

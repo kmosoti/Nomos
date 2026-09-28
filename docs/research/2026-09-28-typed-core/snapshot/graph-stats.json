@@ -1,0 +1,15 @@
+{
+  "source": 37,
+  "concept": 18,
+  "finding": 26,
+  "recommendation": 26,
+  "experiment": 21,
+  "open_question": 14,
+  "research_direction": 6,
+  "correction": 6,
+  "counterexample": 7,
+  "adr_candidate": 8,
+  "nodes": 169,
+  "edges": 348,
+  "records": 518
+}

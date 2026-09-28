@@ -1,0 +1,81 @@
+{
+  "kind": "local_reproduction_report",
+  "scope": "Seven small deterministic models, not a Rust build, TLA+ check, or Linux test.",
+  "results": [
+    {
+      "id": "final-check",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "final_value": 1,
+        "reported": "NonConvergent(bound)"
+      },
+      "expected_contract": "Reassess after the final permitted execution."
+    },
+    {
+      "id": "activation-missing",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "draft_ready": true,
+        "changed": false
+      },
+      "expected_contract": "An on_change gate requires a relevant verified change."
+    },
+    {
+      "id": "fence-race",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "accepted_at_effect": 52,
+        "old_effect_fence": 51
+      },
+      "expected_contract": "Effect admission must close the check-to-use gap or block conflicting supersession."
+    },
+    {
+      "id": "dedup-scope",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "file": "drifted",
+        "apply_again": false
+      },
+      "expected_contract": "Deduplicate one execution, not all future repairs of the same semantic action."
+    },
+    {
+      "id": "lost-refresh",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "disk_revision": "v2",
+        "loaded_revision": "v1",
+        "next_run_trigger": false
+      },
+      "expected_contract": "Persist refresh intent or observe the loaded revision explicitly."
+    },
+    {
+      "id": "partial-assessment",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "inputs": [
+          "false",
+          "unknown"
+        ],
+        "conjunction": "false"
+      },
+      "expected_contract": "Preserve per-condition findings; unknown does not erase an independent known mismatch."
+    },
+    {
+      "id": "budget-not-world",
+      "status": "counterexample_reproduced",
+      "scope": "small deterministic Python model of draft semantics, not Nomos implementation",
+      "observed": {
+        "budget": 1,
+        "reserved": 1,
+        "actual_unavailable": 2
+      },
+      "expected_contract": "Guarantee admission safety under explicit assumptions, not unconditional availability of reality."
+    }
+  ]
+}

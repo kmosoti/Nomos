@@ -10,13 +10,15 @@ $$
 
 **N7.** $e \in L_t \Rightarrow \forall t' > t:\ L_{t'}[\mathrm{pos}(e)] = e$.
 
-## State as a Fold
+## Control State as a Fold
 
 $$
-\mathrm{State}_t = \mathrm{fold}(\mathrm{apply}, \mathrm{State}_0, L_t)
+\mathrm{Control}_t = \mathrm{fold}(\mathrm{apply}, \mathrm{Control}_0, L_t)
 $$
 
-Materialized state is a cache of this fold. It must be reproducible by replaying from $\mathrm{State}_0$, or from a checkpoint $c$ with $\mathrm{State}_c$ stored. Crash tests check that the cached and replayed states agree.
+Materialized control state is a cache of this fold. It must be reproducible by replaying from $\mathrm{Control}_0$, or from a checkpoint $c$ with $\mathrm{Control}_c$ stored. Crash tests check that the cached and replayed states agree.
+
+$\mathrm{Control}_t$ is what the Cell and Loom *knew*: which Plans exist, where each Action is in its lifecycle, which sequence numbers were acknowledged. It is not host state. An administrator who edits a file by hand creates no Event, so no replay can establish that Substrate satisfies Canon. Recovery therefore replays $L$ to restore what the Cell knew, then observes the host again before it plans anything (spec §49).
 
 ## Ordering
 
@@ -53,6 +55,8 @@ flowchart LR
 
 The Cell's spool uploads in `seq` order. Loom acknowledges the highest contiguous `seq` it has persisted, and the Cell advances its checkpoint to that value. Loom deduplicates re-uploads by $(w, \mathrm{seq}_w)$, so replaying the spool after a crash is safe.
 
+*Persisted* means committed under the Store port's durability contract, not buffered in memory. An acknowledgment sent before the commit is the one path by which this design loses data without noticing.
+
 ## Integrity (Later Mode)
 
 v0 guarantees append-only behavior through the API. It does not guarantee tamper evidence. A later mode adds a hash chain:
@@ -61,4 +65,11 @@ $$
 H_0 = H(\text{genesis}), \qquad H_n = H(H_{n-1} \mathbin{\Vert} \mathrm{enc}(e_n))
 $$
 
-Altering any $e_i$ changes every $H_j$ for $j \ge i$. Signed checkpoints over $H_n$, or Merkle trees for inclusion proofs, would then make history externally verifiable (spec §28).
+Altering any $e_i$ changes every $H_j$ for $j \ge i$. Signed checkpoints over $H_n$, or Merkle trees for inclusion proofs, would then make history externally verifiable (spec §28). A chain alone does not expose a rewritten prefix to a reader who only ever saw the rewritten version; that needs checkpoints retained outside the writer's control.
+
+## Known Gaps
+
+Identified by the 2026-09-28 research snapshot ([evaluation](../research/2026-09-28-typed-core/README.md)). Both belong to Phase 2 and ADR candidate `event-history`.
+
+- **Decision before effect.** A crash between an operating-system effect and its Event leaves started work with no record. The proposal is an outbox: the decision Event and the dispatch intent are appended in one transaction *before* the effect, and the terminal Event follows it. A local database transaction cannot include a Linux mutation, so the outbox records intent, and recovery treats an intent without a terminal Event as an unknown outcome (N10). Experiment `event-crash-replay`.
+- **Retention and pressure.** Append-only is a logical property of $L$. Whether an acknowledged spool entry may ever be deleted, who owns archival, and what happens when the disk is full are undecided. One rule is fixed now: a full disk fails mutation admission closed, because an Action whose Event cannot be written is an Action whose outcome would be lost. Spec §31 covers backpressure. Same experiment.

@@ -1,0 +1,388 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:moiric:nomos:research:record-schema:1.0.0",
+  "title": "Nomos research graph NDJSON record",
+  "description": "Validate each line separately. Cross-record constraints require validate_graph.py.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "record_type",
+        "id",
+        "schema_version",
+        "title",
+        "as_of",
+        "timezone",
+        "requested_at",
+        "repository",
+        "scope",
+        "format",
+        "weight_policy",
+        "epistemic_policy",
+        "mutation_policy",
+        "validation_scope",
+        "limitations",
+        "counts"
+      ],
+      "properties": {
+        "record_type": {
+          "const": "metadata"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "weight_policy": {
+          "type": "object"
+        },
+        "epistemic_policy": {
+          "type": "object"
+        },
+        "counts": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_type",
+        "id",
+        "node_kind",
+        "title",
+        "statement",
+        "weights",
+        "epistemic",
+        "source_ids",
+        "details",
+        "as_of",
+        "revision"
+      ],
+      "properties": {
+        "record_type": {
+          "const": "node"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_kind": {
+          "enum": [
+            "adr_candidate",
+            "concept",
+            "correction",
+            "counterexample",
+            "experiment",
+            "finding",
+            "open_question",
+            "recommendation",
+            "research_direction",
+            "source"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "importance",
+            "salience",
+            "rationale",
+            "context"
+          ],
+          "properties": {
+            "importance": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "salience": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1
+            },
+            "context": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "epistemic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "basis",
+            "evidence_strength",
+            "uncertainty"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "minLength": 1
+            },
+            "basis": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence_strength": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uncertainty": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "details": {
+          "type": "object"
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "source"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "url",
+                  "source_type",
+                  "locator",
+                  "retrieved_on",
+                  "read_depth",
+                  "limitations"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "recommendation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "disposition",
+                  "phase",
+                  "constraints",
+                  "acceptance_criteria",
+                  "experiment_ids",
+                  "proposed_repo_paths",
+                  "decision_status"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "experiment"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "hypothesis",
+                  "rival_hypothesis",
+                  "procedure",
+                  "measurements",
+                  "decision_rule",
+                  "execution_status",
+                  "results"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "counterexample"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "reproducer",
+                  "result_file",
+                  "test_id",
+                  "observed",
+                  "scope",
+                  "execution_status"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "open_question"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "recommendation_ids",
+                  "closure_rule"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "node_kind": {
+                "const": "adr_candidate"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "required": [
+                  "status",
+                  "recommendation_ids",
+                  "target_directory",
+                  "required_sections"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_type",
+        "id",
+        "from",
+        "relation",
+        "to",
+        "semantic_weight",
+        "rationale",
+        "evidence_ids",
+        "assertion_basis",
+        "as_of",
+        "revision"
+      ],
+      "properties": {
+        "record_type": {
+          "const": "edge"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation": {
+          "enum": [
+            "addresses",
+            "applies_to",
+            "depends_on",
+            "documents",
+            "informs",
+            "motivates",
+            "record_in",
+            "resolved_by",
+            "supports",
+            "tested_by"
+          ]
+        },
+        "semantic_weight": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "assertion_basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  ]
+}
