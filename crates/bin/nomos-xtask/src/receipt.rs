@@ -387,6 +387,9 @@ pub(crate) struct Context {
     pub(crate) properties: Vec<String>,
     /// What the result does not cover.
     pub(crate) unchecked: String,
+    /// The receipt file being appended to, left out of the dirty check so
+    /// that the first receipt of a session does not dirty the tree for the rest.
+    pub(crate) out: Option<PathBuf>,
 }
 
 /// Runs the command and returns the receipt line, without writing it.
@@ -413,9 +416,15 @@ pub(crate) fn record(ctx: &Context) -> Result<Value, String> {
         .split_first()
         .ok_or("a command is required after --")?;
     let commit = git(&ctx.root, &["rev-parse", "HEAD"])?.trim().to_owned();
-    let dirty = !git(&ctx.root, &["status", "--porcelain"])?
-        .trim()
-        .is_empty();
+    let mut status = vec!["status", "--porcelain", "--"];
+    let exclude = ctx.out.as_ref().map(|out| {
+        let rel = out.strip_prefix(&ctx.root).unwrap_or(out);
+        format!(":(exclude){}", rel.display())
+    });
+    if let Some(exclude) = &exclude {
+        status.push(exclude);
+    }
+    let dirty = !git(&ctx.root, &status)?.trim().is_empty();
     let toolchain: toml::Table = toml::from_str(
         &std::fs::read_to_string(ctx.root.join("rust-toolchain.toml"))
             .map_err(|e| format!("rust-toolchain.toml: {e}"))?,

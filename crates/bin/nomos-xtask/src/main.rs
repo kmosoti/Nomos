@@ -286,6 +286,7 @@ fn receipts_record(check_id: &str, rest: &[&str]) -> Result<(), String> {
         argv: argv.iter().map(|w| (*w).to_owned()).collect(),
         properties,
         unchecked,
+        out: Some(out.clone()),
     })?;
     let rendered = serde_json::to_string(&line).map_err(|e| e.to_string())? + "\n";
     let mut existing = std::fs::read_to_string(&out).unwrap_or_default();
