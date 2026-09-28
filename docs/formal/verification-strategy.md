@@ -16,7 +16,7 @@ A TLA+ model proves nothing about Linux. A property test proves nothing about th
 
 ## The Ladder
 
-Twelve layers. Each lists what a pass establishes, what it does not, and where it runs. A layer is adopted when there is something to ask it (ADR 0007 §6); layers 9 to 12 are not yet.
+Twelve layers. Each lists what a pass establishes, what it does not, and where it runs. A layer is adopted when there is something to ask it (ADR 0007 §6); layer 12 is not yet.
 
 | # | Layer | Establishes | Does not establish | Runs |
 | --- | --- | --- | --- | --- |
@@ -28,8 +28,8 @@ Twelve layers. Each lists what a pass establishes, what it does not, and where i
 | 6 | Property tests | An algebraic law holds on the generated inputs, with the seed recorded | Inputs the generator cannot produce; the law's own correctness | Required, from the seed bank in each crate's `tests/laws.rs` |
 | 7 | Metamorphic and differential tests | Related inputs yield related outputs; two independent formulations agree on generated inputs | An output both formulations get wrong; anything outside the generators' coverage, which the record states | Required; the first relations run in `03-assessment-kernel` |
 | 8 | Semantic mutants and mutation calibration | A named wrong behavior is caught by a named test; syntactic mutants are classified by a person | Correctness. Mutation testing does not prove semantics; it measures whether the tests would notice a wrong implementation, and only the mutants it generated | Semantic mutants required; `cargo-mutants` scheduled |
-| 9 | Deterministic simulation | Under scripted delays, crashes, duplicates, and supersession, the kernel's decisions satisfy the stated properties | Real timing, real crashes | Not adopted; `05-transition-kernel` |
-| 10 | Executable formal models: TLA+ with the TLC model checker | The modeled transitions cannot reach a violating state within the bounds | Anything outside the bounds; that the model matches the Rust, which trace replay checks; anything about Linux | Not adopted; `05-transition-kernel` |
+| 9 | Deterministic simulation | Under scripted delays, crashes, duplicates, and supersession, the kernel's decisions satisfy the stated properties | Real timing, real crashes | Adopted in `05-transition-kernel`: `crates/bin/nomos-cell/tests/`, required, with the generated interleavings seeded |
+| 10 | Executable formal models: TLA+ with the TLC model checker | The modeled transitions cannot reach a violating state within the bounds | Anything outside the bounds; that the model matches the Rust, which trace replay checks; anything about Linux | Adopted in `05-transition-kernel`: TLC run by hand and recorded under check `tlc`, not in CI; the traces are fixtures, and their replay is required |
 | 11 | Bounded verifiers: Kani harnesses with cover checks | The harnessed predicate holds for every input within the harness's bounds, and the harness is not vacuous | Predicates not harnessed; assumptions the harness states; anything about the callers | Adopted in `03-assessment-kernel` (ADR 0015 note); run by hand and recorded, not yet in CI |
 | 12 | Environment conformance: port suites on Linux, failure injection | An adapter honors its port's observable contract on the tested host | Hosts, kernels, and daemons not tested | Not adopted; `07-substrate-conformance` |
 

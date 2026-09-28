@@ -85,6 +85,8 @@ Milestone `05-transition-kernel` needs answers to four items under *Not Decided 
 
 The kernel's Canon input is the part of a compiled Canon the kernel reads: for each managed resource its Condition, its operation (replace a file, or refresh a service), its conflict keys, and the nodes its Action would disrupt, plus the edges. The artifact form of that input is `06-canon-artifact`'s.
 
+**Evidence.** §3's requirement that replaying a recorded input sequence reproduces the decisions: the simulator checks after every step that the snapshot equals the replay of the Event Log, and the production driver and the simulator record the same Events for the same run (`crates/bin/nomos-cell/tests/driver.rs`). The records are [refresh-recovery](../research/2026-09-28-typed-core/results/refresh-recovery.md) and [kernel-conformance](../research/2026-09-28-typed-core/results/kernel-conformance.md).
+
 ## Consequences
 
 - Spec §9 is amended in the same change. The mock backend is a first-class backend of the same semantics, as spec §9 already claimed and can now mean.

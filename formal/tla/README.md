@@ -18,6 +18,8 @@ Run a model with the TLA+ model checker (TLC) 1.7.4, from `tla2tools.jar` whose 
 java -cp tla2tools.jar tlc2.TLC -config RefreshRecovery.cfg RefreshRecovery.tla
 ```
 
+Results, with every run's bounds and state counts, the traces replayed through the kernel, and what the replay does not establish: [kernel-conformance](../../docs/research/2026-09-28-typed-core/results/kernel-conformance.md). The traces are fixtures under [`tests/fixtures/tla/`](../../tests/fixtures/tla/README.md).
+
 ## What a Model Result Is
 
 A run of the TLA+ model checker (TLC) establishes that, within the stated bounds on Actions, generations, and interleavings, no reachable state of the model violates the checked property. It is a result about **specification correctness**: the transitions as written are consistent with the invariant. It says nothing about the Rust until the model's counterexample traces are replayed through `step` and the kernel's decisions agree on every modeled transition, which is the `kernel-conformance` experiment. It says nothing about Linux at all. The [verification matrix](../../docs/formal/verification-matrix.md) records a model result in its own column, never as an implementation or environment result, and never as a proof.

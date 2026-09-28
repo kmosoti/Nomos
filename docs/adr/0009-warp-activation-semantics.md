@@ -79,6 +79,8 @@ Milestone `05-transition-kernel` implements §4 and §5 as these working definit
 
 The TLA+ model `RefreshRecovery` checks the four properties the grounding plan names over one write, its refresh, a conflicting Action, crashes, and superseding authority, with three negative controls: no Obligation, a reservation released at timeout, and an Obligation discharged at dispatch. The last one loses the refresh when a superseding Plan arrives after the refresh was dispatched and before it ran, which is why discharge waits for verification.
 
+**Evidence.** The second acceptance criterion ran: [refresh-recovery](../research/2026-09-28-typed-core/results/refresh-recovery.md) loses no declared Obligation at any of 22 crash points, while the transient design loses six refreshes and the harness sees each; [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md) finds no conflicting overlap and no budget oversubscription across 256 generated interleavings with crashes, loss, duplication, and supersession. Both criteria are now met by records. The ADR stays Proposed until the project owner accepts it.
+
 ## Consequences
 
 - Spec §62's edge-semantics question closes when this ADR is accepted.
