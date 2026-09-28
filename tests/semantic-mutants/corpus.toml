@@ -1,8 +1,9 @@
 # Semantic-mutant corpus. Format and meaning in README.md; run with
 # `cargo xtask mutants semantic`. A mutant becomes active, with a patch under
 # patches/, in the milestone that lands its kernel, and the named test must
-# fail against it before the milestone is complete. The Assessment and Warp
-# Kernels' eight are active; the Transition Kernel's three are planned.
+# fail against it before the milestone is complete. Every mutant here is
+# active: the Assessment, Warp, and Transition Kernels' and the Canon
+# artifact's (`06-canon-artifact`).
 
 [[mutant]]
 id = "SM-ASSESS-001"
@@ -172,4 +173,74 @@ wrong_behavior = "an owed vertex whose on_change group is Disabled is Skipped"
 crate = "nomos-warp"
 patch = "patches/SM-WARP-006.diff"
 test = "frontier::tests::an_owed_refresh_runs_when_its_group_is_disabled"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-001"
+property = "N12"
+threat = "a Canon the validator would reject is accepted, from source or from an artifact"
+wrong_behavior = "the validator accepts a relation whose end names no resource"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-001.diff"
+test = "no_path_accepts_a_malformed_canon"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-002"
+property = "N12"
+threat = "an artifact with a mutating kind the reader does not know is executed without it"
+wrong_behavior = "the decoder skips a resource of an unknown kind, for forward compatibility, instead of refusing the artifact"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-002.diff"
+test = "every_reader_does_what_the_matrix_says"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-003"
+property = "N12"
+threat = "a migration silently changes executable intent"
+wrong_behavior = "the schema-1 migration gives every file a conflict key schema 1 never stated"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-003.diff"
+test = "migration_preserves_meaning_and_identity"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-004"
+property = "N12"
+threat = "two Canons that mean different things share an encoding and an identity"
+wrong_behavior = "the encoding writes an after relation as requires"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-004.diff"
+test = "semantically_different_canons_keep_distinct_identities"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-005"
+property = "N12"
+threat = "one Canon is carried by more than one byte string, so equal Canons can have different artifacts"
+wrong_behavior = "the decoder accepts an artifact that does not re-encode to its own bytes, such as one listing a key twice"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-005.diff"
+test = "adversarial_cbor_is_rejected"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-006"
+property = "N12"
+threat = "an identity computed under one profile is taken for the other's"
+wrong_behavior = "the CanonID preimage omits the profile's domain tag"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-006.diff"
+test = "the_profiles_have_separate_identities"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-007"
+property = "N12"
+threat = "the kernel executes a different Canon from the artifact it accepted"
+wrong_behavior = "the conversion from the decoded Canon to the kernel's writes an on_change relation as an after edge"
+crate = "nomos-cell"
+patch = "patches/SM-CANON-007.diff"
+test = "a_decoded_artifact_converges_on_the_host"
 status = "active"

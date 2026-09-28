@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
+--- a/crates/core/nomos-canon/src/artifact.rs
++++ b/crates/core/nomos-canon/src/artifact.rs
+@@ -484,7 +484,7 @@
+                 state: f.text("state")?,
+                 digest: f.optional_text("digest")?,
+             },
+-            keys: Vec::new(),
++            keys: alloc::vec![String::from("migrated")],
+             disrupts: Vec::new(),
+         });
+     }

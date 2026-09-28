@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
+--- a/crates/core/nomos-canon/src/artifact.rs
++++ b/crates/core/nomos-canon/src/artifact.rs
+@@ -311,7 +311,7 @@
+ 
+ fn id(profile: Profile, schema: u64, bytes: &[u8]) -> CanonId {
+     let mut h = sha256::Sha256::new();
+-    h.update(profile.tag());
++    let _ = profile;
+     h.update(&[0]);
+     h.update(&schema.to_be_bytes());
+     h.update(bytes);

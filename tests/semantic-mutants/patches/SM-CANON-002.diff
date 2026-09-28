@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
+--- a/crates/core/nomos-canon/src/artifact.rs
++++ b/crates/core/nomos-canon/src/artifact.rs
+@@ -443,7 +443,7 @@
+         let kind = s.text("kind")?;
+         match kind_of(&kind) {
+             Some(k) if reader.kinds.contains(&k) => {}
+-            _ => return Err(DecodeError::UnsupportedKind { resource: i }),
++            _ => continue,
+         }
+         resources.push(RawResource {
+             path: f.text("path")?,

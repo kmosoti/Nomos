@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/model.rs b/crates/core/nomos-canon/src/model.rs
+--- a/crates/core/nomos-canon/src/model.rs
++++ b/crates/core/nomos-canon/src/model.rs
+@@ -188,7 +188,7 @@
+     pub fn as_str(&self) -> &'static str {
+         match self {
+             RelationKind::Requires => "requires",
+-            RelationKind::After => "after",
++            RelationKind::After => "requires",
+             RelationKind::OnChange => "on_change",
+         }
+     }

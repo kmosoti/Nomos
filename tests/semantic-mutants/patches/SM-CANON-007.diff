@@ -1,0 +1,12 @@
+diff --git a/crates/app/nomos-app/src/kernel/artifact.rs b/crates/app/nomos-app/src/kernel/artifact.rs
+--- a/crates/app/nomos-app/src/kernel/artifact.rs
++++ b/crates/app/nomos-app/src/kernel/artifact.rs
+@@ -70,7 +70,7 @@
+                 let kind = match rel.kind() {
+                     RelationKind::Requires => EdgeKind::Requires,
+                     RelationKind::After => EdgeKind::After,
+-                    RelationKind::OnChange => EdgeKind::OnChange,
++                    RelationKind::OnChange => EdgeKind::After,
+                 };
+                 Edge::new(rel.source().clone(), rel.target().clone(), kind)
+             })
