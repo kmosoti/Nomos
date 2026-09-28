@@ -96,7 +96,6 @@ fn progress() -> impl Strategy<Value = Progress> {
         3 => Just(Progress::Pending),
         1 => Just(Progress::Running),
         3 => outcome().prop_map(Progress::Done),
-        1 => Just(Progress::Skipped),
     ]
 }
 
@@ -186,7 +185,7 @@ fn reference_frontier(
             {
                 Progress::Pending | Progress::Running => S::Open,
                 Progress::Done(Outcome::Succeeded { changed: true }) => S::Changed,
-                Progress::Done(Outcome::Succeeded { changed: false }) | Progress::Skipped => S::Met,
+                Progress::Done(Outcome::Succeeded { changed: false }) => S::Met,
                 Progress::Done(_) => S::EndedOtherwise,
             },
         };
@@ -220,12 +219,16 @@ fn reference_frontier(
                 .filter(|e| e.kind() == EdgeKind::OnChange)
                 .map(src)
                 .collect();
-            let blocked = requires.contains(&S::EndedOtherwise);
+            // warp.md: a `requires` edge or an `on_change` group whose source is
+            // not met is Blocked; the group is checked before Waiting.
+            let blocked =
+                requires.contains(&S::EndedOtherwise) || group.contains(&S::EndedOtherwise);
             let waiting = requires
                 .iter()
                 .chain(&after)
                 .chain(&group)
                 .any(|s| *s == S::Open);
+            // Reached only when every group source is met: Disabled when none changed.
             let disabled = !group.is_empty() && !group.contains(&S::Changed);
             let res = if blocked {
                 Resolution::Blocked
@@ -332,8 +335,10 @@ fn compilation_and_frontier_are_invariant_under_input_permutation() {
 }
 
 /// Law 3 (N4, differential): the frontier agrees with the reference on
-/// every pending vertex, and a Ready vertex has every `requires` source
-/// Succeeded or Skipped.
+/// every pending vertex, and a vertex resolved Ready or Skipped has every
+/// `requires` and `on_change` source met: Succeeded or Skipped. A Skipped
+/// vertex is met to its own dependents, so a failed or unknown trigger must
+/// never produce one (ADR 0009 §1).
 #[test]
 fn the_frontier_agrees_with_the_reference() {
     runner(SEEDS[2])
@@ -356,10 +361,15 @@ fn the_frontier_agrees_with_the_reference() {
                     "ready is in topological order"
                 );
             }
-            for r in f.ready() {
+            let settled_well = f
+                .resolutions()
+                .iter()
+                .filter(|(_, res)| matches!(res, Resolution::Ready | Resolution::Skipped))
+                .map(|(r, _)| r);
+            for r in settled_well {
                 for e in graph
                     .edges_into(r)
-                    .filter(|e| e.kind() == EdgeKind::Requires)
+                    .filter(|e| matches!(e.kind(), EdgeKind::Requires | EdgeKind::OnChange))
                 {
                     let source = graph.vertex(e.source()).unwrap();
                     let met = match source.kind() {
@@ -369,13 +379,14 @@ fn the_frontier_agrees_with_the_reference() {
                             matches!(
                                 progress.get(e.source()),
                                 Some(Progress::Done(Outcome::Succeeded { .. }))
-                                    | Some(Progress::Skipped)
                             ) || f.resolution(e.source()) == Some(Resolution::Skipped)
                         }
                     };
                     prop_assert!(
                         met,
-                        "N4: {r} is Ready with an unmet requirement {}",
+                        "{r} is {:?} with an unmet {:?} source {}",
+                        f.resolution(r),
+                        e.kind(),
                         e.source()
                     );
                 }
@@ -407,11 +418,8 @@ fn selection_is_mutually_exclusive_bounded_and_deterministic() {
                 };
                 let held: BTreeSet<ConflictKey> = held.into_iter().map(key).collect();
                 let ready = frontier(&graph, &progress);
-                let s = select(&graph, ready.ready(), &held, reserved, capacity);
-                prop_assert_eq!(
-                    &s,
-                    &select(&graph, ready.ready(), &held, reserved, capacity)
-                );
+                let s = select(&graph, &ready, &held, reserved, capacity);
+                prop_assert_eq!(&s, &select(&graph, &ready, &held, reserved, capacity));
                 prop_assert!(reserved + s.chosen().len() <= capacity.max(reserved));
                 let mut seen = held.clone();
                 for c in s.chosen() {
