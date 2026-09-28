@@ -38,6 +38,10 @@
 //! - `receipts record <check-id> --out <file> -- <command...>`: runs the
 //!   command, never through a shell, and appends a receipt written from what
 //!   happened. Exits non-zero when the command did.
+//! - `mutants semantic [--corpus <corpus.toml>]`: applies every active
+//!   semantic mutant of `tests/semantic-mutants/corpus.toml` to a scratch
+//!   copy of the workspace and runs its named test, which must fail. Prints
+//!   one line per mutant with its outcome.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -50,6 +54,7 @@ mod layers;
 mod manifest;
 mod purity;
 mod receipt;
+mod semantic;
 mod snapshot;
 mod strict_json;
 mod trust;
@@ -67,7 +72,8 @@ const USAGE: &str = "usage:
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
   cargo xtask check-trust-boundary --base <ref>
   cargo xtask receipts validate   [--dir <receipts-dir>]
-  cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>";
+  cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
+  cargo xtask mutants semantic    [--corpus <corpus.toml>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -81,6 +87,7 @@ fn main() -> ExitCode {
         ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
         ["receipts", "validate", rest @ ..] => receipts_validate(rest),
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
+        ["mutants", "semantic", rest @ ..] => mutants_semantic(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -292,6 +299,33 @@ fn receipts_record(check_id: &str, rest: &[&str]) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("{check_id}: recorded as {}", line["result"]))
+    }
+}
+
+fn mutants_semantic(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let corpus = option(rest, "--corpus")?
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join(semantic::CORPUS_PATH));
+    let report = semantic::run(&semantic::Options {
+        target_dir: root.join("target/semantic-mutants"),
+        root,
+        corpus,
+        offline: false,
+    })?;
+    let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    print!("{rendered}");
+    for row in report.rows() {
+        eprintln!("{row}");
+    }
+    let failures = report.failures();
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} active semantic mutant(s) not caught by their named test",
+            failures.len()
+        ))
     }
 }
 

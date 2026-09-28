@@ -1,0 +1,61 @@
+# Fixture corpus. Every outcome the runner can report appears once.
+
+[[mutant]]
+id = "SM-FIX-001"
+property = "N13"
+threat = "a failed Observation becomes a Variance"
+wrong_behavior = "assess returns Variance when the Observation is None"
+crate = "kernel"
+patch = "patches/SM-FIX-001.diff"
+test = "tests::a_failed_observation_is_indeterminate"
+status = "active"
+
+[[mutant]]
+id = "SM-FIX-002"
+property = "N13"
+threat = "Indeterminate Assessments are counted as Variances"
+wrong_behavior = "variances counts everything that is not Satisfied"
+crate = "kernel"
+patch = "patches/SM-FIX-002.diff"
+test = "tests::only_variances_are_counted"
+status = "active"
+
+[[mutant]]
+id = "SM-FIX-003"
+property = "N13"
+threat = "none; the patch does not compile"
+wrong_behavior = "a misspelled variant, which does not compile"
+crate = "kernel"
+patch = "patches/SM-FIX-003.diff"
+test = "tests::a_mismatch_is_a_variance"
+status = "active"
+
+[[mutant]]
+id = "SM-FIX-004"
+property = "N13"
+threat = "a failed Observation becomes a Variance"
+wrong_behavior = "as SM-FIX-001, but the named test does not exist"
+crate = "kernel"
+patch = "patches/SM-FIX-001.diff"
+test = "tests::no_such_test"
+status = "active"
+
+[[mutant]]
+id = "SM-FIX-005"
+property = "N13"
+threat = "a failed Observation becomes a Variance"
+wrong_behavior = "as SM-FIX-001, but the patch file is missing"
+crate = "kernel"
+patch = "patches/SM-FIX-005.diff"
+test = "tests::a_failed_observation_is_indeterminate"
+status = "active"
+
+[[mutant]]
+id = "SM-FIX-006"
+property = "N4"
+threat = "an Action runs before its dependency"
+wrong_behavior = "the frontier ignores requires edges"
+crate = "kernel"
+patch = "patches/SM-FIX-006.diff"
+test = "tests::frontier_respects_requires"
+status = "planned"

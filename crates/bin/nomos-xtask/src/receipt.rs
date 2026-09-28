@@ -357,7 +357,7 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
 
 /// Tests reported by `cargo test`: the sums of `N passed` and `N failed`
 /// over every `test result:` line. `None` when there is no such line.
-fn test_counts(stdout: &str) -> Option<(u64, u64)> {
+pub(crate) fn test_counts(stdout: &str) -> Option<(u64, u64)> {
     let mut found = false;
     let (mut passed, mut failed) = (0u64, 0u64);
     for line in stdout.lines().filter(|l| l.starts_with("test result:")) {

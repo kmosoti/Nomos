@@ -1,0 +1,5 @@
+# Semantic-mutant fixture: one kernel crate and a corpus whose mutants are
+# caught, survive, fail to compile, or name a missing test.
+[workspace]
+resolver = "3"
+members = ["crates/kernel"]
