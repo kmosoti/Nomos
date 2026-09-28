@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-core/src/assessment.rs b/crates/core/nomos-core/src/assessment.rs
+index 8d98321..55b51b9 100644
+--- a/crates/core/nomos-core/src/assessment.rs
++++ b/crates/core/nomos-core/src/assessment.rs
+@@ -183,6 +183,7 @@ impl Report {
+     pub fn variances(&self) -> impl Iterator<Item = (&Condition, &Variance)> {
+         self.entries.iter().filter_map(|(c, a)| match a {
+             Assessment::Variance(v) => Some((c, v)),
++            Assessment::Indeterminate(_) => Some((c, &Variance::Missing)),
+             _ => None,
+         })
+     }
