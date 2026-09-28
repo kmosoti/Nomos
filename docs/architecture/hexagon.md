@@ -67,6 +67,8 @@ Dependencies point inward. [ADR 0000](../adr/0000-foundations.md) records the de
 6. Only the binaries in `crates/bin/` depend on adapters. They are the only place concrete adapters meet ports.
 7. `nomos-xtask` depends on no workspace crate and nothing depends on it. It is invoked as `cargo xtask` and never linked.
 
+`cargo xtask check-layers` enforces rules 1 to 6 over both the declared and the resolved dependency graphs, and CI runs it. Nothing may depend on a `bin/` crate.
+
 ## Ownership
 
 Layers own semantics, not only code ([ADR 0006](../adr/0006-kernel-contract.md)). The table says who may decide what.

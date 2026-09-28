@@ -43,13 +43,9 @@ Five focused pull requests, in order. Each names its exit condition, and the exi
 
 ### PR 1: Align the Specification and Make the Gates Real
 
-Half of this landed with the revision of this plan: ADRs 0004 to 0006, the spec amendments, the corrected formal documents, and strict whole-snapshot verification shared by the CLI and the tests, with negative controls for a changed non-graph file, a missing manifest, an empty manifest, and an uncovered file. The rest:
+*Landed 2026-09-28.* ADRs 0004 to 0006, the spec amendments, the corrected formal documents, strict whole-snapshot verification shared by the CLI and the tests, `cargo xtask check-layers` over the declared and resolved graphs with fixture cases for direct, renamed, optional, target-specific, build, and dev dependencies, an adapter naming two ports, a dependency on a bin crate, and core depending on a port, plus one allowed workspace so the checker cannot pass by rejecting everything. `cargo xtask research frozen --base <ref>` is the Git comparison checksums cannot replace. CI runs `--locked`, `verify-all`, and `check-layers` on every push, and `frozen` on pull requests. Exceptions to the dependency rule are none; the mock adapter does not become a dev-dependency of `nomos-app`.
 
-- `cargo xtask check-layers`: the dependency checker over both the **declared** graph (catches a forbidden dependency even when its feature is off) and the **resolved** graph under each supported feature and target set (catches the paths that exist in real builds). Fixture workspaces under `tests/fixtures/layer-policy/` with direct, renamed, optional, target-specific, build, and dev dependencies that must be rejected, and one allowed workspace that must pass, so the checker cannot succeed by rejecting everything. Exceptions are explicit by package and dependency kind; there are none today, and the mock adapter does not become a dev-dependency of `nomos-app` because it is "only for testing".
-- `cargo xtask research frozen --base <ref>`: an existing snapshot directory has no modified, deleted, or added files relative to the base; a new snapshot directory is allowed. This is the Git comparison that matching checksums cannot replace.
-- CI: `--locked` on every dependency-resolving command; the two commands above in the required path; the required path stays small (snapshot verification, layer fixtures, formatting, Clippy, unit, property, and compile-fail tests). Mutation and broader property exploration run separately and report, they do not gate.
-
-Exit: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, and an allowed workspace passes.
+Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, and the allowed workspace passes. Still owed under PR 1: the `agent-proof-gate` fixtures and command, and mutation runs over `nomos-xtask` itself.
 
 ### PR 2: The Assessment Algebra
 

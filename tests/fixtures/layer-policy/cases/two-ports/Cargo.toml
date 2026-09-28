@@ -1,0 +1,12 @@
+# Adds a second port so the adapter can name two.
+[workspace]
+resolver = "3"
+members = [
+    "crates/core/fx-core",
+    "crates/core/fx-model",
+    "crates/ports/fx-port",
+    "crates/ports/fx-port2",
+    "crates/app/fx-app",
+    "crates/adapters/fx-adapter",
+    "crates/bin/fx-bin",
+]

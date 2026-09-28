@@ -1,0 +1,11 @@
+[package]
+name = "fx-adapter"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+fx-core = { path = "../../core/fx-core" }
+# Forbidden: an adapter implements exactly one port.
+fx-port = { path = "../../ports/fx-port" }
+fx-port2 = { path = "../../ports/fx-port2" }

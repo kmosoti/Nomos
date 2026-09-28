@@ -1,0 +1,10 @@
+[package]
+name = "fx-model"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+fx-core = { path = "../fx-core" }
+# Forbidden: core depends only on core.
+fx-port = { path = "../../ports/fx-port" }

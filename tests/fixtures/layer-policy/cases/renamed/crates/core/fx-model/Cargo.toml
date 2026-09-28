@@ -1,0 +1,10 @@
+[package]
+name = "fx-model"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+fx-core = { path = "../fx-core" }
+# Forbidden, and renamed so the manifest never says the package name.
+adapter = { package = "fx-adapter", path = "../../adapters/fx-adapter" }

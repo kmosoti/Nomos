@@ -35,7 +35,14 @@ cargo test   --workspace
 
 A change is complete only when all four pass.
 
-Development tooling runs as `cargo xtask <command>` (ADR 0003). `cargo xtask research verify docs/research/<snapshot>/snapshot` checks a research snapshot, and `cargo test --workspace` runs the same checks.
+Development tooling runs as `cargo xtask <command>` (ADR 0003). CI also runs, and so should you:
+
+```sh
+cargo xtask research verify-all docs/research   # every accepted snapshot: manifest, graph, schema
+cargo xtask check-layers                         # the dependency rule, declared and resolved graphs
+```
+
+`cargo test --workspace` runs the same checks as unit tests. Pull-request CI additionally runs `cargo xtask research frozen --base origin/<base>`: an accepted snapshot never changes.
 
 ## Layout
 

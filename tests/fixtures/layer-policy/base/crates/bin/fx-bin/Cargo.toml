@@ -1,0 +1,9 @@
+[package]
+name = "fx-bin"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+fx-app = { path = "../../app/fx-app" }
+fx-adapter = { path = "../../adapters/fx-adapter" }

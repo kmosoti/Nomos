@@ -24,7 +24,10 @@ Run these before opening a pull request. CI runs the same checks.
 cargo fmt    --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test   --workspace
+cargo xtask  check-layers
 ```
+
+`cargo xtask check-layers` is the dependency rule as a check, over the declared and resolved graphs ([ADR 0000](docs/adr/0000-foundations.md)). The fixtures it is tested against are under `tests/fixtures/layer-policy/`.
 
 ## Where Code Goes
 

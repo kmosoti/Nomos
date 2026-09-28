@@ -20,10 +20,11 @@ Each snapshot is one directory named by date and topic.
 Verify a snapshot before trusting it. The command checks the manifest, parses the graph strictly, runs the referential checks and negative controls, and validates every record against the snapshot's schema ([ADR 0003](../adr/0003-xtask-tooling-crate.md)):
 
 ```sh
-cargo xtask research verify docs/research/<snapshot>/snapshot
+cargo xtask research verify docs/research/<snapshot>/snapshot   # one snapshot, full report
+cargo xtask research verify-all docs/research                   # every snapshot, as CI runs it
 ```
 
-`cargo test --workspace` runs the same checks, so a snapshot that stops verifying fails the build.
+`cargo test --workspace` runs the same checks, so a snapshot that stops verifying fails the build. Pull-request CI also runs `cargo xtask research frozen --base origin/<base>`: a file added to, changed in, or removed from a snapshot that existed at the merge base fails, because matching checksums cannot tell an accepted manifest from a rewritten one. A new dated snapshot directory is allowed.
 
 The snapshot directories are excluded from the prose and Markdown linters. Their text is evidence, and editing evidence to satisfy a style rule would falsify the checksums.
 
