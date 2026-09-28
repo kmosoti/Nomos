@@ -6,7 +6,7 @@ Guidance for automated coding agents in this repository. It applies to any agent
 
 Nomos is a host-state convergence and fleet-control system for Linux, written in Rust. It compares desired state (Canon) with observed state, computes the Variance, plans Actions as a dependency graph (Warp), applies them through the OS boundary (Substrate), verifies the result, and records Events.
 
-The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next step is the Phase 0 grounding phase in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its experiments is such an ask, for the crates that experiment names.
+The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next step is milestone 1, an executable kernel contract, planned in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its pull requests or experiments is such an ask, for the crates it names.
 
 ## Source of Truth
 
@@ -53,7 +53,7 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 
 1. **Never break the dependency rule.** An adapter dependency in `app/`, `core/`, or `ports/` is always wrong.
 2. **New crates, new ports, and changes to the rule need an ADR** in `docs/adr/`, with the next number.
-3. **Use the spec's vocabulary exactly:** Canon, Trait, Cipher, Variance, Trace, Enforce, Event, Event Log. No synonyms.
+3. **Use the spec's vocabulary exactly:** Canon, Condition, Trait, Cipher, Observation, Assessment, Variance, Indeterminate, Obligation, Settled, Trace, Enforce, Event, Event Log. No synonyms.
 4. **Preserve invariants N1–N12** (spec §58). A change that touches one needs a test for it.
 5. **No shell execution in Substrate.** Use native APIs, for example systemd over D-Bus.
 6. **Never log, serialize, or embed Cipher plaintext.**

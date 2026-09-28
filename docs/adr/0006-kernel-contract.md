@@ -1,0 +1,69 @@
+# ADR 0006: The Kernel Is a Pure Transition Function and Owns Reconciliation Semantics
+
+- **Status.** Accepted
+- **Date.** 2026-09-28
+
+## Context
+
+Spec §9 put `observe`, `diff`, `plan`, `apply`, and `verify` on one driver trait that each backend implemented. Read literally, the mock backend and the Linux backend would each decide what satisfaction, Variance, and a valid Plan mean. Tests run against the mock; production runs against Linux. The mock would implement whatever interpretation makes the tests pass, and nothing would notice that Linux implements another.
+
+The research snapshot's `pure-kernel` recommendation asked for a deterministic transition kernel with explicit effects. The review of `main` at `013b9d0` made the ownership argument above and asked for one transition function that runs in production and in a deterministic simulator. The project owner set the next milestone as an executable kernel contract.
+
+## Decision
+
+### 1. Ownership by Layer
+
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| Core (`nomos-core`) | Conditions, evidence interpretation, Assessments, Obligations, transition rules | Filesystem access, clock reads, network access |
+| Canon (`nomos-canon`) | Construction, validation, normalization, Canonical IR encoding and decoding | Host mutation, undeclared host inspection |
+| Warp (`nomos-warp`) | Graph validation, activation, readiness, conflict-aware selection | Starting tasks, calling the operating system |
+| Application (`nomos-app`) | Running use cases, recording intent, invoking ports, feeding results back into the kernel | Linux- or Vault-specific detail |
+| Ports | Typed requests, Observations, effect receipts, durability contracts | Transport or OS-library types leaking through the interface |
+| Adapters | Obtaining evidence and performing concrete operations | A second implementation of assessment or planning |
+
+Resource-specific pure logic exists. Assessing a file Condition against a file Observation, or deciding what counts as settlement evidence for a systemd job, is resource-specific and lives in core, shared by the mock and Linux paths. An adapter returns an Observation or an effect receipt and has no channel through which to return an interpretation.
+
+### 2. The Kernel Is One Function
+
+$$
+\mathrm{step}(\mathit{KernelSnapshot},\ \mathit{Input}) = \mathit{Decision}
+$$
+
+A `KernelSnapshot` is the control state: the accepted Canonical IR, the Assessments so far, the Action lifecycle states, reservations, Obligations, and the effects not yet Settled. An `Input` is one thing that happened: an Observation arrived, an effect receipt arrived, a deadline passed, an authority presented a Plan, a recovery replayed the log. A `Decision` is the next snapshot, the Events to record, and the effect requests to issue. Clocks, deadlines, identifiers, capabilities, and policy enter as data in the snapshot or the input. The function performs no I/O and reads no ambient state.
+
+### 3. One Engine, Two Drivers
+
+The application layer drives `step` in production, interpreting effect requests through ports and feeding receipts back. The deterministic simulator drives the same `step` with scripted inputs: delayed receipts, duplicates, crashes modeled as dropped receipts, and superseding authority. There is no test build of the engine. Replaying a recorded input sequence reproduces the decisions exactly (invariant N12 extended to the kernel).
+
+### 4. Ports Carry Data, Not Behavior
+
+A port trait exposes typed requests and typed results. `nomos-substrate` exposes `observe` and `apply` as spec §9 now states. No port method returns an Assessment, a Plan, or a verdict.
+
+### 5. Where Cross-Layer Tests Live
+
+The workspace is virtual, so a test must belong to a package. Conformance suites that wire the application to adapters live at a composition boundary, `crates/bin/nomos-cell/tests/` first, or in a dedicated conformance crate if an ADR adds one. The root `tests/` directory holds fixtures as data that those targets load; Cargo does not discover Rust files placed there.
+
+### Assumptions
+
+- Every effect the kernel needs can be expressed as a typed request and answered with a typed receipt. An effect that needs a callback into the kernel mid-flight is a design smell to be resolved by splitting it, not by widening the port.
+- The control state fits in memory per Cell. Fleet state at Loom is Phase 3 and does not change this contract.
+
+### Alternatives
+
+- **Per-backend semantics** (the previous §9). Rejected, for the reason in the context.
+- **Shared semantics in a trait default implementation** that adapters may override. Rejected. An override is the same hole with a politer name.
+- **A separate simplified engine for tests.** Rejected. It tests the simplified engine.
+
+### Evidence
+
+Research recommendation `pure-kernel` and finding `single-controller` are arguments, not measurements. The milestone's pull requests 2 to 4 are the evidence this ADR is owed.
+
+## Consequences
+
+- Spec §9 is amended in the same change. The mock backend is a first-class backend of the same semantics, as spec §9 already claimed and can now mean.
+- `nomos-substrate` narrows to evidence and effects. The observe-only capability split for Trace (invariants, Architectural Leverage) applies to this narrower port.
+- Recovery is a replay of recorded inputs into `step`, followed by fresh Observations, matching [event-log.md](../formal/event-log.md).
+- **Verification.** Milestone 1 pull request 4: the transition kernel with a recovery simulator, the first executable TLA+ model of the same transitions, and replayable traces. Pull request 2 and 3 supply the assessment and Warp functions `step` calls.
+- **Failure behavior.** A kernel given an input it cannot interpret, for example a receipt for an unknown effect, records the fact as an Event and leaves the snapshot unchanged; it never guesses.
+- **Revisit trigger.** Reopen if an effect cannot be expressed without a callback, or if the simulator and production drivers diverge in a way the input model cannot capture.

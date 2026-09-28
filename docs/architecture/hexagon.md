@@ -67,11 +67,26 @@ Dependencies point inward. [ADR 0000](../adr/0000-foundations.md) records the de
 6. Only the binaries in `crates/bin/` depend on adapters. They are the only place concrete adapters meet ports.
 7. `nomos-xtask` depends on no workspace crate and nothing depends on it. It is invoked as `cargo xtask` and never linked.
 
+## Ownership
+
+Layers own semantics, not only code ([ADR 0006](../adr/0006-kernel-contract.md)). The table says who may decide what.
+
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| Core | Conditions, evidence interpretation, Assessments, Obligations, transition rules | Filesystem access, clock reads, network access |
+| Canon | Construction, validation, normalization, Canonical IR encoding and decoding | Host mutation, undeclared host inspection |
+| Warp | Graph validation, activation, readiness, conflict-aware selection | Starting tasks, calling the operating system |
+| Application | Running use cases, recording intent, invoking ports, feeding results back | Linux- or Vault-specific detail |
+| Ports | Typed requests, Observations, effect receipts, durability contracts | Transport or OS-library types leaking through |
+| Adapters | Obtaining evidence and performing concrete operations | A second implementation of assessment or planning |
+
+The kernel is one function, $\mathrm{step}(\mathit{KernelSnapshot}, \mathit{Input}) = \mathit{Decision}$, run by the application in production and by the deterministic simulator in tests. The mock backend supplies Observations and effect receipts to the same function Linux does; it never supplies an interpretation.
+
 ## Ports and Their Adapters
 
 | Port | Concept | Adapters |
 | --- | --- | --- |
-| `nomos-substrate` | Operating-system resource contract | `linux` (Debian reference), `mock` (deterministic, first-class) |
+| `nomos-substrate` | Operating-system evidence and effects: `observe` and `apply` | `linux` (Debian reference), `mock` (deterministic, first-class) |
 | `nomos-cipher` | Secret-reference resolution | `vault` (HashiCorp Vault) |
 | `nomos-mesh` | Control-network enrollment, identity, and reachability | `headscale` |
 | `nomos-store` | Event Log and materialized state | None yet; waiting on the persistence ablation |

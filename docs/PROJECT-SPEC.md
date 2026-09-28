@@ -145,16 +145,22 @@ systemd exposes units, jobs, state, and operations through its D-Bus object mode
 
 | Term | Definition |
 | --- | --- |
-| Canon | Declarative description of desired state |
+| Canon | Declarative description of desired state, authored in Rust and shipped as an inert Canonical IR |
+| Condition | A requirement Canon states about one resource |
 | Trait | Typed observation about a Cell or its environment |
 | Cipher | Reference to protected secret material |
-| Variance | Difference between desired and observed state |
-| Trace | Non-mutating evaluation of Variance |
+| Observation | Evidence about one resource: what was seen, by whom, when, and whether collection succeeded |
+| Assessment | The judgment of one Condition against its Observations: Satisfied, Variance, or Indeterminate |
+| Variance | Evidence-backed difference between a Condition and observed state |
+| Indeterminate | An Assessment whose evidence supports neither satisfaction nor Variance, with its reason |
+| Obligation | A follow-up effect a completed change requires and no Condition can observe, held durably until discharged |
+| Settled | The state of an effect whose outcome is known and which can cause no further change |
+| Trace | Non-mutating evaluation of Assessments |
 | Enforce | Reconciliation of observed state toward Canon |
 | Event | Immutable record of a meaningful transition |
 | Event Log | Append-only, ordered collection of Events |
 
-Alternative names are discarded on purpose. There is no "Pattern/Canon", "Flaw/Variance", "Audit/Trace", or "Weave/Enforce". One concept gets one name.
+Alternative names are discarded on purpose. There is no "Pattern/Canon", "Flaw/Variance", "Audit/Trace", or "Weave/Enforce", and no "Requirement/Condition", "Check/Assessment", "Unknown/Indeterminate", or "Quiesced/Settled". One concept gets one name. The six terms after the original eight were added by [ADR 0005](adr/0005-assessment-vocabulary.md).
 
 ## 4. Traits
 
@@ -259,39 +265,40 @@ Nomos does not become a secrets database.
 
 The central abstraction is a level-triggered reconciliation loop. Kubernetes controllers work this way. Nomos adopts the principle without the Kubernetes object model.
 
-For resource $r$:
+For the Condition $C_r$ on resource $r$:
 
 ```text
 O_r = observe(r)
-V_r = diff(D_r, O_r)
-if V_r = ∅: do nothing
-else:
-  A_r = plan(V_r)
-  apply(A_r)
-  verify(D_r, O'_r)
+A_r = assess(C_r, O_r)            # Satisfied | Variance | Indeterminate
+match A_r:
+  Satisfied     → nothing to plan for r
+  Variance      → plan, apply, verify
+  Indeterminate → report the reason; never plan a mutation from it
 ```
+
+An Indeterminate Assessment of one resource does not hide a Variance of another. The report keeps every Assessment.
+
+Convergence needs more than every Assessment Satisfied. A change can leave an Obligation, a follow-up effect no Condition can observe, and an effect that was started may not yet be Settled. Enforce is done only when every Assessment is Satisfied, every Obligation is discharged, and every relevant effect is Settled ([formal/reconciliation.md](formal/reconciliation.md)).
 
 What actually establishes success? A successful Action means *the intended postcondition was observed*. It does not mean *a command exited with status zero*. Everything else builds on this distinction.
 
 ## 9. Substrate Resource Contract
 
-Every managed resource implements roughly:
+A backend obtains evidence and performs operations. It does not interpret either ([ADR 0006](adr/0006-kernel-contract.md)). Every managed resource has a port shaped roughly like this:
 
 ```rust
-trait ResourceDriver {
-    type Spec;
-    type Observation;
-    type Variance;
+trait ResourceBackend {
+    type Condition;    // defined in core
+    type Observation;  // defined in core
 
-    async fn observe(&self, spec: &Self::Spec) -> Result<Self::Observation>;
-    fn diff(&self, desired: &Self::Spec, observed: &Self::Observation) -> Result<Self::Variance>;
-    fn plan(&self, variance: &Self::Variance) -> Result<Vec<Action>>;
-    async fn apply(&self, action: &Action) -> Result<ActionEffect>;
-    async fn verify(&self, desired: &Self::Spec) -> Result<Verification>;
+    async fn observe(&self, condition: &Self::Condition) -> Self::Observation;
+    async fn apply(&self, request: &EffectRequest) -> EffectReceipt;
 }
 ```
 
-Each driver is a black box behind this contract:
+Assessment, planning, and verification are core functions, shared by every backend: `assess(condition, observations)` yields Satisfied, Variance, or Indeterminate; `plan` turns Assessments and Obligations into Actions; `verify` is `assess` on a fresh Observation. The mock and the Linux backend therefore cannot disagree about what satisfaction means, because neither of them decides it.
+
+Each backend is a black box behind this contract:
 
 ```mermaid
 flowchart TB
@@ -300,7 +307,7 @@ flowchart TB
     RC --> B["Future BSD backend"]
 ```
 
-The mock backend is not scaffolding. It is a first-class backend for deterministic reconciliation tests.
+The mock backend is not scaffolding. It is a first-class backend for deterministic reconciliation tests, and it runs the same assessment and planning code as Linux.
 
 ## 10. Initial Substrate Resources
 
