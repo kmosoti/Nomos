@@ -54,3 +54,7 @@ what = "every bounded-verifier harness under cfg(kani) verifies with its cover c
 [checks.mutants-calibration]
 command = "cargo mutants"
 what = "cargo-mutants over a named target; results are classified by hand, not scored"
+
+[checks.tlc]
+command = "java -cp <jar> tlc2.TLC"
+what = "the TLA+ model checker on a model and configuration under formal/tla/; a result about the model within its bounds, never a proof of the Rust; a negative-control configuration must fail"
