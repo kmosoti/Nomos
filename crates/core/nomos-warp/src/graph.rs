@@ -636,6 +636,28 @@ mod tests {
         );
     }
 
+    // Found by mutation calibration (the warp-truth-table record): the key
+    // text and the error text could be replaced and no test noticed.
+    #[test]
+    fn keys_and_errors_say_what_they_are() {
+        use alloc::format;
+        let key = super::ConflictKey::new("file:/etc/hosts").unwrap();
+        assert_eq!(key.as_str(), "file:/etc/hosts");
+        assert!(super::ConflictKey::new("").is_none());
+        let duplicate = CompileError::DuplicateVertex(r("/a"));
+        assert!(format!("{duplicate}").contains("/a"));
+        let unknown = CompileError::UnknownResource {
+            edge: edge("/a", "/ghost", EdgeKind::Requires),
+            missing: r("/ghost"),
+        };
+        assert!(format!("{unknown}").contains("/ghost"));
+        let cycle = CompileError::Cycle {
+            witnesses: vec![vec![r("/a")]],
+            blocked: vec![],
+        };
+        assert!(format!("{cycle}").contains("1 cycle"));
+    }
+
     #[test]
     fn two_vertices_for_one_resource_are_rejected() {
         let err = Graph::compile(vec![action("/a"), Vertex::anchor(r("/a"))], vec![]).unwrap_err();
