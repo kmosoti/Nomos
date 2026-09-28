@@ -62,39 +62,16 @@ mod transition {
     //! Harnesses for the transition rules of milestone `05-transition-kernel`.
     //! Their result is recorded in the `kernel-conformance` result card.
 
-    use crate::action::{Failure, Signal, Stage, Verdict, Verified, advance, verify};
+    use crate::action::{Failure, Signal, Stage, Verdict, Verified, advance};
     use crate::assessment::{Reason, Variance};
-    use crate::condition::{Condition, Content, FileCondition};
     use crate::effect::{Receipt, Settlement};
     use crate::observation::Instant;
-    use crate::observation::{
-        Collection, CollectorId, FileEvidence, Observation, Provenance, Window,
-    };
     use crate::plan::{Fence, Generation, PlanId};
-    use crate::resource::ResourcePath;
 
-    /// A `Verified`, built the only way there is: through `verify`.
+    /// A `Verified` over an empty path, which allocates nothing; `verify`
+    /// itself is exercised by the unit tests and the assessment harnesses.
     fn verified() -> Option<Verified> {
-        let resource = ResourcePath::new("/a").ok()?;
-        let condition = Condition::file(
-            resource.clone(),
-            FileCondition::Present {
-                content: Content::Any,
-            },
-        );
-        let window = Window::new(Instant(0), Instant(0)).ok()?;
-        let present = Observation::file(
-            resource,
-            Collection::Collected(FileEvidence::Present {
-                digest: crate::resource::Digest::from_bytes([0; 32]),
-                size: 0,
-            }),
-            Provenance::new(CollectorId::new("k")?, window),
-        );
-        match verify(&condition, &[present], Instant(0)) {
-            Verdict::Holds(v) => Some(v),
-            _ => None,
-        }
+        Some(Verified::for_harness())
     }
 
     fn any_stage(verified: &Verified) -> Stage {

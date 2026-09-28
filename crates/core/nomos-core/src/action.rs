@@ -36,6 +36,17 @@ pub struct Verified {
 }
 
 impl Verified {
+    /// A `Verified` for the bounded-verifier harnesses, which quantify over
+    /// stages and need one without running `verify`. It exists only under
+    /// `cfg(kani)` and is never compiled into a build that runs.
+    #[cfg(kani)]
+    pub(crate) fn for_harness() -> Self {
+        Verified {
+            resource: ResourcePath::for_harness(),
+            since: Instant(0),
+        }
+    }
+
     /// The resource whose Condition held.
     pub fn resource(&self) -> &ResourcePath {
         &self.resource

@@ -76,6 +76,14 @@ impl ResourcePath {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// An unvalidated, empty path for the bounded-verifier harnesses: it
+    /// allocates nothing, which keeps the harnesses over enums that carry a
+    /// path tractable. It exists only under `cfg(kani)`.
+    #[cfg(kani)]
+    pub(crate) fn for_harness() -> Self {
+        ResourcePath(String::new())
+    }
 }
 
 impl fmt::Debug for ResourcePath {
