@@ -47,6 +47,10 @@ what = "every receipt is well formed and names an executed, registered check"
 command = "cargo xtask mutants semantic"
 what = "every active semantic mutant is caught by its named test"
 
+[checks.kani]
+command = "cargo kani"
+what = "every bounded-verifier harness under cfg(kani) verifies with its cover checks satisfied; needs cargo-kani installed"
+
 [checks.mutants-calibration]
 command = "cargo mutants"
 what = "cargo-mutants over a named target; results are classified by hand, not scored"
