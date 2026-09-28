@@ -26,6 +26,10 @@
 //!   policy of `crates/core/PURITY.toml` (ADR 0016) over the declared and
 //!   resolved graphs and the crate roots. Prints the report as JSON and one
 //!   `IMPURE` line per violation, with its stable code.
+//! - `check-trust-boundary --base <ref>`: every non-merge commit since the
+//!   merge base with `<ref>` declares the oracle it changes (ADR 0015), in a
+//!   `Trust-Boundary:` line, and adds no undeclared escape hatch. Prints one
+//!   `UNDECLARED` line per violation, with its stable code.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -39,6 +43,7 @@ mod manifest;
 mod purity;
 mod snapshot;
 mod strict_json;
+mod trust;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -50,7 +55,8 @@ const USAGE: &str = "usage:
   cargo xtask research reproduce  [--out <file>]
   cargo xtask research frozen     --base <ref>
   cargo xtask check-layers        [--manifest-path <Cargo.toml>]
-  cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]";
+  cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
+  cargo xtask check-trust-boundary --base <ref>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -61,6 +67,7 @@ fn main() -> ExitCode {
         ["research", "frozen", rest @ ..] => frozen(rest),
         ["check-layers", rest @ ..] => check_layers(rest),
         ["check-core-purity", rest @ ..] => check_core_purity(rest),
+        ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -185,6 +192,31 @@ fn check_core_purity(rest: &[&str]) -> Result<(), String> {
             "{} core purity violation(s); see {}",
             report.violations().len(),
             purity::POLICY_PATH
+        ))
+    }
+}
+
+fn check_trust_boundary(rest: &[&str]) -> Result<(), String> {
+    let base =
+        option(rest, "--base")?.ok_or_else(|| format!("--base <ref> is required\n{USAGE}"))?;
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let report = trust::check(&root, base)?;
+    let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    print!("{rendered}");
+    for violation in report.violations() {
+        eprintln!("UNDECLARED {violation}");
+    }
+    if report.violations().is_empty() {
+        println!(
+            "{} commit(s) since the merge base with {base} declare their trust-boundary changes",
+            report.commits_checked()
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "{} trust-boundary violation(s); see {}",
+            report.violations().len(),
+            trust::POLICY_PATH
         ))
     }
 }
