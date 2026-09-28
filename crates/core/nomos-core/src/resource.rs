@@ -203,6 +203,27 @@ mod tests {
         assert_eq!(alloc::format!("{d:?}"), alloc::format!("Digest({lower})"));
     }
 
+    // Found by mutation calibration (the assessment-algebra record): the
+    // Display and Debug forms could be emptied and no test noticed.
+    #[test]
+    fn display_forms_say_what_they_are() {
+        let path = ResourcePath::new("/etc/hosts").unwrap();
+        assert_eq!(alloc::format!("{path}"), "/etc/hosts");
+        assert_eq!(alloc::format!("{path:?}"), "ResourcePath(\"/etc/hosts\")");
+        for error in [
+            PathError::Empty,
+            PathError::Relative,
+            PathError::UnnormalizedComponent,
+            PathError::TrailingSeparator,
+            PathError::Nul,
+        ] {
+            assert!(alloc::format!("{error}").contains("path"), "{error:?}");
+        }
+        for error in [DigestError::Length, DigestError::NotHex] {
+            assert!(alloc::format!("{error}").contains("digest"), "{error:?}");
+        }
+    }
+
     #[test]
     fn malformed_digests_are_rejected_with_their_reason() {
         assert_eq!(Digest::from_hex("abc").unwrap_err(), DigestError::Length);

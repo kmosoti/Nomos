@@ -182,10 +182,9 @@ mod tests {
     fn a_window_never_ends_before_it_starts() {
         assert!(Window::new(Instant(5), Instant(5)).is_ok());
         assert!(Window::new(Instant(5), Instant(6)).is_ok());
-        assert_eq!(
-            Window::new(Instant(6), Instant(5)).unwrap_err(),
-            WindowError
-        );
+        let error = Window::new(Instant(6), Instant(5)).unwrap_err();
+        assert_eq!(error, WindowError);
+        assert!(alloc::format!("{error}").contains("window"));
     }
 
     #[test]
