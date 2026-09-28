@@ -16,6 +16,8 @@ These are written arguments, for humans. The machine-checked models of the contr
 
 Everything here is **draft v0.1**, derived from the [project specification](../PROJECT-SPEC.md). Anything marked *working definition* needs an ADR before it binds the implementation.
 
+The 2026-09-28 research snapshot reviewed these drafts and reproduced seven counterexamples against them. The corrections are in place. What remains open is in each document's Known Gaps section and is assigned to an experiment in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
+
 ## Notation
 
 | Symbol | Meaning |

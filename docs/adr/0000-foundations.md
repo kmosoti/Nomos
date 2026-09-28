@@ -49,7 +49,7 @@ A crate's layer is visible from its path. Every new crate belongs in exactly one
 5. An `adapters/` crate depends on `core/` and on exactly the one port it implements.
 6. Only `bin/` crates depend on `adapters/`. They are the only place adapters are wired to ports.
 
-The `Cargo.toml` manifests encode these edges, so the build enforces them.
+The `Cargo.toml` manifests encode these edges. The build checks the edges that exist; it does not check that a new edge is allowed (amended 2026-09-28, see Consequences).
 
 ### 4. Rust Is Pinned to 1.98.1
 
@@ -66,3 +66,4 @@ Upgrades are deliberate: one change updates all three places and records why. A 
 - Replacing a technology (Vault, Headscale, a storage engine, a transport) touches one adapter crate.
 - There are more crates than a flat layout would need. That is the price of boundaries the compiler enforces, and it is worth paying.
 - Contributors need rustup. The pinned toolchain then installs itself.
+- **Amended 2026-09-28.** The manifests express the edges that exist today. Nothing stops a future manifest from adding a forbidden one, and `cargo check` would accept it. The rule therefore needs a policy check over `cargo metadata`, covering feature and target-specific dependencies as well as plain ones. It is proposed as grounding experiment `layer-policy` in the [research snapshot](../research/2026-09-28-typed-core/grounding-plan.md#layer-policy).
