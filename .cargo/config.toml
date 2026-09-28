@@ -1,0 +1,3 @@
+# `cargo xtask <subcommand>` runs the development tooling crate (ADR 0003).
+[alias]
+xtask = "run --quiet --package nomos-xtask --"

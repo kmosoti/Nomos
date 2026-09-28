@@ -21,6 +21,8 @@ members = [
     # Driving adapters and composition roots.
     "crates/bin/nomos-cell",
     "crates/bin/nomos-loom",
+    # Development tooling, invoked as `cargo xtask` (ADR 0003).
+    "crates/bin/nomos-xtask",
 ]
 
 [workspace.package]
@@ -56,3 +58,8 @@ nomos-substrate-linux = { path = "crates/adapters/nomos-substrate-linux" }
 nomos-substrate-mock = { path = "crates/adapters/nomos-substrate-mock" }
 nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
 nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
+# Tooling. Used by nomos-xtask only; never by a domain, port, app, or adapter crate.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+jsonschema = { version = "0.58", default-features = false }
