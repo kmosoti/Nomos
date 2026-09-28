@@ -55,7 +55,7 @@ on_action(a):
                         return r
 ```
 
-**Scope of $k$.** The key names one execution of one Action within one Plan. It is not a digest of the Action's semantic content. If it were, a `Completed` entry for "ensure `/etc/x` has digest $d$" would suppress every later repair of the same file after new drift (counterexample [`dedup-scope`](../research/2026-09-28-typed-core/README.md)). Retries of the same delivery share $k$. A new reconciliation run that plans the same repair gets a new $k$. How long $M$ retains keys is open (spec §62).
+**Scope of $k$.** The key names one execution of one Action within one Plan. It is not a digest of the Action's semantic content. If it were, a `Completed` entry for "ensure `/etc/x` has digest $d$" would suppress every later repair of the same file after new drift (counterexample [`dedup-scope`](../research/2026-09-28-typed-core/README.md)). Retries of the same delivery share $k$. A new reconciliation iteration or run that plans the same repair gets a new $k$; the transition kernel builds $k$ from the Plan, its generation, the iteration, and the resource ([ADR 0010](../adr/0010-effect-recovery-and-fencing.md) note). How long $M$ retains keys is open (spec §62).
 
 **Claim.** A duplicate delivery of a completed Action does not cause a second apply.
 

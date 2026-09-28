@@ -20,6 +20,8 @@ $G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from A
 
 **Well-formedness.** The whole edge set $E$ must be acyclic. A cycle in any edge kind is a compilation error.
 
+**Owed vertices.** A resource with a pending Obligation ([ADR 0009](../adr/0009-warp-activation-semantics.md) §4) gets an Action vertex marked owed, $v \in \mathrm{Owed}$. The Obligation is the reason to run, so an owed vertex does not need its `on_change` group Activated: a Disabled group makes it Ready. Everything else applies to it unchanged, so an owed refresh still waits for its triggers and is still Blocked by one that is not met. A resource that is the `on_change` target of an Action in the same Plan gets an Action vertex too, not owed, because its source records the Obligation when it is dispatched; if the source changes nothing, the Obligation is withdrawn and the vertex is Skipped.
+
 ## Satisfaction Anchors
 
 $V$ is produced from Assessments, so a resource whose Assessment is Satisfied produces no Action. Read literally, that leaves `cell-config requires config-directory` with a dangling edge whenever the directory already exists, and the file Action either never starts or starts without its prerequisite being represented at all.
@@ -119,7 +121,7 @@ $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a ser
 | `on_change` group | Activated | Every source is met, and some source succeeded and changed |
 | `on_change` group | Disabled | Every source is met and none changed |
 
-$v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. Otherwise it is Waiting while any unit is Waiting, Skipped when its group is Disabled, and Ready otherwise: every `requires` and `after` edge Satisfied, and its group Activated or empty.
+$v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. Otherwise it is Waiting while any unit is Waiting, Skipped when its group is Disabled and it is not owed, and Ready otherwise: every `requires` and `after` edge Satisfied, and its group Activated or empty, or Disabled with $v$ owed.
 
 Skipped means $v$ had no reason to run and every one of its triggers ended well, so it is met, and its dependents see it as they see a satisfaction anchor: a met prerequisite for `requires`, a terminal source for `after`, and an unchanged source for `on_change`. Blocked means $v$ will never run; it is terminal and not met, so it blocks its `requires` and `on_change` dependents and satisfies its `after` dependents.
 
@@ -157,6 +159,17 @@ select(Ready, Reserved, p):
     return R
 ```
 
+**The budget predicate (N9).** Each failure domain $f$ has members, a limit $k_f$, and the set $U_f$ of its members unavailable in the budget snapshot the policy supplies. Each Action $a$ declares the nodes $D(a)$ it would disrupt, and $D_f(a) = D(a) \cap f$. With $R_f$ the members of $f$ disrupted by every reserved Action and every Action already chosen in this selection:
+
+$$
+\mathrm{violates\_budget}(a) \iff
+\exists f: \lvert U_f \cup R_f \cup D_f(a) \rvert > k_f
+\ \vee\
+\bigl(D(a) \neq \varnothing \wedge \neg\mathrm{Fresh}(\mathit{snap})\bigr)
+$$
+
+An Action that disrupts nothing is never held back by a budget, and a stale snapshot holds back every Action that disrupts something. A node is counted once however many sets it is in, so an Action that disrupts an already unavailable node costs nothing more.
+
 **Claim (mutual exclusion).** The conflict-key predicate holds after each selection.
 
 *Proof.* By induction. It holds for $\mathrm{Reserved}$ before selection. Each chosen $v$ is disjoint from `held`, which contains the keys of every reserved Action and every Action already chosen. $\square$
@@ -169,5 +182,5 @@ The greedy pass optimizes nothing. It is safe and deterministic, which is the jo
 
 Assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
-- **Obligations across runs.** Activation is computed from the outcomes of this run. A crash after the configuration file is replaced and before the dependent restart runs leaves the next run seeing a Satisfied file and no pending activation. The Obligation to refresh is recorded durably before the file is replaced, or the service exposes the configuration revision it loaded and that revision is a Condition. Milestone `05-transition-kernel`, [ADR 0009](../adr/0009-warp-activation-semantics.md), proposed. The same gap is stated from the idempotency side in [fencing-and-idempotency.md](fencing-and-idempotency.md#idempotency).
-- **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived in core from the resource kind, not typed by hand. Experiment `scheduler-admission`.
+- **Obligations across runs.** Closed as a working definition by milestone `05-transition-kernel`: the Obligation to refresh is recorded before the configuration file is replaced, survives the run and the crash, and makes the next run plan an owed vertex ([ADR 0009](../adr/0009-warp-activation-semantics.md) note, proposed). A service that exposes the configuration revision it loaded can make that revision a Condition instead, and needs no Obligation.
+- **Implicit footprints.** A package install can restart a service and rewrite a configuration file. Conflict keys declared by the Action author cover what the author knew about. The footprint of `package` and `systemd_unit` Actions needs to be derived in core from the resource kind, not typed by hand. Milestone `05-transition-kernel` derives one part: a refresh holds the conflict keys of its `on_change` sources, the files it reads. The rest waits for those resource kinds. Experiment `scheduler-admission`.

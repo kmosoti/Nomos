@@ -65,6 +65,20 @@ The project owner decided both on the same day, and §1 to §3 now carry the dec
 
 The second acceptance criterion, `refresh-recovery` and `scheduler-admission`, still waits for `05-transition-kernel`; this ADR stays Proposed.
 
+## Note, 2026-09-28: Obligations as Warp Vertices
+
+Milestone `05-transition-kernel` implements §4 and §5 as these working definitions.
+
+- **What an Obligation is.** A record that names the resource to refresh and the execution, by idempotency key, whose change may require it.
+- **When it is recorded.** In the Decision that dispatches an Action with an `on_change` edge, one Obligation per target, as an Event ahead of the Action's effect request. Events are appended before effects are issued ([ADR 0012](0012-event-history.md) §1), so the log holds the Obligation before the change can happen.
+- **When it is withdrawn.** When that execution is verified with no change, or the Substrate refuses it. A failed, timed-out, or cancelled-after-dispatch execution keeps its Obligation: the file may have changed, and the cost of keeping it is at most one unnecessary refresh.
+- **When it is discharged.** When an Action on the target resource is verified Succeeded, for the Obligations pending when that Action was dispatched. A later Obligation needs a later refresh.
+- **The vertex.** A resource with a pending Obligation gets an Action vertex marked *owed*. An owed vertex resolves like any other vertex, except that a Disabled `on_change` group makes it Ready instead of Skipped. Blocked and Waiting still apply, so an owed refresh waits for its triggers and never runs with an input whose write failed. A resource that is the `on_change` target of an Action in the same Plan also gets an Action vertex, not owed: its source records the Obligation on dispatch, and if the source changes nothing the Obligation is withdrawn and the vertex is Skipped.
+- **Its footprint.** A refresh reads the files its `on_change` sources write, so its conflict keys include theirs. It cannot run beside an unsettled write of its own input, which a crash can leave behind.
+- **A Blocked refresh re-runs once its trigger is repaired.** The Obligation outlives the run in which its trigger failed. The next run plans the owed vertex; once the trigger is met, whether or not the repair changed anything, the refresh is Ready.
+
+The TLA+ model `RefreshRecovery` checks the four properties the grounding plan names over one write, its refresh, a conflicting Action, crashes, and superseding authority, with three negative controls: no Obligation, a reservation released at timeout, and an Obligation discharged at dispatch. The last one loses the refresh when a superseding Plan arrives after the refresh was dispatched and before it ran, which is why discharge waits for verification.
+
 ## Consequences
 
 - Spec §62's edge-semantics question closes when this ADR is accepted.
