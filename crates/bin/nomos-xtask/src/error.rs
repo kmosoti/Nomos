@@ -41,8 +41,13 @@ codes! {
     ManifestDuplicateEntry => "manifest-duplicate-entry",
     ManifestNamesMissingFile => "manifest-names-missing-file",
     ChecksumMismatch => "checksum-mismatch",
-    // Coverage stage.
+    // Inventory stage.
     SnapshotUnreadable => "snapshot-unreadable",
+    SnapshotSymlink => "snapshot-symlink",
+    SnapshotSubdirectory => "snapshot-subdirectory",
+    SnapshotSpecialFile => "snapshot-special-file",
+    SnapshotNameInvalid => "snapshot-name-invalid",
+    // Coverage stage.
     UncoveredFile => "uncovered-file",
     RequiredFileUnlisted => "required-file-unlisted",
     // Strict NDJSON parsing.

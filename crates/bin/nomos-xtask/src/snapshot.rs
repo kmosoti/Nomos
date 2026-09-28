@@ -3,6 +3,11 @@
 //! [`verify_snapshot`] runs every stage, in order, and there is no weaker
 //! mode. A snapshot passes only if all of these hold:
 //!
+//! 0. **Inventory.** The snapshot is a flat directory of regular files. The
+//!    directory itself is not a symlink, and it holds no symlink, no
+//!    subdirectory, no socket, FIFO, or device, and no name that is not UTF-8.
+//!    Every directory entry is read; an unreadable one fails. This runs before
+//!    any file is hashed, so the bytes verified are the bytes in the directory.
 //! 1. **Manifest.** `MANIFEST.sha256` exists, parses, names no file twice and
 //!    no path outside the directory, and every digest matches.
 //! 2. **Coverage.** Every file in the directory is named by the manifest, and
@@ -65,29 +70,86 @@ impl VerificationReport {
 }
 
 /// Verifies a snapshot directory as a whole.
-pub(crate) fn verify_snapshot(dir: &Path) -> Verified<VerificationReport> {
-    // Manifest stage.
-    let manifest_path = dir.join(MANIFEST);
-    require(manifest_path.is_file(), Code::ManifestMissing, || {
-        format!(
-            "{}: {MANIFEST} is required; a snapshot without a manifest is not verifiable",
-            dir.display()
-        )
+/// The regular files of a snapshot directory, sorted, or the first entry that
+/// is not one. Symlinks are never followed.
+fn inventory(dir: &Path) -> Verified<Vec<String>> {
+    let unreadable = |e: std::io::Error| {
+        VerificationError::new(Code::SnapshotUnreadable, format!("{}: {e}", dir.display()))
+    };
+    let dir_meta = std::fs::symlink_metadata(dir).map_err(unreadable)?;
+    require(
+        !dir_meta.file_type().is_symlink(),
+        Code::SnapshotSymlink,
+        || format!("{}: the snapshot directory is a symlink", dir.display()),
+    )?;
+    require(dir_meta.is_dir(), Code::SnapshotUnreadable, || {
+        format!("{}: not a directory", dir.display())
     })?;
-    let entries = manifest::verify(&manifest_path)?;
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(unreadable)? {
+        let entry = entry.map_err(unreadable)?;
+        let path = entry.path();
+        let name = entry.file_name().into_string().map_err(|raw| {
+            VerificationError::new(
+                Code::SnapshotNameInvalid,
+                format!("{}: {raw:?} is not a UTF-8 file name", dir.display()),
+            )
+        })?;
+        // DirEntry::file_type does not follow symlinks.
+        let kind = entry.file_type().map_err(|e| {
+            VerificationError::new(Code::SnapshotUnreadable, format!("{}: {e}", path.display()))
+        })?;
+        if kind.is_symlink() {
+            return Err(VerificationError::new(
+                Code::SnapshotSymlink,
+                format!("{}: symlinks are not snapshot content", path.display()),
+            ));
+        }
+        if kind.is_dir() {
+            return Err(VerificationError::new(
+                Code::SnapshotSubdirectory,
+                format!("{}: a snapshot is a flat directory", path.display()),
+            ));
+        }
+        if !kind.is_file() {
+            return Err(VerificationError::new(
+                Code::SnapshotSpecialFile,
+                format!(
+                    "{}: only regular files are snapshot content",
+                    path.display()
+                ),
+            ));
+        }
+        files.push(name);
+    }
+    files.sort();
+    Ok(files)
+}
+
+/// Verifies a snapshot directory as a whole.
+pub(crate) fn verify_snapshot(dir: &Path) -> Verified<VerificationReport> {
+    // Inventory stage: regular files only, before anything is hashed.
+    let regular = inventory(dir)?;
+
+    // Manifest stage.
+    require(
+        regular.iter().any(|f| f == MANIFEST),
+        Code::ManifestMissing,
+        || {
+            format!(
+                "{}: {MANIFEST} is required; a snapshot without a manifest is not verifiable",
+                dir.display()
+            )
+        },
+    )?;
+    let entries = manifest::verify(&dir.join(MANIFEST))?;
     let files: Vec<String> = entries.into_iter().map(|(name, _)| name).collect();
 
     // Coverage stage.
-    let mut present: Vec<String> = std::fs::read_dir(dir)
-        .map_err(|e| {
-            VerificationError::new(Code::SnapshotUnreadable, format!("{}: {e}", dir.display()))
-        })?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_file())
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    let present: Vec<String> = regular
+        .into_iter()
         .filter(|name| name != MANIFEST)
         .collect();
-    present.sort();
     for name in &present {
         require(files.contains(name), Code::UncoveredFile, || {
             format!("{}: {name} is not covered by {MANIFEST}", dir.display())
@@ -357,6 +419,82 @@ mod tests {
         std::fs::write(dir.join("MANIFEST.sha256"), kept.join("\n") + "\n").unwrap();
         std::fs::remove_file(dir.join("nomos-research.ndjson")).unwrap();
         assert_eq!(failure(&dir), Code::RequiredFileUnlisted);
+    }
+
+    #[test]
+    fn a_symlink_to_bytes_outside_the_snapshot_fails_inventory() {
+        let dir = scratch_copy("symlink");
+        std::os::unix::fs::symlink("../../../../README.md", dir.join("outside.md")).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSymlink);
+    }
+
+    #[test]
+    fn a_manifested_file_replaced_by_a_symlink_fails_before_hashing() {
+        let dir = scratch_copy("symlinked-entry");
+        let readme = dir.join("README.md");
+        let target = dir.join("README.real");
+        std::fs::rename(&readme, &target).unwrap();
+        std::os::unix::fs::symlink("README.real", &readme).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSymlink);
+    }
+
+    #[test]
+    fn a_symlinked_manifest_fails_inventory() {
+        let dir = scratch_copy("symlinked-manifest");
+        let manifest = dir.join("MANIFEST.sha256");
+        let elsewhere = std::env::temp_dir().join(format!(
+            "nomos-xtask-{}-manifest-elsewhere",
+            std::process::id()
+        ));
+        std::fs::rename(&manifest, &elsewhere).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, &manifest).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSymlink);
+    }
+
+    #[test]
+    fn a_symlinked_snapshot_directory_fails_inventory() {
+        let dir = scratch_copy("real-dir");
+        let link =
+            std::env::temp_dir().join(format!("nomos-xtask-{}-linked-dir", std::process::id()));
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&dir, &link).unwrap();
+        assert_eq!(failure(&link), Code::SnapshotSymlink);
+    }
+
+    #[test]
+    fn a_nested_directory_fails_inventory_even_when_empty() {
+        let dir = scratch_copy("empty-subdir");
+        std::fs::create_dir(dir.join("extra")).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSubdirectory);
+        let dir = scratch_copy("full-subdir");
+        std::fs::create_dir(dir.join("extra")).unwrap();
+        std::fs::write(dir.join("extra").join("hidden.json"), "{}\n").unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSubdirectory);
+    }
+
+    #[test]
+    fn a_socket_fails_inventory() {
+        let dir = scratch_copy("socket");
+        let _listener = std::os::unix::net::UnixListener::bind(dir.join("channel.sock")).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSpecialFile);
+    }
+
+    #[test]
+    fn a_non_utf8_file_name_fails_inventory() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = scratch_copy("bad-name");
+        let name = std::ffi::OsStr::from_bytes(b"graph-\xff.json");
+        std::fs::write(dir.join(name), "{}\n").unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotNameInvalid);
+    }
+
+    #[test]
+    fn removing_the_nested_directory_makes_the_snapshot_verify_again() {
+        let dir = scratch_copy("subdir-restored");
+        std::fs::create_dir(dir.join("extra")).unwrap();
+        assert_eq!(failure(&dir), Code::SnapshotSubdirectory);
+        std::fs::remove_dir(dir.join("extra")).unwrap();
+        assert!(verify_snapshot(&dir).is_ok());
     }
 
     #[test]
