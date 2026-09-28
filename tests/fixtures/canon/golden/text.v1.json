@@ -1,0 +1,1 @@
+{"files":[{"path":"/srv/café/menu","state":"absent"},{"path":"/srv/café/menu","state":"present-any"},{"path":"/tmp/quote\"back\\slash","state":"absent"},{"path":"/tmp/tab\there\u0001","state":"absent"},{"path":"/tmp/😀","state":"absent"}],"name":"text","relations":[],"schema":1}

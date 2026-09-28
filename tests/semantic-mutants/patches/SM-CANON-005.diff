@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
+--- a/crates/core/nomos-canon/src/artifact.rs
++++ b/crates/core/nomos-canon/src/artifact.rs
+@@ -522,7 +522,7 @@
+         SCHEMA_V1 => encode_v1(&canon, profile),
+         _ => Some(encode(&canon, profile)),
+     };
+-    if again.as_deref() != Some(bytes) {
++    if again.is_none() {
+         return Err(DecodeError::NonCanonical);
+     }
+     let lineage = (schema == SCHEMA_V1).then(|| Lineage {

@@ -1,0 +1,11 @@
+error[E0451]: fields `requirement`, `keys` and `disrupts` of struct `Resource` are private
+  --> tests/compile-fail/resource-literal.rs:9:9
+   |
+ 8 |     let _ = Resource {
+   |             -------- in this type
+ 9 |         requirement: Requirement::Service(ServiceRequirement::Running),
+   |         ^^^^^^^^^^^ private field
+10 |         keys: BTreeSet::new(),
+   |         ^^^^ private field
+11 |         disrupts: BTreeSet::new(),
+   |         ^^^^^^^^ private field

@@ -60,7 +60,9 @@ nomos-substrate-linux = { path = "crates/adapters/nomos-substrate-linux" }
 nomos-substrate-mock = { path = "crates/adapters/nomos-substrate-mock" }
 nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
 nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
-# Tooling. Used by nomos-xtask only; never by a domain, port, app, or adapter crate.
+# Tooling. Used by nomos-xtask; never as a normal dependency of a domain, port,
+# app, or adapter crate. `serde` is also the typed-validation negative control's
+# derive, a dev-dependency of nomos-canon (milestone 06).
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
@@ -69,3 +71,7 @@ toml = "1"
 # Testing. Dev-dependencies only; exempt from the core purity policy (ADR 0016).
 proptest = { version = "1", default-features = false, features = ["std"] }
 trybuild = "1"
+# Independent references for the Canon IR (milestone 06). Dev-dependencies
+# only: the encoders and the hash under test are written without them.
+ciborium = "0.2"
+serde_json_canonicalizer = "0.3"

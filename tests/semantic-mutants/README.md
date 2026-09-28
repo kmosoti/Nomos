@@ -23,4 +23,4 @@ A mutant is `active` only with a patch that applies and a test that exists. A `s
 
 ## Why the Corpus Exists Before the Kernels
 
-The Assessment Kernel's and Warp Kernel's eight entries are `active` and caught; the Transition Kernel's are `planned`. Each milestone names here the wrong behaviors it must be shown to reject before it is complete. Writing the mutant before the code is the point: it is the invariant's own negative control, chosen from the specification rather than from whatever the implementation happened to make easy to mutate.
+Every entry is `active` and caught: the Assessment, Warp, and Transition Kernels' seventeen, and the Canon artifact's seven (`SM-CANON-001` to `007`). Each milestone names here the wrong behaviors it must be shown to reject before it is complete. Writing the mutant before the code is the point: it is the invariant's own negative control, chosen from the specification rather than from whatever the implementation happened to make easy to mutate.

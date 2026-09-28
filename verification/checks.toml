@@ -58,3 +58,7 @@ what = "cargo-mutants over a named target; results are classified by hand, not s
 [checks.tlc]
 command = "java -cp <jar> tlc2.TLC"
 what = "the TLA+ model checker on a model and configuration under formal/tla/; a result about the model within its bounds, never a proof of the Rust; a negative-control configuration must fail"
+
+[checks.hermeticity]
+command = "cargo xtask hermeticity"
+what = "experiment build-hermeticity: two isolated builds of the Canon authoring crate give identical IR, and every undeclared input is denied or recorded; needs strace, unshare, and valgrind, and fails without them"

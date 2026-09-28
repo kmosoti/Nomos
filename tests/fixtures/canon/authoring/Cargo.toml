@@ -1,0 +1,18 @@
+# A Canon authoring crate, the unit ADR 0004 §3 builds in isolation. It is
+# its own workspace so that its lockfile names exactly its declared inputs:
+# nomos-canon, nomos-core, and nothing from a registry. Built by
+# `cargo xtask hermeticity` (experiment `build-hermeticity`).
+[package]
+name = "canon-authoring"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+nomos-canon = { path = "../../../../crates/core/nomos-canon" }
+nomos-core = { path = "../../../../crates/core/nomos-core" }
+
+[profile.release]
+debug = false

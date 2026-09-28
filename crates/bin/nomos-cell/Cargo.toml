@@ -19,6 +19,7 @@ nomos-mesh-headscale.workspace = true
 
 [dev-dependencies]
 nomos-core.workspace = true
+nomos-canon.workspace = true
 nomos-warp.workspace = true
 nomos-store.workspace = true
 nomos-substrate.workspace = true
