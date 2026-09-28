@@ -1,0 +1,45 @@
+# Core purity policy. Read by `cargo xtask check-core-purity` (ADR 0016).
+#
+# Every workspace crate under crates/core/ is listed under [crates]; a core
+# crate missing here, or a listed crate missing from the workspace, fails the
+# check. Dev-dependencies are exempt: they build test binaries, never the
+# artifact a composition root links, and property-test harnesses need std.
+# Changing what this file allows is a trust-boundary change (AGENTS.md rule 11).
+
+[policy]
+# Each core crate declares `#![no_std]` at its root. It may use `alloc`.
+no_std = true
+# No build.rs and no `build =` key: a build script runs arbitrary code with
+# network and filesystem access at compile time.
+build_scripts = false
+# Each core crate keeps `[lints] workspace = true` and denies these at its root.
+required_lints = [
+    "clippy::unwrap_used",
+    "clippy::expect_used",
+    "clippy::panic",
+    "clippy::todo",
+    "clippy::unimplemented",
+]
+
+# The core crates. An empty table means: no external dependencies beyond [allow].
+[crates.nomos-core]
+[crates.nomos-canon]
+[crates.nomos-warp]
+
+# External dependencies a core crate may name, with the feature shape it must
+# use. A dependency not listed here is rejected as `dependency-not-allowlisted`.
+# `transitive` lists the crates the dependency may pull in beyond the allowlist.
+# The list is empty by design: the core crates have no dependencies yet, and
+# the first one arrives with the Assessment Kernel and its own review.
+
+# Dependency classes a core crate may never name, whatever the feature shape.
+# A match is rejected as `dependency-denied-class` with the class name.
+[deny]
+async-runtime = ["tokio", "async-std", "smol", "futures-executor", "actix-rt"]
+network = ["reqwest", "hyper", "hyper-util", "tonic", "zbus", "dbus", "socket2", "mio", "quinn"]
+filesystem = ["tempfile", "walkdir", "notify", "fs_extra", "camino"]
+randomness = ["rand", "rand_core", "getrandom", "fastrand", "oorandom"]
+clock = ["chrono", "time", "instant", "coarsetime"]
+process = ["nix", "libc", "windows-sys", "rustix", "sysinfo", "procfs"]
+logging = ["log", "tracing", "env_logger", "slog"]
+os-adapters = ["zbus_systemd", "systemd", "sd-notify", "udev", "netlink-sys"]

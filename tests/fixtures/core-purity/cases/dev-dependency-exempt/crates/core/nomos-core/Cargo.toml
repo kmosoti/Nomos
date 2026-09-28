@@ -1,0 +1,15 @@
+# Positive control: a dev-dependency on a denied class is exempt. Test binaries
+# are not the artifact a composition root links.
+[package]
+name = "nomos-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+rand = { path = "../../../vendor/rand" }

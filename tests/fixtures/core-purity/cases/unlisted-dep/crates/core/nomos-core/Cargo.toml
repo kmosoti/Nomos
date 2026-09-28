@@ -1,0 +1,12 @@
+# Negative control: a core crate names a crate that is in no deny class and not allowlisted.
+[package]
+name = "nomos-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+itoa = { path = "../../../vendor/itoa" }

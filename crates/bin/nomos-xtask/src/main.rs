@@ -22,6 +22,10 @@
 //!   check of ADR 0000 over the declared and resolved graphs. Prints the
 //!   report as JSON and one `FORBIDDEN` line per violation, with its stable
 //!   rule code, both packages, both layers, and the dependency kind.
+//! - `check-core-purity [--manifest-path <Cargo.toml>]`: the core purity
+//!   policy of `crates/core/PURITY.toml` (ADR 0016) over the declared and
+//!   resolved graphs and the crate roots. Prints the report as JSON and one
+//!   `IMPURE` line per violation, with its stable code.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -32,6 +36,7 @@ mod freeze;
 mod graph;
 mod layers;
 mod manifest;
+mod purity;
 mod snapshot;
 mod strict_json;
 
@@ -44,7 +49,8 @@ const USAGE: &str = "usage:
   cargo xtask research list       <snapshot-dir>
   cargo xtask research reproduce  [--out <file>]
   cargo xtask research frozen     --base <ref>
-  cargo xtask check-layers        [--manifest-path <Cargo.toml>]";
+  cargo xtask check-layers        [--manifest-path <Cargo.toml>]
+  cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -54,6 +60,7 @@ fn main() -> ExitCode {
         ["research", "verify-all", dir] => verify_all(Path::new(dir)),
         ["research", "frozen", rest @ ..] => frozen(rest),
         ["check-layers", rest @ ..] => check_layers(rest),
+        ["check-core-purity", rest @ ..] => check_core_purity(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -153,6 +160,31 @@ fn check_layers(rest: &[&str]) -> Result<(), String> {
         Err(format!(
             "{} forbidden workspace edge(s); see ADR 0000",
             report.violations().len()
+        ))
+    }
+}
+
+fn check_core_purity(rest: &[&str]) -> Result<(), String> {
+    let manifest_path = option(rest, "--manifest-path")?
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("Cargo.toml"));
+    let report = purity::check(&layers::Options {
+        manifest_path,
+        locked: true,
+        offline: false,
+    })?;
+    let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    print!("{rendered}");
+    for violation in report.violations() {
+        eprintln!("IMPURE {violation}");
+    }
+    if report.violations().is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} core purity violation(s); see {}",
+            report.violations().len(),
+            purity::POLICY_PATH
         ))
     }
 }

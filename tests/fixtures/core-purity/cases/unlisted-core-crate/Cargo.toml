@@ -1,0 +1,14 @@
+# Negative control: a third core crate that the policy does not list.
+[workspace]
+resolver = "3"
+members = [
+    "crates/core/nomos-core",
+    "crates/core/nomos-canon",
+    "crates/core/nomos-extra",
+    "crates/app/nomos-app",
+]
+# Path dependencies under the root would otherwise be implicit members.
+exclude = ["vendor"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

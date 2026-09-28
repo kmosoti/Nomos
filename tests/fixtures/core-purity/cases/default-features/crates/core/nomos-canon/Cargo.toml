@@ -1,0 +1,13 @@
+# Negative control: the allowed dependency keeps its default features, which include std.
+[package]
+name = "nomos-canon"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-core = { path = "../nomos-core" }
+serde = { path = "../../../vendor/serde", features = ["alloc", "derive"] }
