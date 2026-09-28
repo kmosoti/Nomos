@@ -35,7 +35,7 @@ A `KernelSnapshot` is the control state: the accepted Canonical IR, the Assessme
 
 ### 3. One Engine, Two Drivers
 
-The application layer drives `step` in production, interpreting effect requests through ports and feeding receipts back. The deterministic simulator drives the same `step` with scripted inputs: delayed receipts, duplicates, crashes modeled as dropped receipts, and superseding authority. There is no test build of the engine. Replaying a recorded input sequence must reproduce the decisions exactly. That is a requirement on the kernel, tested in milestone 1 PR 4. It is not N12, which covers Canon compilation, and it is not a numbered invariant until those tests exist.
+The application layer drives `step` in production, interpreting effect requests through ports and feeding receipts back. The deterministic simulator drives the same `step` with scripted inputs: delayed receipts, duplicates, crashes modeled as dropped receipts, and superseding authority. There is no test build of the engine. Replaying a recorded input sequence must reproduce the decisions exactly. That is a requirement on the kernel, tested in milestone `05-transition-kernel`. It is not N12, which covers Canon compilation, and it is not a numbered invariant until those tests exist.
 
 ### 4. Ports Carry Data, Not Behavior
 
@@ -47,7 +47,7 @@ The workspace is virtual, so a test must belong to a package. Conformance suites
 
 ### Not Decided Here
 
-These are open, and milestone 1 PR 2 to PR 4 settle them. None may be treated as decided until its pull request records the choice:
+These are open, and milestones `03-assessment-kernel` to `05-transition-kernel` settle them. None may be treated as decided until its milestone records the choice:
 
 - **The types.** The fields of `KernelSnapshot`, the variants of `Input`, and the shape of `Decision`. §2 names what they must carry, not how.
 - **Port signatures.** Whether `observe` and `apply` are asynchronous, how they report transport failure, and how a receipt names the effect it answers.
@@ -72,13 +72,13 @@ Ownership of individual resource properties across controllers is [ADR 0008](000
 
 ### Evidence
 
-Research recommendation `pure-kernel` and finding `single-controller` are arguments, not measurements. Pull request 1 added the first mechanical evidence of §1's layer boundaries: `cargo xtask check-layers` rejects an adapter dependency in core, ports, or app ([ADR 0007](0007-verification-gates.md)). The semantic half of §1, that no adapter can return an interpretation, and §2 to §4 are owed by milestone 1 PR 2 to PR 4.
+Research recommendation `pure-kernel` and finding `single-controller` are arguments, not measurements. Milestone `01-foundation-gates` added the first mechanical evidence of §1's layer boundaries: `cargo xtask check-layers` rejects an adapter dependency in core, ports, or app ([ADR 0007](0007-verification-gates.md)). The semantic half of §1, that no adapter can return an interpretation, and §2 to §4 are owed by milestone 1 PR 2 to PR 4.
 
 ## Consequences
 
 - Spec §9 is amended in the same change. The mock backend is a first-class backend of the same semantics, as spec §9 already claimed and can now mean.
 - `nomos-substrate` narrows to evidence and effects. The observe-only capability split for Trace (invariants, Architectural Leverage) applies to this narrower port.
 - Recovery is a replay of recorded inputs into `step`, followed by fresh Observations, matching [event-log.md](../formal/event-log.md).
-- **Verification.** Milestone 1 pull request 4: the transition kernel with a recovery simulator, the first executable TLA+ model of the same transitions, and replayable traces. Pull request 2 and 3 supply the assessment and Warp functions `step` calls.
+- **Verification.** Milestone `05-transition-kernel`: the transition kernel with a recovery simulator, the first executable TLA+ model of the same transitions, and replayable traces. Milestones `03-assessment-kernel` and `04-warp-kernel` supply the assessment and Warp functions `step` calls.
 - **Failure behavior.** A kernel given an input it cannot interpret, for example a receipt for an unknown effect, records the fact as an Event and leaves the snapshot unchanged; it never guesses.
 - **Revisit trigger.** Reopen if an effect cannot be expressed without a callback, if the simulator and production drivers diverge in a way the input model cannot capture, or if the owner does not accept the provenance above.

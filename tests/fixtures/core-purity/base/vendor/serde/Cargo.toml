@@ -1,0 +1,14 @@
+[package]
+name = "serde"
+version = "1.0.0"
+edition = "2021"
+publish = false
+
+[features]
+default = ["std"]
+std = []
+alloc = []
+derive = ["dep:serde_derive"]
+
+[dependencies]
+serde_derive = { path = "../serde_derive", optional = true }

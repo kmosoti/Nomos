@@ -1,0 +1,13 @@
+[package]
+name = "nomos-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-core = { path = "../../core/nomos-core" }
+# The policy binds core crates only; an app crate may use a runtime.
+tokio = { path = "../../../vendor/tokio" }

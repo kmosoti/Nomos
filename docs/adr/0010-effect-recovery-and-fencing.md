@@ -45,8 +45,8 @@ A Plan records the Observations its Actions depend on. If one of those changes b
 
 ### Acceptance Criteria
 
-- **PR 4, `effect-recovery` and `scheduler-admission`.** No duplicate live effect, no suppressed repair, and no unsafe retry across duplicated, delayed, and dropped receipts. No budget oversubscription under concurrent admission.
-- **PR 4 model.** A TLA+ model of competing authority in which a paused old Action, resumed after a newer Plan is accepted, causes no conflicting unreserved effect.
+- **`05-transition-kernel`, `effect-recovery` and `scheduler-admission`.** No duplicate live effect, no suppressed repair, and no unsafe retry across duplicated, delayed, and dropped receipts. No budget oversubscription under concurrent admission.
+- **`05-transition-kernel` model.** A TLA+ model of competing authority in which a paused old Action, resumed after a newer Plan is accepted, causes no conflicting unreserved effect.
 - **Before remote execution, `fence-interleavings`.** The same property across Loom transport races.
 
 ## Consequences

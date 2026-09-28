@@ -17,6 +17,8 @@
 | [0012](0012-event-history.md) | Event history, durability, and retention | Proposed |
 | [0013](0013-trust-boundaries.md) | Substrate and Cipher trust boundaries | Proposed |
 | [0014](0014-deferred-planning-algorithms.md) | Incremental planning and Plan witnesses wait for measurement | Accepted |
+| [0015](0015-generator-verifier-development-model.md) | Generator-verifier development model | Accepted |
+| [0016](0016-core-purity.md) | Core purity | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
@@ -32,11 +34,11 @@ The 2026-09-28 research snapshot proposed eight decision bundles. Each is now a 
 
 | Candidate | ADR | Status |
 | --- | --- | --- |
-| `verification-gates` | [0007](0007-verification-gates.md) | Accepted: the gates exist with their negative controls |
+| `verification-gates` | [0007](0007-verification-gates.md), [0015](0015-generator-verifier-development-model.md) | Accepted: the gates exist with their negative controls; 0007 amended 2026-09-28 by 0015 |
 | `evidence-model` | [0005](0005-assessment-vocabulary.md), [0008](0008-ownership-and-identity.md) | Assessment accepted; ownership and identity proposed |
-| `warp-gates` | [0009](0009-warp-activation-semantics.md) | Proposed until milestone 1 PR 3 and PR 4 |
-| `recovery-authority` | [0010](0010-effect-recovery-and-fencing.md) | Proposed until milestone 1 PR 4 |
-| `canon-artifact` | [0004](0004-rust-typed-canon.md), [0011](0011-canon-artifact-encoding.md) | Authoring accepted; encoding proposed until milestone 1 PR 5 |
+| `warp-gates` | [0009](0009-warp-activation-semantics.md) | Proposed until `04-warp-kernel` and `05-transition-kernel` |
+| `recovery-authority` | [0010](0010-effect-recovery-and-fencing.md) | Proposed until `05-transition-kernel` |
+| `canon-artifact` | [0004](0004-rust-typed-canon.md), [0011](0011-canon-artifact-encoding.md) | Authoring accepted; encoding proposed until `06-canon-artifact` |
 | `event-history` | [0012](0012-event-history.md) | Proposed until Phase 2 |
 | `boundary-security` | [0013](0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
 | `future-algorithms` | [0014](0014-deferred-planning-algorithms.md) | Accepted: deferred until measured |

@@ -59,10 +59,10 @@ Each finding was checked against the draft it cites. *Confirmed* means the draft
 | `trace-scope` | N1 compared whole machines | Qualification | N1 compares a projection onto managed-resource properties |
 | `layer-policy` | ADR 0000 said the manifests make the build enforce the dependency rule | Confirmed overstatement | ADR 0000 amended. Experiment `layer-policy` |
 | `types-not-world` | The leverage section implied a constructor proves a property | Qualification | Note in `invariants.md` on what a type proves |
-| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Adopted as direction | ADR 0004. Milestone 1 PR 5 closes the encoding and compatibility remainder |
-| `partial-assessment` | Spec §9 `diff` returned Variance or nothing | Adopted | ADR 0005: `assess` with three outcomes, none aggregated. Milestone 1 PR 2 |
-| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`, after milestone 1 PR 4 |
-| `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 10 and CONTRIBUTING.md |
+| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Adopted as direction | ADR 0004. Milestone `06-canon-artifact` closes the encoding and compatibility remainder |
+| `partial-assessment` | Spec §9 `diff` returned Variance or nothing | Adopted | ADR 0005: `assess` with three outcomes, none aggregated. Milestone `03-assessment-kernel` |
+| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`, after milestone `05-transition-kernel` |
+| `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 11 and CONTRIBUTING.md; the gate is `check-trust-boundary` ([ADR 0015](../../adr/0015-generator-verifier-development-model.md)) |
 | `epoch-not-oracle`, `identity-path`, `secrets-scope`, `incremental-scope` | Beyond Phase 0 | Deferred | Listed under deferred experiments in the grounding plan |
 
 The six corrections in the bundle retract guidance from the conversation that produced it, not text in this repository. None of the retracted forms appears in the repository, and the corrected forms are what the grounding plan carries forward.
@@ -86,12 +86,12 @@ The snapshot under `snapshot/` is a historical recommendation, preserved as rece
 | `typed-canon` | Accepted: [ADR 0004](../../adr/0004-rust-typed-canon.md). Rust authoring, inert artifact, build job treated as code execution |
 | `evidence-assessment` | Accepted: [ADR 0005](../../adr/0005-assessment-vocabulary.md). Condition, Observation, and three-way Assessment |
 | `pure-kernel` | Accepted: [ADR 0006](../../adr/0006-kernel-contract.md). Not implemented |
-| `validated-boundary`, `algebraic-model` | Accepted as direction in ADR 0004. Not implemented; milestone 1 PR 2 and PR 5 |
+| `validated-boundary`, `algebraic-model` | Accepted as direction in ADR 0004. Not implemented; milestones `03-assessment-kernel` and `06-canon-artifact` |
 | `canonical-profile` | Open. ADR 0004 §5 lists it unresolved |
 | `bounded-bindings` | Open, as Trait-dependent expressions. The snapshot's specific expression form is not adopted |
 | `compatibility` | Open, as the extensibility model and schema versioning |
 | `layer-enforcement` | Implemented: `cargo xtask check-layers`, in CI |
-| `agent-proof` | Rule adopted: AGENTS.md rule 11. The mechanical gate is not implemented |
+| `agent-proof` | Rule adopted: AGENTS.md rule 11. Mechanical gate implemented: `cargo xtask check-trust-boundary`, in CI ([ADR 0015](../../adr/0015-generator-verifier-development-model.md)) |
 | Every other recommendation | Assigned to an experiment in the [milestone plan](grounding-plan.md); not decided |
 
 ## Recommendations and Where They Land
@@ -102,14 +102,14 @@ The bundle groups its 26 recommendations into eight ADR candidates. Each is now 
 | --- | --- | --- | --- |
 | `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | [ADR 0007](../../adr/0007-verification-gates.md) | Accepted |
 | `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed |
-| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Proposed until milestone 1 PR 3 and PR 4 |
-| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Proposed until milestone 1 PR 4 |
-| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | 0004 accepted; 0011 proposed until milestone 1 PR 5 |
+| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Proposed until `04-warp-kernel` and `05-transition-kernel` |
+| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Proposed until `05-transition-kernel` |
+| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | 0004 accepted; 0011 proposed until `06-canon-artifact` |
 | `event-history` | `log-boundary`, `log-retention` | [ADR 0012](../../adr/0012-event-history.md) | Proposed until Phase 2 |
 | `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
 | `future-algorithms` | `incremental`, `plan-witness` | [ADR 0014](../../adr/0014-deferred-planning-algorithms.md) | Accepted as a deferral |
 
-The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The milestone's pull-request order follows that DAG.
+The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The milestone order in the [grounding plan](grounding-plan.md) follows that DAG.
 
 ## Querying the Graph
 
@@ -130,4 +130,4 @@ Node IDs are stable within the snapshot and have the form `urn:moiric:nomos:rese
 
 ## Revision Policy
 
-`snapshot/` never changes. A revised graph is a new dated directory with its own manifest and its own evaluation. Results of the grounding experiments go under `results/` here, one record per experiment, and a result record is written only after the experiment ran.
+`snapshot/` never changes. A revised graph is a new dated directory with its own manifest and its own evaluation. Results of the grounding experiments go under [results/](results/) here, one record per experiment, and a result record is written only after the experiment ran.

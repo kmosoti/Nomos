@@ -247,7 +247,7 @@ struct Member {
     layer: Layer,
 }
 
-fn metadata(opts: &Options, extra: &[&str]) -> Result<Value, String> {
+pub(crate) fn metadata(opts: &Options, extra: &[&str]) -> Result<Value, String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let mut cmd = Command::new(cargo);
     cmd.args(["metadata", "--format-version", "1", "--manifest-path"])

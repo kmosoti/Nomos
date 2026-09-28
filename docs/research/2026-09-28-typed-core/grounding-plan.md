@@ -1,87 +1,113 @@
-# Milestone 1: An Executable Kernel Contract
+# Grounding Plan: An Executable Kernel Contract
 
-- **Status.** Proposed, 2026-09-28, revised the same day after a review of `main` at `013b9d0`. No experiment has run.
+- **Status.** In progress, 2026-09-28. Two milestones landed; five remain. Four experiments have result records under [results/](results/).
 - **Goal.** One typed Canon, one shared assessment model, one deterministic planner, one replayable transition kernel, and a harness that demonstrably rejects broken boundaries and broken semantics.
 - **Not the goal.** Another round of adapters, networking, storage, or a testing platform with nothing meaningful to test.
+
+The plan is organized as seven milestones with stable names. A milestone is a branch `milestone/<name>` merged with a merge commit, never a pull-request number: numbers are assigned by the hosting platform and change meaning when a change is split or resequenced. Historical pull-request numbers appear only as history, for example "pull request #2, merged as `0136a93`".
 
 ## What Main Establishes Today
 
 | Area | Evidence | Not established |
 | --- | --- | --- |
-| Build and basic checks | CI green: formatting, Clippy, workspace tests | Anything about the control system |
-| Research tooling | `nomos-xtask` verifies the snapshot as a whole and reproduces seven counterexample models | Convergence, fencing, or adapter correctness |
+| Build and basic checks | CI green: formatting, Clippy, workspace tests, all `--locked` | Anything about the control system |
+| Research tooling | `nomos-xtask` verifies each snapshot as a whole, freezes accepted snapshots, and reproduces seven counterexample models | Convergence, fencing, or adapter correctness |
+| Architecture | `cargo xtask check-layers` rejects a forbidden workspace edge in the declared and resolved graphs | Anything about registry crates; see the next row |
+| Core purity | `#![no_std]`, panic lints, and `cargo xtask check-core-purity` over `crates/core/PURITY.toml` | Purity of behavior; the crates are still empty |
+| Oracle protection | `cargo xtask check-trust-boundary` fails an undeclared specification or verifier change and an undeclared escape hatch | Semantic weakening inside a declared change |
+| Records | Receipts under `verification/receipts/`, validated; the matrix is filled from them | Any semantic property: every invariant row is `not run` or `planned` |
 | Domain kernel | Module documentation only | Any assessment or transition semantics |
-| Architecture | Dependency rules documented; ADR 0000 says Cargo alone does not enforce them | Rejection of a future forbidden dependency |
 | Formal verification | Written algorithms and proof sketches; `formal/tla/` holds a README | A checked executable model |
 
-A green research-import build is not a verified engine. The milestone exists to change the right-hand column, one row at a time, with evidence.
+A green build is not a verified engine. The milestones exist to change the right-hand column, one row at a time, with evidence.
 
 ## Decisions Already Made
 
 | Decision | Record | Still open |
 | --- | --- | --- |
-| Canon is authored in Rust and shipped as an inert Canonical IR | [ADR 0004](../../adr/0004-rust-typed-canon.md) | Encoding profile, schema versioning, migration rules, IR suffix |
+| Canon is authored in Rust and shipped as an inert Canonical IR | [ADR 0004](../../adr/0004-rust-typed-canon.md) | Encoding profile, schema versioning, migration rules |
 | Condition, Observation, Assessment, Indeterminate, Obligation, Settled | [ADR 0005](../../adr/0005-assessment-vocabulary.md) | Settlement evidence per resource kind |
-| Core owns semantics; the kernel is `step(snapshot, input) = decision`; adapters obtain evidence and perform operations | [ADR 0006](../../adr/0006-kernel-contract.md) | Port shapes as code |
-| Tooling is Rust in `nomos-xtask` | [ADR 0003](../../adr/0003-xtask-tooling-crate.md) | Layer checker, snapshot freeze in CI |
+| Core owns semantics; the kernel is `step(snapshot, input) = decision` | [ADR 0006](../../adr/0006-kernel-contract.md) | Port shapes as code |
+| Tooling is Rust in `nomos-xtask` | [ADR 0003](../../adr/0003-xtask-tooling-crate.md) | None |
+| Every gate has a record and negative controls | [ADR 0007](../../adr/0007-verification-gates.md), amended | None |
+| Generators are untrusted; oracles are protected and declared; receipts are the evidence | [ADR 0015](../../adr/0015-generator-verifier-development-model.md) | Kani or Verus; signed receipts; proof-carrying Plans |
+| Core crates are `no_std`, panic-free outside tests, and allowlisted | [ADR 0016](../../adr/0016-core-purity.md) | The first allowlist entry |
 
-Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 (Phase 1, recorded in [ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until PR 3 and PR 4). The research candidates are numbered ADRs 0007 to 0014; the [ADR index](../../adr/README.md) maps each.
+Open and not blocking: whether a fixed-`argv` package-manager invocation is allowed under AGENTS.md rule 5 ([ADR 0013](../../adr/0013-trust-boundaries.md)), and edge semantics ([ADR 0009](../../adr/0009-warp-activation-semantics.md), proposed until `04-warp-kernel` and `05-transition-kernel`).
 
 ## Rules
 
-- **Design before code.** Each experiment carries a question, a rival hypothesis, a harness, a negative control, measurements, and a decision rule. Code that serves none of them is not part of the milestone.
-- **Negative controls.** Every check includes a case the draft or a plausible wrong implementation fails. A negative control that passes against the wrong thing means the test is not testing. The seven bundle counterexamples stay as historical models in `nomos-xtask`; they assert the bad outcomes the old prose admitted. New tests call the kernel and assert the corrected behavior.
-- **Result records.** An experiment ends with `results/<experiment>.md` in the verification-record form below. A record is written after the run, never before. No cell in the verification matrix says *passed* for planned work; a timeout stays *inconclusive*.
+- **Design before code.** Each experiment carries a question, a rival hypothesis, a harness, a negative control, measurements, and a decision rule. Code that serves none of them is not part of a milestone.
+- **Negative controls.** Every check includes a case the draft or a plausible wrong implementation fails, asserted by its stable code. The seven bundle counterexamples stay as historical models in `nomos-xtask`. New tests call the kernel and assert the corrected behavior.
+- **Result records.** An experiment ends with `results/<experiment>.md` in the verification-record form of ADR 0007 §1, plus receipts for the commands that ran. A record is written after the run, never before. No cell in the [matrix](../../formal/verification-matrix.md) says *passed* for planned work; a timeout stays *inconclusive*.
 - **Determinism applies to harnesses.** Property tests record their seeds. Generated graphs and fixtures are reproducible from a seed and a version. A flaky harness is a finding about the harness.
 - **Vocabulary and invariants.** Code and documents use spec §3 terms as expanded by ADR 0005. A change that touches N1–N12 adds the test for it. A new term or a changed invariant is an ADR.
-- **Specifications are protected.** AGENTS.md rule 11. An `assume` in a harness is allowed when explicit, justified, reviewed separately, and shown non-vacuous.
+- **Oracles are protected.** AGENTS.md rule 11, enforced by `check-trust-boundary`. An `assume` in a harness is allowed when explicit, justified, declared as an escape hatch, reviewed separately, and shown non-vacuous.
+- **Generated tests are regression tests** until an invariant, a truth table, a reference, or a relation supplies their oracle (ADR 0015 §5).
 - **Tooling is Rust.** Anything that regenerates a record is a `cargo xtask` command or a Rust test.
 
-## Pull Requests
+## Milestones
 
-Five focused pull requests, in order. Each names its exit condition, and the exit is a behavior a test demonstrates, not a file that exists.
+Seven, in order. Each names its exit condition, and the exit is a behavior a test demonstrates, not a file that exists.
 
-### PR 1: Align the Specification and Make the Gates Real
+### 01-foundation-gates
 
-*Landed 2026-09-28.* ADRs 0004 to 0006, the spec amendments, the corrected formal documents, strict whole-snapshot verification shared by the CLI and the tests, `cargo xtask check-layers` over the declared and resolved graphs with fixture cases for direct, renamed, optional, target-specific, build, and dev dependencies, an adapter naming two ports, a dependency on a bin crate, and core depending on a port, plus one allowed workspace so the checker cannot pass by rejecting everything. `cargo xtask research frozen --base <ref>` is the Git comparison checksums cannot replace. CI runs `--locked`, `verify-all`, and `check-layers` on every push, and `frozen` on pull requests. Exceptions to the dependency rule are none; the mock adapter does not become a dev-dependency of `nomos-app`.
+*Landed 2026-09-28 as pull request #2, merged as `0136a93`.* ADRs 0004 to 0014, the spec amendments, the corrected formal documents, strict whole-snapshot verification shared by the CLI and the tests, `cargo xtask check-layers` over the declared and resolved graphs with 16 fixture cases and one allowed workspace, `cargo xtask research frozen` on every push and pull request, and CI with `--locked` throughout.
 
-Hardened the same day to the owner's PR 1 specification: one `verify_snapshot` with no weaker mode and a stable code on every failure, negative controls asserted by reason, the matching-port rule for adapters, `nomos-core`, dev, build, and tooling-crate cases, the real crate names in the fixtures, `cargo check --locked` in CI, and `--locked` in the `cargo xtask` alias.
+Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, the allowed workspace passes, and restoring the valid input passes again.
 
-Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, the allowed workspace passes, and restoring the valid input passes again. The owner scoped PR 1 to specification alignment, snapshot integrity, layer enforcement, and CI. The `agent-proof-gate` experiment and mutation runs over `nomos-xtask` therefore move to their own pull request after PR 1.
+### 02-verification-foundation
 
-### PR 2: The Assessment Algebra
+*Landed 2026-09-28 on branch `milestone/02-verification-foundation`.* The verification framework that every kernel milestone runs on, built before any kernel so that the first kernel is judged by oracles that existed before it did.
+
+- The [generator-verifier digest](../2026-09-28-generator-verifier/README.md) and [ADR 0015](../../adr/0015-generator-verifier-development-model.md): the asymmetry stated for the verifier only, protected oracle sets, declared and detected oracle changes, receipts as the unit of evidence.
+- [ADR 0016](../../adr/0016-core-purity.md) and the [core purity contract](../../formal/core-purity.md): `#![no_std]` on the three core crates, panic lints denied, `crates/core/PURITY.toml`, and `cargo xtask check-core-purity` with 14 negative controls.
+- `cargo xtask check-trust-boundary` with 13 fixture commits, in CI; `verification/trust-boundary.toml`.
+- Receipts: `verification/checks.toml`, `verification/receipt.schema.json`, `cargo xtask receipts record` and `validate` with 8 negative controls.
+- The [semantic-mutant corpus](../../../tests/semantic-mutants/README.md), nine planned mutants, and `cargo xtask mutants semantic` with a fixture corpus that earns every outcome.
+- `cargo-mutants` calibrated on three tooling modules, `.cargo/mutants.toml`, a scheduled non-blocking CI job, and three tests the calibration found missing.
+- The [verification strategy](../../formal/verification-strategy.md) and the [verification matrix](../../formal/verification-matrix.md), the latter populated only with what the two landed milestones established.
+- AGENTS.md and CONTRIBUTING.md: the generator-verifier discipline, the completion-report form, and milestone branch naming.
+
+Exit, met: every new gate rejects each of its fixture shortcuts by code and accepts its positive control; the branch's own commits pass the trust-boundary gate; the real workspace passes the purity check; the receipts written during the milestone validate. Result records: [core-purity](results/core-purity.md), [mutation-calibration](results/mutation-calibration.md), [agent-proof-gate](results/agent-proof-gate.md), [generator-variance](results/generator-variance.md) (designed, not run).
+
+### 03-assessment-kernel
 
 One resource family first: file presence and content requirements. In `nomos-core`: validated `Condition` types with private fields, `Observation` with provenance, collection window, and collection outcome, per-Condition `Assessment` with `Satisfied`, `Variance`, and `Indeterminate` carrying its reason, and a report that keeps every Assessment.
 
-Tests: exhaustive truth tables for pairs, property tests for longer conjunctions, compile-fail cases for the type boundaries in the table below, and the targeted mutations in the negative-control table.
+Tests: exhaustive truth tables for pairs, property tests for longer conjunctions with recorded seeds, compile-fail cases for the type boundaries in the table below, the Indeterminate monotonicity relation, and the semantic mutants `SM-ASSESS-001` to `SM-ASSESS-003` activated. One Kani or Verus harness on one pure predicate, with cover checks, and the record decides which tool (ADR 0015, not decided). The first `PURITY.toml` allowlist entry, if any, arrives here in its own verifier commit.
 
-Exit: malformed values cannot enter through any supported construction path, and uncertainty is never converted into satisfaction or Variance.
+Exit: malformed values cannot enter through any supported construction path, uncertainty is never converted into satisfaction or Variance, and every active semantic mutant is caught. N13 becomes an invariant when its row's tests exist.
 
-### PR 3: Warp's Decision Rules
+### 04-warp-kernel
 
-In `nomos-warp`: the activation truth table with group-level `on_change` resolution, satisfaction anchors for `requires`, `after`, and `on_change`, deterministic order, cycle witnesses restricted to cyclic components, and conflict-aware selection over `Reserved`. An independently written reference evaluator for small graphs, used differentially.
+In `nomos-warp`: the activation truth table with group-level `on_change` resolution, satisfaction anchors for `requires`, `after`, and `on_change`, deterministic order, cycle witnesses restricted to cyclic components, and conflict-aware selection over `Reserved`. An independently written reference evaluator for small graphs, in its own module, used differentially with the generators' coverage stated in the record. `SM-WARP-001` to `SM-WARP-003` activated. `petgraph` enters the allowlist here if it is used, with `default-features = false`.
 
-Exit: the one-changed-one-unchanged predecessor case activates; the $A \leftrightarrow B$, $B \to C$ graph yields one witness and reports $C$ as blocked; conflicting Actions are never selected together; order is invariant under insertion-order permutation.
+Exit: the one-changed-one-unchanged predecessor case activates; the $A \leftrightarrow B$, $B \to C$ graph yields one witness and reports $C$ as blocked; conflicting Actions are never selected together; order is invariant under insertion-order permutation; the reference and the production evaluator agree on every generated graph or the disagreement is recorded.
 
-### PR 4: The Transition Kernel and Recovery Simulator
+### 05-transition-kernel
 
-In `nomos-core` and `nomos-app`: `step(snapshot, input) = decision` as ADR 0006 states, driven by the application through ports and by the simulator with scripted inputs. The mock service gets separate disk and loaded configuration revisions. Crashes are dropped receipts; delays are reordered inputs; supersession is a second authority input. The first TLA+ model of the same transitions, with its counterexample traces replayed through `step`.
+In `nomos-core` and `nomos-app`: `step(snapshot, input) = decision` as ADR 0006 states, driven by the application through ports and by the simulator with scripted inputs. The mock service gets separate disk and loaded configuration revisions. Crashes are dropped receipts; delays are reordered inputs; supersession is a second authority input. The first TLA+ models, with their counterexample traces replayed through `step`. `SM-TRANSITION-001` to `SM-TRANSITION-003` activated.
 
-Exit: a crash after configuration replacement cannot lose the refresh Obligation; a timeout cannot free an unsettled conflicting reservation; the final permitted successful execution is reported `Converged`; the model's traces and the kernel's decisions agree on the modeled transitions.
+Exit: a crash after configuration replacement cannot lose the refresh Obligation; a timeout cannot free an unsettled conflicting reservation; the final permitted successful execution is reported `Converged`; the models' traces and the kernel's decisions agree on the modeled transitions.
 
-### PR 5: The Inert Canon Boundary
+### 06-canon-artifact
 
 On the validated types: normalization, the encoding profile chosen by `canonical-encoding`, decoding through untrusted data-transfer objects, migrations, unknown variants, and two isolated builds compared byte for byte. Accepts [ADR 0011](../../adr/0011-canon-artifact-encoding.md) on top of ADR 0004, or records why not.
 
 Exit: artifact acceptance cannot bypass domain validation or silently change executable intent, and identical declared inputs produce identical IR bytes with every undeclared input denied or recorded.
 
-Only after PR 5 does the first Linux adapter start, with one narrowly scoped filesystem operation and the same conformance suite the mock passes.
+### 07-substrate-conformance
+
+The first Linux adapter, with one narrowly scoped filesystem operation and the same conformance suite the mock passes, at a composition boundary (`crates/bin/nomos-cell/tests/` first). For `nomos-substrate`: absence differs from denied observation, Trace issues no mutation requests, postconditions are assessed by core, and an unresolved effect keeps its reservation. The first rows of the matrix's environment column.
+
+Exit: the mock and the Linux adapter pass one suite; the suite's negative controls, a mutating Trace and a denied read reported as absence, fail it.
 
 ## Three Boundaries, Three Checks
 
 "Ports and adapters are enforced" is three properties.
 
-**Structural: who may depend on whom.** The layer checker in PR 1. Cargo metadata exposes declared dependency kinds, optionality, target conditions, and renames; its resolved graph omits inactive optional dependencies. Checking only one of the two leaves a hole.
+**Structural: who may depend on whom.** The layer checker and the purity checker. Cargo metadata exposes declared dependency kinds, optionality, target conditions, and renames; its resolved graph omits inactive optional dependencies. Checking only one of the two leaves a hole.
 
 **Type: what callers can construct or request.** Compile-fail tests with `trybuild`, which works for ordinary APIs and checks the intended diagnostic. Used for promises Nomos makes, not for every wrong argument type.
 
@@ -93,90 +119,74 @@ Only after PR 5 does the first Linux adapter start, with one narrowly scoped fil
 | Success requires verification evidence | Manufacturing a `Succeeded` result outside the verification path |
 | Cipher material cannot enter ordinary serialization | Passing the secret wrapper through a prohibited serialization path |
 
-These establish API restrictions. They do not prove an adapter's Observation is truthful.
+These establish API restrictions. They do not prove an adapter's Observation is truthful, and a type gate is not evidence of truth (ADR 0015).
 
-**Behavioral: does an adapter honor its contract.** One conformance suite per port, run against each implementation, at a composition boundary (`crates/bin/nomos-cell/tests/` first). For `nomos-substrate`: absence differs from denied observation, Trace issues no mutation requests, postconditions are assessed by core, and an unresolved effect keeps its reservation. The workspace is virtual: a test belongs to a package target, and the root `tests/` directory holds only fixture data those targets load.
+**Behavioral: does an adapter honor its contract.** One conformance suite per port, run against each implementation, `07-substrate-conformance`. The workspace is virtual: a test belongs to a package target, and the root `tests/` directory holds only fixture data the gates load.
 
 ## The Test Stack
 
-Organized by the question each layer answers, introduced when there is something to ask it of.
+Organized by the question each layer answers, introduced when there is something to ask it of. The full ladder, with what each layer does not establish, is the [verification strategy](../../formal/verification-strategy.md).
 
 | Category | Question | Introduced |
 | --- | --- | --- |
-| Unit and exhaustive truth tables | Does each finite decision rule handle every case? | PR 2 |
-| Property tests | Do the algebraic laws hold across generated Conditions, Observations, and graphs? | PR 2 |
-| Compile-fail tests | Can callers bypass the intended type boundaries? | PR 2 |
-| Architecture fixtures | Can a forbidden dependency or policy bypass enter the workspace? | PR 1 |
-| Port conformance tests | Do adapters honor the same observable contract? | PR 4 |
-| Differential and metamorphic tests | Does the implementation agree with an independent reference and preserve semantics under permitted transformations? | PR 3 |
-| Mutation tests | Would the tests notice a plausible wrong implementation? | PR 1 for tooling, then each kernel slice |
-| Deterministic simulation | What happens under delayed results, crashes, duplicates, and supersession? | PR 4 |
-| Executable formal models | Can modeled interleavings violate safety or conditional liveness? | PR 4 |
-| Fuzzing and real integration | Do untrusted inputs and actual OS behavior violate the boundaries? | PR 5 for decoding; Linux adapter for the OS |
+| Architecture and policy gates | Can a forbidden dependency, an impure core, an undeclared oracle change, or an unearned receipt enter the workspace? | `01-foundation-gates`, `02-verification-foundation` |
+| Unit and exhaustive truth tables | Does each finite decision rule handle every case? | `03-assessment-kernel` |
+| Property tests | Do the algebraic laws hold across generated Conditions, Observations, and graphs? | `03-assessment-kernel` |
+| Compile-fail tests | Can callers bypass the intended type boundaries? | `03-assessment-kernel` |
+| Metamorphic and differential tests | Does the implementation preserve semantics under permitted transformations and agree with an independent reference? | `03-assessment-kernel`, `04-warp-kernel` |
+| Semantic mutants and mutation calibration | Would the tests notice a plausible wrong implementation? | `02-verification-foundation` for tooling, then each kernel |
+| Deterministic simulation | What happens under delayed results, crashes, duplicates, and supersession? | `05-transition-kernel` |
+| Executable formal models | Can modeled interleavings violate safety or conditional liveness? | `05-transition-kernel` |
+| Bounded verifiers | Does one pure predicate hold for every input within bounds, non-vacuously? | `03-assessment-kernel` |
+| Port conformance tests | Do adapters honor the same observable contract? | `07-substrate-conformance` |
+| Fuzzing and real integration | Do untrusted inputs and actual OS behavior violate the boundaries? | `06-canon-artifact` for decoding; `07-substrate-conformance` for the OS |
 
-**Property laws first in line.** $\mathrm{Normalize}(\mathrm{Normalize}(C)) = \mathrm{Normalize}(C)$. Planning results invariant under permitted resource and map insertion-order permutations. Unknown evidence cannot manufacture satisfaction or a known mismatch. A report keeps a Variance beside an unrelated Indeterminate rather than collapsing. Warp generators cover valid dependencies, missing references, cycles, multiple activation sources, and overlapping footprints.
+**Property laws first in line.** $\mathrm{Normalize}(\mathrm{Normalize}(C)) = \mathrm{Normalize}(C)$. Planning results invariant under permitted resource and map insertion-order permutations. Unknown evidence cannot manufacture satisfaction or a known mismatch. A report keeps a Variance beside an unrelated Indeterminate rather than collapsing.
 
-**Seeds are not enough.** `proptest` persists failing seeds, and a changed generator can make an old seed produce a different value. Keep the seed, and promote important minimized failures into concrete regression fixtures. CI runs a reproducible seed bank as the required path and a broader exploration separately, recording its seeds and failing traces.
+**Seeds are not enough.** `proptest` persists failing seeds, and a changed generator can make an old seed produce a different value. Keep the seed, and promote important minimized failures into concrete regression fixtures with provenance, per the [counterexample policy](../../formal/verification-strategy.md#counterexamples-become-fixtures).
 
-**Mutation tests have teeth or they are decoration.** `cargo-mutants` on changed kernel modules, plus these semantic negative controls, each of which must be caught by a named test:
-
-| Deliberate defect | Test that must catch it |
-| --- | --- |
-| Remove the changed-source activation requirement | Unchanged configuration must not activate refresh |
-| Change *any* activation to *all* | One changed and one unchanged predecessor must activate |
-| Drop a reservation on timeout | A delayed old effect must block conflicting admission |
-| Reuse a semantic digest as a permanent idempotency key | Later drift must still be repaired |
-| Return convergence from empty Variance alone | A pending Obligation must prevent completion |
-| Skip manifest verification | A corrupted non-graph snapshot file must fail |
-| Ignore an optional dependency in the layer checker | A forbidden feature-gated edge must fail |
-
-Record surviving mutants, invalid mutations, exclusions, and inconclusive runs separately. A score is not the point; every surviving mutant on a safety contract is investigated.
+**Mutation tests have teeth or they are decoration.** `cargo-mutants` on changed kernel modules, on a schedule, with every survivor classified; and the [semantic-mutant corpus](../../../tests/semantic-mutants/README.md), each entry caught by a named test, on the required path. The corpus replaces the table of deliberate defects the earlier plan carried; its entries are the same defects, with identifiers.
 
 ## Formal Modeling, Early and Small
 
-The first executable model arrives with PR 4, not after it. Two authority inputs can be simulated without a network coordinator. The model holds one Action, its reservation, an effect outcome, an Obligation, and a superseding authority input, and checks:
+The first executable model arrives with `05-transition-kernel`, not after it. Two authority inputs can be simulated without a network coordinator. The model holds one Action, its reservation, an effect outcome, an Obligation, and a superseding authority input, and checks:
 
 - **Admission safety.** Conflicting effects never both hold permission to proceed.
 - **Uncertainty preservation.** A timeout establishes neither success, failure, nor settlement.
 - **Recovery safety.** An effect request is not forgotten because the process that requested it restarted.
 - **Completion soundness.** Convergence requires satisfied Conditions, discharged Obligations, and Settled relevant effects.
 
-The TLA+ model checker (TLC) checks the specified model under its bounds. The record says so, and never calls it a proof of the Rust or of Linux. One Kani harness on one pure predicate, admission or dependency resolution, learns the cost before any wider adoption; it includes `kani::cover` checks, because a satisfied assertion on an unreachable path is vacuous. The `loom` model checker waits for an actual shared-memory synchronization point; a component with the same name is not a reason.
+The TLA+ model checker (TLC) checks the specified model under its bounds. The record says so, and never calls it a proof of the Rust or of Linux. The `loom` model checker waits for an actual shared-memory synchronization point; a component with the same name is not a reason.
 
 ## The Verification Record
 
-Every important property gets a record with these fields, and `docs/formal/verification-matrix.md` is filled from records only.
-
-| Field | Purpose |
-| --- | --- |
-| Property ID and specification revision | Exactly what was checked |
-| Production function and harness | Where the model meets the implementation |
-| Toolchain, dependency lock, target, tool version | Reproduction context |
-| Bounds, seeds, fixtures, assumptions | Scope of exploration |
-| Positive and negative-control results | Whether the harness tells correct from incorrect |
-| Unchecked behavior | What the result does not cover |
+Every important property gets a receipt and, for an experiment, a result card under `results/` with the fields of ADR 0007 §1. `docs/formal/verification-matrix.md` is filled from those only.
 
 ## Resequenced Deferrals
 
 The earlier plan deferred three areas because their concrete integrations do not exist. Their logical contracts do not need them.
 
-- **Secrets.** Test secret-wrapper redaction and serialization restrictions now, with fake values (PR 2's compile-fail row and a sentinel test). Vault integration waits.
-- **Fencing.** Model competing authority, atomic acceptance, and effect admission now (PR 4's model). Loom transport waits.
-- **Event durability.** Model the ordering of intent, dispatch, completion, and acknowledgment now against a fault-injectable in-memory store (PR 4's simulator). Physical crash and fsync testing waits for the storage adapter.
+- **Secrets.** Test secret-wrapper redaction and serialization restrictions in `03-assessment-kernel`, with fake values. Vault integration waits.
+- **Fencing.** Model competing authority, atomic acceptance, and effect admission in `05-transition-kernel`. Loom transport waits.
+- **Event durability.** Model the ordering of intent, dispatch, completion, and acknowledgment in `05-transition-kernel` against a fault-injectable in-memory store. Physical crash and fsync testing waits for the storage adapter.
 
-## Experiments by Pull Request
+## Experiments by Milestone
 
-The research snapshot's experiments remain the evidence units. The cards below carry their question, rival, harness, negative control, measurements, and decision rule.
+The research snapshot's experiments remain the evidence units, joined by four the verification foundation added.
 
-| Experiment | Pull request |
-| --- | --- |
-| `layer-policy` | PR 1 |
-| `agent-proof-gate` | Its own pull request, after PR 1 |
-| `assessment-algebra` | PR 2 |
-| `warp-truth-table` | PR 3 |
-| `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | PR 4 |
-| `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | PR 5 |
-| `controller-composition` | After PR 4, before the Linux adapter |
+| Experiment | Milestone | Record |
+| --- | --- | --- |
+| `layer-policy` | `01-foundation-gates` | In [ADR 0007](../../adr/0007-verification-gates.md) Evidence; receipt `check-layers` |
+| `agent-proof-gate` | `02-verification-foundation` | [results/agent-proof-gate.md](results/agent-proof-gate.md) |
+| `core-purity` | `02-verification-foundation` | [results/core-purity.md](results/core-purity.md) |
+| `mutation-calibration` | `02-verification-foundation` | [results/mutation-calibration.md](results/mutation-calibration.md) |
+| `generator-variance` | `02-verification-foundation` designed; runs when a kernel exists | [results/generator-variance.md](results/generator-variance.md) |
+| `assessment-algebra` | `03-assessment-kernel` | none |
+| `warp-truth-table` | `04-warp-kernel` | none |
+| `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | none |
+| `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | none |
+| `controller-composition` | After `05-transition-kernel`, before `07-substrate-conformance` | none |
+| `substrate-contract` | `07-substrate-conformance` | none |
 
 ### layer-policy
 
@@ -184,21 +194,43 @@ The research snapshot's experiments remain the evidence units. The cards below c
 - **Rival.** Conditional dependencies escape the check, or the checker succeeds by rejecting everything.
 - **Harness.** `cargo xtask check-layers` over fixture workspaces under `tests/fixtures/layer-policy/`, one per dependency kind, plus one allowed workspace.
 - **Negative control.** Each forbidden fixture; the allowed fixture is the positive control.
-- **Measurements.** Forbidden edges detected per kind; feature and target combinations covered.
-- **Decision rule.** Every forbidden fixture rejected, the allowed one accepted, and ordinary compilation never reported as policy conformance.
+- **Decision rule, met.** Every forbidden fixture rejected, the allowed one accepted, and ordinary compilation never reported as policy conformance.
 
 ### agent-proof-gate
 
-- **Question.** Do the review rules catch a patch that passes a check by weakening what the check asserts?
-- **Rival.** The patch loosens a postcondition, adds an `assume`, `admit`, or `#[ignore]`, or moves code out of the verifier's view, and the green result is accepted.
-- **Harness.** Negative-control patches under `tests/fixtures/agent-proof/`; a `cargo xtask` command that diffs specification and assumption changes separately from proof annotations; a review checklist. A regular expression cannot detect semantic weakening and the record says so.
-- **Decision rule.** Every known invalid shortcut fails the gate; semantic weakening remains a human review item under AGENTS.md rule 11.
+- **Question.** Does a mechanical gate catch a commit that changes a specification or a verifier without saying so, or adds a known escape hatch?
+- **Rival.** The change is made silently and a green result is accepted; or the gate blocks paths and is routed around.
+- **Harness.** `cargo xtask check-trust-boundary` over fixture commits under `tests/fixtures/agent-proof/`.
+- **Negative control.** An undeclared specification change, an undeclared verifier change, a loosened gate test, a removed CI step, an ignored test, an oracle mixed with implementation, a declaration without a change, an unknown class.
+- **Decision rule, met.** Every fixture shortcut fails with its code; the positive controls pass; semantic weakening remains a human review item under rule 11, and the record says so.
+
+### core-purity
+
+- **Question.** Can the core crates be held to purity by the compiler and a policy, without a review reading every dependency?
+- **Rival.** `no_std` costs something the crates need; the policy cannot see transitive or feature-gated effects; a dependency class list is unmaintainable.
+- **Harness.** The `no_std` experiment on all three crates; `cargo xtask check-core-purity` over `tests/fixtures/core-purity/`.
+- **Negative control.** A randomness crate, a runtime, an unlisted crate, a build script, dropped `no_std`, default features, an extra feature, a transitive reach, dropped lints, dropped workspace lints, an unlisted core crate, a policy naming a ghost, a malformed policy, a missing policy.
+- **Decision rule, met.** Every case rejected by code, the allowed fixture and the real workspace accepted, a dev-dependency exempt.
+
+### mutation-calibration
+
+- **Question.** What does `cargo-mutants` cost on this repository, what does it generate, and what do its survivors mean?
+- **Rival.** The run is too slow for any schedule, or the survivors are noise.
+- **Harness.** `cargo mutants -p nomos-xtask` on `manifest.rs`, `strict_json.rs`, `snapshot.rs`, twice: before and after the tests it found missing.
+- **Decision rule, met.** Runtime, counts, and every survivor classified by hand; a scheduled non-blocking job; no threshold.
+
+### generator-variance
+
+- **Question.** When several independent generations implement one kernel property, how often does a fixed oracle reject a candidate its own generated tests accept?
+- **Rival.** Generated tests and fixed oracles agree, and ADR 0015 §5 is unnecessary caution.
+- **Harness.** Designed in its [record](results/generator-variance.md). Runs on the first kernel function; exploratory; never gates.
+- **Decision rule.** The disagreement rate is recorded as a research finding, and no threshold is set.
 
 ### assessment-algebra
 
 - **Question.** Are three Assessment outcomes per Condition, kept unaggregated, enough for the first resource family?
 - **Rival.** An aggregate shortcut collapses unknown, absent, stale, or contradictory evidence into one of the two old outcomes.
-- **Harness.** PR 2's types; exhaustive pair tables; `proptest` conjunctions; Observation fixtures for present, absent, stale, denied, and conflicting.
+- **Harness.** `03-assessment-kernel`'s types; exhaustive pair tables; `proptest` conjunctions; Observation fixtures for present, absent, stale, denied, and conflicting; the Indeterminate monotonicity relation; `SM-ASSESS-001` to `SM-ASSESS-003`.
 - **Negative control.** `partial-assessment`: a Variance beside an Indeterminate must still be reported. A denied read must never assess as Satisfied or Variance. An empty error list must not mean Satisfied.
 - **Measurements.** Truth-table agreement; mutation admissions from an Indeterminate (target zero); evaluation bound for any bounded typed bindings.
 - **Decision rule.** No Indeterminate becomes Variance or Satisfied, and no unrelated Indeterminate hides a Variance.
@@ -207,16 +239,16 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Do Startable, group-level Activated, and satisfaction anchors fully specify v0 dependencies?
 - **Rival.** Terminal, changed, and succeeded are conflated; an unchanged source vetoes a changed one; a satisfied prerequisite without an Action breaks the graph.
-- **Harness.** PR 3's rules; exhaustive predecessor-outcome tables; random DAGs with insertion-order permutations; the reference evaluator, differentially.
+- **Harness.** `04-warp-kernel`'s rules; exhaustive predecessor-outcome tables; random DAGs with insertion-order permutations; the reference evaluator, differentially; `SM-WARP-001` to `SM-WARP-003`.
 - **Negative control.** `activation-missing`; the one-changed-one-unchanged case; the $A \leftrightarrow B$, $B \to C$ witness case; a failed partial write must not activate its dependent.
-- **Measurements.** Activation correctness; order determinism (N12); witness validity.
+- **Measurements.** Activation correctness; order determinism (N12); witness validity; generator coverage as stated.
 - **Decision rule.** Every case resolves to exactly one state with no fallthrough. Feeds [ADR 0009](../../adr/0009-warp-activation-semantics.md).
 
 ### bounded-convergence
 
 - **Question.** Does the loop report the right outcome at the bound without hiding effects still in flight, and does it distinguish Indeterminate from Converged and Failed?
 - **Rival.** The last successful execution is misreported, slow completion is classified as oscillation, or an Indeterminate run is reported as converged.
-- **Harness.** PR 4's kernel against the mock with scripted resources: converge on attempt $k$, never converge, complete one observation late, oscillate against a scripted writer, deny a read, change unrelated telemetry every observation.
+- **Harness.** `05-transition-kernel`'s kernel against the mock with scripted resources: converge on attempt $k$, never converge, complete one observation late, oscillate against a scripted writer, deny a read, change unrelated telemetry every observation.
 - **Negative control.** `final-check`; a slow completion must not be reported as oscillation; a denied read with nothing else to do must end `Indeterminate`.
 - **Measurements.** Outcome classification per script; observation count; effects left unsettled at exit.
 - **Decision rule.** Converged, bound reached, Indeterminate, known failure, and unknown outcome are distinguished, and Converged is never reported with an effect unsettled.
@@ -225,7 +257,7 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Do run-scoped idempotency keys deduplicate retries within one execution while allowing later repairs?
 - **Rival.** A content-derived key suppresses drift repair, or a retry overlaps a still-live operation.
-- **Harness.** PR 4's simulator: duplicate receipts before, during, and after completion; new drift after completion followed by a new run with the same semantic Action; one scripted effect with no readable postcondition.
+- **Harness.** `05-transition-kernel`'s simulator: duplicate receipts before, during, and after completion; new drift after completion followed by a new run with the same semantic Action; one scripted effect with no readable postcondition.
 - **Negative control.** `dedup-scope`.
 - **Measurements.** Duplicate live effects; suppressed repairs; unsafe retries; effects left explicitly unresolved.
 - **Decision rule.** No silent re-execution and no silent suppression; an effect without settlement evidence stays unresolved (N10).
@@ -234,7 +266,7 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Which design keeps a service refresh across a crash between file replacement and restart: a durable Obligation recorded before the replacement, a loaded-revision Condition, or the draft's transient `on_change`?
 - **Rival.** The file comparison after recovery sees Satisfied and the refresh is lost, or a restart receipt is mistaken for evidence that the new revision loaded.
-- **Harness.** PR 4's mock service with separate disk and loaded revisions; a crash at every step boundary; all three designs against the same script.
+- **Harness.** `05-transition-kernel`'s mock service with separate disk and loaded revisions; a crash at every step boundary; all three designs against the same script.
 - **Negative control.** `lost-refresh`: the transient design must lose the refresh, and the harness must see it.
 - **Measurements.** Lost refreshes; unnecessary refreshes; unresolved outcomes, per design.
 - **Decision rule.** No declared Obligation disappears; a service that cannot report its loaded revision gets a documented uncertainty and retry policy, not an exactly-once claim.
@@ -243,16 +275,16 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Is serialized, reservation-based greedy selection safe under declared footprints, budgets, and involuntary failures, with reservations held until settlement?
 - **Rival.** Concurrent admission, aliased keys, implicit effects, or unsettled effects bypass the reservations.
-- **Harness.** PR 3's selection over `Reserved`; generated ready sets and footprints; interleavings of reserve, dispatch, timeout, verify, settle, and release explored in the PR 4 simulator; scripted involuntary failures and repeated arrivals.
+- **Harness.** `04-warp-kernel`'s selection over `Reserved`; generated ready sets and footprints; interleavings of reserve, dispatch, timeout, verify, settle, and release explored in the `05-transition-kernel` simulator; scripted involuntary failures and repeated arrivals.
 - **Negative control.** `budget-not-world`; a reservation released at `Running` exit must allow an overlap with a timed-out Action, and the corrected reservation must not; two admissions against one stale snapshot must not both pass.
 - **Measurements.** Conflicting overlaps; budget violations; starvation under the stated fairness premise.
 - **Decision rule.** No modeled conflict or oversubscription; maximality and fairness claimed only under stated premises.
 
 ### kernel-conformance
 
-- **Question.** Can the PR 4 kernel be modeled in TLA+ with explicit bounds, and do its counterexample traces replay through `step`?
+- **Question.** Can the `05-transition-kernel` kernel be modeled in TLA+ with explicit bounds, and do its counterexample traces replay through `step`?
 - **Rival.** The model omits an implementation transition or assumes more of the adapters than they promise.
-- **Harness.** `formal/tla/` models of the transitions in the Formal Modeling section; TLC traces exported and replayed through `step`; one Kani harness with cover checks.
+- **Harness.** `formal/tla/` models of the transitions in the Formal Modeling section; TLC traces exported and replayed through `step`; the bounded-verifier harness with cover checks.
 - **Negative control.** A known-bad transition inserted into the kernel must produce a trace the model rejects; a vacuous harness must be exposed by its cover check.
 - **Measurements.** Transitions mapped; negative-control failures; model bounds; check time.
 - **Decision rule.** The record names exactly which properties were checked, under which bounds, with which adapters trusted, and never calls a finite-model check a proof.
@@ -261,7 +293,7 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Do construction, decoding, and migration enforce the same domain invariants?
 - **Rival.** Derived deserialization, a public field, or a migration constructs a value the constructor would reject.
-- **Harness.** PR 5 on PR 2's types; generated valid and malformed inputs; `trybuild` compile-fail cases; the absent-with-contents countercase.
+- **Harness.** `06-canon-artifact` on `03-assessment-kernel`'s types; generated valid and malformed inputs; `trybuild` compile-fail cases; the absent-with-contents countercase.
 - **Negative control.** A `serde` derive without the `try_from` boundary must let a malformed value through, and the harness must detect it.
 - **Measurements.** Rejection parity across paths; panic count (target zero); smallest counterexample found.
 - **Decision rule.** No malformed input becomes a validated Canon by any supported path; every error is typed and secret-free.
@@ -295,27 +327,34 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 - **Question.** Do explicit footprints with stated guarantees and reliance assumptions detect a harmful composition of two controllers that each converge alone?
 - **Rival.** The two oscillate together and nothing in the model sees it.
-- **Harness.** Two mock controllers sharing a file or a sysctl, in shared, single-owner, and disjoint configurations, on the PR 4 simulator.
+- **Harness.** Two mock controllers sharing a file or a sysctl, in shared, single-owner, and disjoint configurations, on the `05-transition-kernel` simulator.
 - **Negative control.** The shared-ownership configuration must oscillate and be detected or rejected.
 - **Decision rule.** One safe composition demonstrated and one counterexample detected before any whole-host claim.
 
-## Deferred Beyond the Milestone
+### substrate-contract
+
+- **Question.** Does the Linux adapter honor the `nomos-substrate` contract the mock honors: absence distinct from denial, no mutation through Trace, postconditions assessed by core?
+- **Rival.** Symlink races, path aliases, or foreign writers make an Observation lie, and the suite cannot tell.
+- **Harness.** The port conformance suite of `07-substrate-conformance` on Linux, with failure injection.
+- **Negative control.** A mutating Trace and a denied read reported as absence must both fail the suite.
+- **Decision rule.** One narrowly scoped operation passes the same suite as the mock; every environment-column entry it earns names the host it ran on.
+
+## Deferred Beyond the Milestones
 
 | Experiment | Phase | Reason |
 | --- | --- | --- |
-| `substrate-contract` | Linux adapter | Needs Linux: symlink races, aliases, foreign writers |
-| `event-crash-replay` | 2 | The logical ordering is modeled in PR 4; physical fsync and crash testing needs the storage adapter |
-| `fence-interleavings` | 3–4 | The authority model is in PR 4; transport races need Loom |
+| `event-crash-replay` | 2 | The logical ordering is modeled in `05-transition-kernel`; physical fsync and crash testing needs the storage adapter |
+| `fence-interleavings` | 3–4 | The authority model is in `05-transition-kernel`; transport races need Loom |
 | `identity-rollback` | 3–4 | Needs enrollment, snapshots, and clones |
-| `secret-nondisclosure` | 6 | Wrapper and serialization checks are in PR 2; provider paths need an adapter |
-| `incremental-ablation` | after milestone | Needs the full recomputation path as the reference |
-| `plan-witness` | after milestone | Needs a baseline planner to check against |
+| `secret-nondisclosure` | 6 | Wrapper and serialization checks are in `03-assessment-kernel`; provider paths need an adapter |
+| `incremental-ablation` | after the milestones | Needs the full recomputation path as the reference |
+| `plan-witness` | after the milestones | Needs a baseline planner to check against |
 
 ## Exit Criteria
 
-1. Five pull requests merged, each with its stated exit demonstrated by a named test.
-2. A result record under `results/` for every experiment in the table above, none claiming more than it ran.
+1. Seven milestones merged, each with its stated exit demonstrated by a named test.
+2. A result record under `results/` for every experiment in the table above, none claiming more than it ran, and a receipt for every command a record cites.
 3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true.
-4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell, and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md) is already accepted.
+4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell, and [0011](../../adr/0011-canon-artifact-encoding.md). [ADR 0007](../../adr/0007-verification-gates.md), [0015](../../adr/0015-generator-verifier-development-model.md), and [0016](../../adr/0016-core-purity.md) are already accepted.
 5. Spec §62 updated: edge semantics closed, the encoding question closed.
-6. The required CI path is small and green, with `--locked`, the layer checker, and the snapshot freeze in it.
+6. The required CI path is small and green, with `--locked`, the layer checker, the purity checker, the trust-boundary gate, the receipt validator, the semantic mutants, and the snapshot freeze in it; mutation runs stay scheduled and non-blocking.

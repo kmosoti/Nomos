@@ -1,0 +1,8 @@
+# Negative control: the crate no longer inherits the workspace lints, so `unsafe_code = "forbid"` is gone.
+[package]
+name = "nomos-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]

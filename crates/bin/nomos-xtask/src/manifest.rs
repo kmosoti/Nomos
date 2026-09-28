@@ -94,7 +94,10 @@ pub(crate) fn verify(manifest: &Path) -> Verified<Vec<Entry>> {
 
 #[cfg(test)]
 mod tests {
-    use super::sha256_hex;
+    use std::path::PathBuf;
+
+    use super::{sha256_hex, verify};
+    use crate::error::Code;
 
     #[test]
     fn empty_input_has_the_known_digest() {
@@ -102,5 +105,41 @@ mod tests {
             sha256_hex(b""),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    /// The manifest of a snapshot directory holding one file, with the given text.
+    fn snapshot(label: &str, manifest: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nomos-manifest-{}-{label}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.txt"), b"").unwrap();
+        std::fs::write(dir.join("MANIFEST.sha256"), manifest).unwrap();
+        dir.join("MANIFEST.sha256")
+    }
+
+    const EMPTY: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    // Found by mutation calibration (the 2026-09-28 mutation-calibration record):
+    // `&&` to `||` in the line filter survived because no test sent a line
+    // that is the right length with the wrong characters, or a line with a
+    // digest and no name. Each is malformed, not a mismatch.
+    #[test]
+    fn a_digest_of_the_right_length_with_non_hex_characters_is_malformed() {
+        let bad = "g".repeat(64);
+        let dir = snapshot("nonhex", &format!("{bad}  a.txt\n"));
+        assert_eq!(verify(&dir).unwrap_err().code(), Code::ManifestMalformed);
+    }
+
+    #[test]
+    fn a_digest_with_no_name_is_malformed() {
+        let dir = snapshot("noname", &format!("{EMPTY}  \n"));
+        assert_eq!(verify(&dir).unwrap_err().code(), Code::ManifestMalformed);
+    }
+
+    #[test]
+    fn a_well_formed_line_with_a_matching_digest_verifies() {
+        let dir = snapshot("ok", &format!("{EMPTY}  a.txt\n"));
+        assert_eq!(verify(&dir).unwrap().len(), 1);
     }
 }

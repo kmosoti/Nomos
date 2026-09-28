@@ -11,3 +11,16 @@
 //! Compilation from a given IR must be deterministic (invariant N12). The
 //! reproducibility of the build that produces the IR is a separate obligation,
 //! tested by the `build-hermeticity` grounding experiment.
+#![no_std]
+// Core purity (ADR 0016, `crates/core/PURITY.toml`): a panic is not an
+// Assessment. Failure is a value in the domain; these lints keep it one.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
+extern crate alloc;

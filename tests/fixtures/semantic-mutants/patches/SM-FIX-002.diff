@@ -1,0 +1,13 @@
+diff --git a/crates/kernel/src/lib.rs b/crates/kernel/src/lib.rs
+index 8fe04d9..4ea0076 100644
+--- a/crates/kernel/src/lib.rs
++++ b/crates/kernel/src/lib.rs
+@@ -24,7 +24,7 @@ pub fn assess(expected: u8, observed: Option<u8>) -> Assessment {
+ pub fn variances(assessments: &[Assessment]) -> usize {
+     assessments
+         .iter()
+-        .filter(|a| **a == Assessment::Variance)
++        .filter(|a| **a != Assessment::Satisfied)
+         .count()
+ }
+ 

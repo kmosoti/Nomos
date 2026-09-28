@@ -1,0 +1,12 @@
+# Negative control: a core crate names a randomness crate.
+[package]
+name = "nomos-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+rand = { path = "../../../vendor/rand" }

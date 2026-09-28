@@ -1,0 +1,17 @@
+[policy]
+no_std = true
+build_scripts = false
+required_lints = ["clippy::unwrap_used", "clippy::expect_used", "clippy::panic", "clippy::todo", "clippy::unimplemented"]
+
+[crates.nomos-core]
+[crates.nomos-canon]
+
+[allow.serde]
+default_features = false
+features = ["alloc", "derive"]
+transitive = ["serde_derive"]
+reason = "fixture: the one allowed external dependency"
+
+[deny]
+async-runtime = ["tokio"]
+randomness = ["rand"]

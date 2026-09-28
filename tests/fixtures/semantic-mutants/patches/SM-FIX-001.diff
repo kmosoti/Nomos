@@ -1,0 +1,13 @@
+diff --git a/crates/kernel/src/lib.rs b/crates/kernel/src/lib.rs
+index 8fe04d9..9961e47 100644
+--- a/crates/kernel/src/lib.rs
++++ b/crates/kernel/src/lib.rs
+@@ -14,7 +14,7 @@ pub enum Assessment {
+ /// Assesses one Condition against an Observation that may have failed.
+ pub fn assess(expected: u8, observed: Option<u8>) -> Assessment {
+     match observed {
+-        None => Assessment::Indeterminate,
++        None => Assessment::Variance,
+         Some(o) if o == expected => Assessment::Satisfied,
+         Some(_) => Assessment::Variance,
+     }

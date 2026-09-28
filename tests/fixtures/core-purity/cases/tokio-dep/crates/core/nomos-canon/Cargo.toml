@@ -1,0 +1,14 @@
+# Negative control: a core crate names an async runtime.
+[package]
+name = "nomos-canon"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-core = { path = "../nomos-core" }
+serde = { path = "../../../vendor/serde", default-features = false, features = ["alloc", "derive"] }
+tokio = { path = "../../../vendor/tokio" }

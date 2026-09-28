@@ -1,0 +1,96 @@
+# Trust-boundary policy (ADR 0015). Read by `cargo xtask check-trust-boundary --base <ref>`.
+#
+# The generator of a change writes the implementation. The oracles that judge
+# it, the specification and the verifier, are protected: a commit that touches
+# one must say so with a `Trust-Boundary: <class>` line in its message, and
+# must not also touch implementation. The gate detects and demands the
+# declaration; a reviewer reads the declared commit and decides. Paths are
+# matched by prefix (a directory ends in `/`) or exactly. The first matching
+# set wins, in the order specification, verifier, implementation; a path in
+# none of them is neutral.
+
+[protected.specification]
+paths = ["docs/PROJECT-SPEC.md", "docs/formal/", "formal/", "docs/adr/"]
+
+[protected.verifier]
+paths = [
+    "crates/bin/nomos-xtask/",
+    "tests/",
+    "verification/",
+    "crates/core/PURITY.toml",
+    ".github/workflows/",
+    ".cargo/",
+    "Cargo.toml",
+    "rust-toolchain.toml",
+]
+
+[implementation]
+paths = [
+    "crates/core/",
+    "crates/ports/",
+    "crates/app/",
+    "crates/adapters/",
+    "crates/bin/nomos-cell/",
+    "crates/bin/nomos-loom/",
+]
+
+# The escape-hatch scan skips these: the policy itself, which lists the
+# patterns, and fixture trees that exist to contain them. They remain
+# verifier paths, so a change to them is still declared.
+[scan]
+exempt = [
+    "verification/trust-boundary.toml",
+    "tests/fixtures/agent-proof/",
+    "tests/fixtures/semantic-mutants/patches/",
+    "tests/semantic-mutants/patches/",
+]
+
+# Lines that weaken a check when added to implementation or verifier code.
+# A commit adding one declares `Trust-Boundary: escape-hatch`, or fails.
+# `unless_line_contains` exempts a line, for a lint allowed only under test.
+[[escape_hatch]]
+pattern = "#[ignore"
+reason = "an ignored test proves nothing"
+
+[[escape_hatch]]
+pattern = "#[mutants::skip"
+reason = "a function skipped by mutation testing is unmeasured"
+
+[[escape_hatch]]
+pattern = "allow(clippy::unwrap_used"
+unless_line_contains = ["cfg_attr(test"]
+reason = "the core purity policy denies unwrap outside tests"
+
+[[escape_hatch]]
+pattern = "allow(clippy::expect_used"
+unless_line_contains = ["cfg_attr(test"]
+reason = "the core purity policy denies expect outside tests"
+
+[[escape_hatch]]
+pattern = "allow(clippy::panic"
+unless_line_contains = ["cfg_attr(test"]
+reason = "the core purity policy denies panic outside tests"
+
+[[escape_hatch]]
+pattern = "allow(clippy::todo"
+reason = "the core purity policy denies todo"
+
+[[escape_hatch]]
+pattern = "allow(clippy::unimplemented"
+reason = "the core purity policy denies unimplemented"
+
+[[escape_hatch]]
+pattern = "allow(unsafe_code"
+reason = "the workspace forbids unsafe"
+
+[[escape_hatch]]
+pattern = "kani::assume"
+reason = "an assumption in a proof harness narrows what the proof covers (ADR 0007 §6)"
+
+[[escape_hatch]]
+pattern = "admit()"
+reason = "an admitted obligation is unproved"
+
+[[escape_hatch]]
+pattern = "#[should_panic"
+reason = "fixture: a new pattern added to the policy is not itself a hatch"

@@ -47,7 +47,7 @@ Recovery after a crash reuses the persisted incarnation and sequence. Recovery a
 
 ### Acceptance Criteria
 
-- **Composition.** Experiment `controller-composition`, after milestone 1 PR 4: two simulated controllers on one property, in shared, single-owner, and disjoint configurations. The shared case must be rejected or detected, and one safe composition demonstrated.
+- **Composition.** Experiment `controller-composition`, after milestone `05-transition-kernel`: two simulated controllers on one property, in shared, single-owner, and disjoint configurations. The shared case must be rejected or detected, and one safe composition demonstrated.
 - **Identity.** Experiment `identity-rollback`, before remote execution: crash, disk restore, reinstall, and full clone, each handled separately, with no stale authority accepted.
 
 ## Consequences

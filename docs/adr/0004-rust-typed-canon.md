@@ -46,7 +46,7 @@ Resource specifications are sum types that cannot express contradictions, for ex
 
 None of these is decided by this ADR, and none may be treated as decided until its own record exists:
 
-- **Canonical artifact encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) or the JSON Canonicalization Scheme (JCS). Milestone 1 pull request 5, experiment `canonical-encoding`.
+- **Canonical artifact encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) or the JSON Canonicalization Scheme (JCS). Milestone `06-canon-artifact`, experiment `canonical-encoding`.
 - **Artifact container and file extension.** Examples carry no extension.
 - **Content hash algorithm and profile.** What $H$ is, and what domain separation and version tag it hashes over.
 - **Artifact signing.** Whether artifacts are signed, by whom, and what a consumer verifies.
@@ -72,7 +72,7 @@ None of these is decided by this ADR, and none may be treated as decided until i
 
 ### Evidence
 
-Research findings `build-not-pure`, `decode-validation`, `sum-not-product`, and `canonical-not-wire` are documented mechanisms from primary sources and inspectable arguments. None has been exercised on Nomos code. Milestone 1 pull request 5 supplies the executable evidence, and the verification section below says what is owed.
+Research findings `build-not-pure`, `decode-validation`, `sum-not-product`, and `canonical-not-wire` are documented mechanisms from primary sources and inspectable arguments. None has been exercised on Nomos code. Milestone `06-canon-artifact` supplies the executable evidence, and the verification section below says what is owed.
 
 ## Consequences
 

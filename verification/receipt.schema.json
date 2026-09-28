@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kmosoti/nomos/verification/receipt.schema.json",
+  "title": "Verification receipt",
+  "description": "One executed check and its outcome. One JSON object per line of an NDJSON file under verification/receipts/. A result of passed needs evidence of a run with exit status 0; a result that was never run carries no evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["check_id", "result", "command", "commit", "dirty", "toolchain", "lockfile_sha256", "recorded_by", "unchecked"],
+  "properties": {
+    "check_id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "A key of verification/checks.toml." },
+    "result": { "enum": ["passed", "failed", "inconclusive", "not-run", "not-applicable"] },
+    "command": { "type": "string", "minLength": 1, "description": "The exact command line that ran." },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$", "description": "The commit the working tree was at." },
+    "dirty": { "type": "boolean", "description": "Whether the working tree had uncommitted changes." },
+    "toolchain": { "type": "string", "minLength": 1, "description": "The Rust toolchain channel from rust-toolchain.toml." },
+    "lockfile_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "recorded_by": { "type": "string", "minLength": 1, "description": "The tool that wrote the line." },
+    "properties": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Invariants or properties the check bears on, for the verification matrix." },
+    "unchecked": { "type": "string", "minLength": 1, "description": "What this result does not cover." },
+    "note": { "type": "string" },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exit_status", "stdout_sha256", "stderr_sha256", "duration_ms"],
+      "properties": {
+        "exit_status": { "type": "integer" },
+        "stdout_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "stderr_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "tests_run": { "type": "integer", "minimum": 0, "description": "Tests reported passed, summed over `test result:` lines, when the command ran cargo test." },
+        "tests_failed": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result": { "const": "passed" } } },
+      "then": { "required": ["evidence"], "properties": { "evidence": { "properties": { "exit_status": { "const": 0 } } } } }
+    },
+    {
+      "if": { "properties": { "result": { "const": "failed" } } },
+      "then": { "required": ["evidence"], "properties": { "evidence": { "properties": { "exit_status": { "not": { "const": 0 } } } } } }
+    },
+    {
+      "if": { "properties": { "result": { "enum": ["not-run", "not-applicable"] } } },
+      "then": { "not": { "required": ["evidence"] } }
+    }
+  ]
+}

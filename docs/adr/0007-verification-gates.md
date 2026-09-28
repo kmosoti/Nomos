@@ -8,7 +8,7 @@
 
 Nomos states twelve invariants and a set of formal claims, and none of them has been checked against code. The research snapshot pointed out two ways that gap turns into false confidence. A checker that passes without a negative control may not be checking anything. And a specification can be weakened until the check passes, which is the shortcut automated agents find first (finding `agent-spec-gaming`). ADR 0000 also claimed that Cargo enforces the dependency rule, which it does not (finding `layer-policy`).
 
-Milestone 1 pull request 1 built the first two gates. This ADR records the rules every gate follows, so later gates, from property tests to TLA+ models, are held to the same standard.
+Milestone `01-foundation-gates` built the first two gates. This ADR records the rules every gate follows, so later gates, from property tests to TLA+ models, are held to the same standard.
 
 ## Decision
 
@@ -57,12 +57,23 @@ Unit tests, exhaustive truth tables, property tests, and compile-fail tests come
 
 ### Evidence
 
-Pull request 1: `verify_snapshot` and `check-layers` with their negative controls, 58 passing tests on commit `55206a2`, and three deliberate breaks of the verifiers (ignoring optional dependencies, allowing any single port, skipping the manifest stage), each caught by the intended tests.
+Milestone `01-foundation-gates`, pull request #2 merged as `0136a93`: `verify_snapshot` and `check-layers` with their negative controls, 58 passing tests on commit `55206a2`, and three deliberate breaks of the verifiers (ignoring optional dependencies, allowing any single port, skipping the manifest stage), each caught by the intended tests.
 
 ## Consequences
 
-- Every later gate in milestone 1 follows §1 and §2, and a pull request that adds a gate without a negative control is incomplete.
+- Every later gate follows §1 and §2, and a pull request that adds a gate without a negative control is incomplete.
 - Changing what a gate accepts is a trust-boundary change under rule 11.
 - The verification matrix exists before anything in it is checked, and it starts empty by design.
 - **Failure behavior.** A gate failure names its code and stops the run. A gate that cannot run, for example `cargo metadata` failing on a stale lockfile, fails closed; it never reports success.
 - **Revisit trigger.** Reopen when the agent-proof gate lands, when a second verifier is adopted, or when a gate needs its first exception.
+
+## Amendment, 2026-09-28
+
+The agent-proof gate landed in milestone `02-verification-foundation`, and this ADR is amended narrowly, without changing its decisions:
+
+- **§1.** The record is now a concrete format: a verification receipt under `verification/receipts/`, written by `cargo xtask receipts record` and held to `verification/receipt.schema.json` by `cargo xtask receipts validate`. The verification matrix is filled from receipts and result records only ([ADR 0015](0015-generator-verifier-development-model.md) §11).
+- **§2.** Three more code families exist: `PurityCode` in the core purity check, `TrustCode` in the trust-boundary check, and `ReceiptCode` in the receipt validator. Each ships with negative controls asserted by code and a positive control.
+- **§5.** The mechanical gate owed here is `cargo xtask check-trust-boundary`, in CI on every push and pull request. It detects and demands a declaration; semantic weakening remains a review item under rule 11, as this section said it would ([ADR 0015](0015-generator-verifier-development-model.md) §3).
+- **Vocabulary.** Where this ADR says "pull request 1" it means milestone `01-foundation-gates`; the roadmap now uses stable milestone names.
+
+Everything else in this ADR stands as written.

@@ -1,0 +1,3 @@
+# Negative control: not a policy.
+[policy
+no_std = maybe

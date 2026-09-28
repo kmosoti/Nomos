@@ -62,6 +62,6 @@ Counterexamples `partial-assessment`, `lost-refresh`, and `fence-race` in the re
 - Logical composition of Conditions beyond a set is not decided here (spec §62).
 - Core types carry these names when they are implemented: `Condition`, `Observation`, `Assessment` with variants `Satisfied`, `Variance`, and `Indeterminate`, `Obligation`, and a `Settled` marker on effect receipts. No such type exists yet.
 - AGENTS.md rule 3 and CONTRIBUTING.md list the expanded vocabulary.
-- **Verification.** Milestone 1, pull request 2, implements the assessment algebra with exhaustive truth tables and property tests; pull request 4 exercises Obligations and settlement in the recovery simulator. Until those run, this ADR decides names and meanings, not behavior.
+- **Verification.** Milestone `03-assessment-kernel` implements the assessment algebra with exhaustive truth tables and property tests; `05-transition-kernel` exercises Obligations and settlement in the recovery simulator. Until those run, this ADR decides names and meanings, not behavior.
 - **Failure behavior.** An adapter has no channel through which to report "satisfied"; it returns Observations, and core assesses them. A driver that cannot observe a property returns an Observation whose collection failed, which assesses as Indeterminate with that reason.
 - **Revisit trigger.** Reopen if the assessment algebra experiment finds a case that three outcomes cannot express without lying, or if Obligations turn out to be needed for every service, in which case the Condition form should be made mandatory instead.

@@ -1,0 +1,3 @@
+Use wrapping addition in succ
+
+Overflow is a value, not a panic.

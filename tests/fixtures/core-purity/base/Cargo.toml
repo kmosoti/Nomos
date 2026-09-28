@@ -1,0 +1,15 @@
+# Core-purity fixture: two core crates and one app crate, every dependency
+# within policy. The positive control. Vendored path crates stand in for
+# registry crates so the check needs no network.
+[workspace]
+resolver = "3"
+members = [
+    "crates/core/nomos-core",
+    "crates/core/nomos-canon",
+    "crates/app/nomos-app",
+]
+# Path dependencies under the root would otherwise be implicit members.
+exclude = ["vendor"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

@@ -15,3 +15,16 @@
 //! - `action`      — Action and its lifecycle
 //! - `plan`        — Plan (immutable compiled artifact, generation/fencing)
 //! - `event`       — Event and Event Log semantics
+#![no_std]
+// Core purity (ADR 0016, `crates/core/PURITY.toml`): a panic is not an
+// Assessment. Failure is a value in the domain; these lints keep it one.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
+extern crate alloc;
