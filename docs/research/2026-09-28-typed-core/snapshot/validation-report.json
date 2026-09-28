@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "scope": "Artifact integrity, not Nomos correctness",
+  "graph_sha256": "68f2c662468ae4f5742667fae486ef1991dab95c00e6fb8374d22cc9727f2d63",
+  "counts": {
+    "source": 37,
+    "concept": 18,
+    "finding": 26,
+    "recommendation": 26,
+    "experiment": 21,
+    "open_question": 14,
+    "research_direction": 6,
+    "correction": 6,
+    "counterexample": 7,
+    "adr_candidate": 8,
+    "nodes": 169,
+    "edges": 348,
+    "records": 518
+  },
+  "checks": [
+    "strict_utf8_ndjson",
+    "no_duplicate_json_keys",
+    "no_nonfinite_numbers",
+    "unique_ids",
+    "weight_bounds",
+    "source_resolution",
+    "edge_endpoints",
+    "no_duplicate_edges",
+    "no_isolated_nodes",
+    "recommendation_experiment_coverage",
+    "acyclic_recommendation_dependencies",
+    "metadata_counts"
+  ],
+  "json_schema": {
+    "status": "passed",
+    "records_validated": 518,
+    "validator": "jsonschema",
+    "validator_version": "4.26.0",
+    "schema_sha256": "ad793240353e0f73867901679b8b1fbd4d77eaf550303b5de372c3b39ada167c"
+  },
+  "negative_controls": {
+    "dangling_endpoint": "rejected_as_expected",
+    "out_of_range_weight": "rejected_as_expected",
+    "duplicate_id": "rejected_as_expected",
+    "duplicate_json_key": "rejected_as_expected",
+    "non_finite_number": "rejected_as_expected",
+    "blank_record": "rejected_as_expected"
+  },
+  "not_established": [
+    "Research claims are true",
+    "Nomos builds or runs",
+    "Formal models have been checked",
+    "Proposed experiments have been executed"
+  ]
+}

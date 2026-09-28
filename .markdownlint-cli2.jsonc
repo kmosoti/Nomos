@@ -11,5 +11,5 @@
     "MD004": { "style": "dash" },
     "MD029": { "style": "ordered" }
   },
-  "ignores": ["LICENSE", "target/**"]
+  "ignores": ["LICENSE", "target/**", "docs/research/*/snapshot/**"]
 }

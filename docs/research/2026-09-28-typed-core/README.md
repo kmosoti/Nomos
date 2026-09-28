@@ -1,0 +1,119 @@
+# Typed-Core Research Snapshot, 2026-09-28
+
+Imported from `nomos-research-2026-09-28.zip`. The bundle reviewed `main` at commit `d4c11fa`, which is also the commit this import builds on, so its repository observations refer to the drafts as they stood. [snapshot/](snapshot/) holds the bundle byte for byte. This page is the evaluation and the map of where each result went.
+
+## What the Bundle Is
+
+A weighted property graph of 169 nodes and 348 edges in newline-delimited JSON (NDJSON), with a JSON Schema, a validator, a human-readable [recommendation index](snapshot/RECOMMENDATIONS.md), seven small Python counterexample models, and their reports. The bundle's own [README](snapshot/README.md) documents the record model and the weight rubric.
+
+| Node kind | Count | What it is |
+| --- | ---: | --- |
+| Source | 37 | 30 external primary references, six repository files at `d4c11fa`, one conversation decision record |
+| Concept | 18 | Vocabulary as the bundle uses it, which differs from spec §3 in places noted below |
+| Finding | 26 | Documented mechanisms, repository observations, or labeled deductions |
+| Recommendation | 26 | Proposed directions with constraints, acceptance criteria, and target paths |
+| Experiment | 21 | Proposed tests. None has run |
+| Open question | 14 | Unresolved decisions, each with a closure rule |
+| Correction | 6 | Retractions of earlier design guidance from the same conversation |
+| Counterexample | 7 | Executed Python models of draft semantics, not Nomos tests |
+| Research direction | 6 | Contemporary work to borrow from selectively |
+| ADR candidate | 8 | Decision bundles, not accepted ADRs |
+
+It is a design artifact. It built no Nomos code, checked no TLA+ model, and executed no Linux test. Its weights are ordinal editorial judgments on a 0–4 scale. The field that matters for reading it is `disposition`: 18 recommendations are `adopt_direction`, one is `trial`, 6 are `research_required`, and one is `defer_until_measured`.
+
+## Verification on Import
+
+| Check | Result | What it establishes |
+| --- | --- | --- |
+| `sha256sum -c MANIFEST.sha256` | All nine files match | The copy under `snapshot/` is the bundle as delivered |
+| `validate_graph.py`, standard-library checks | Passed. Graph hash and counts match the shipped report. Six negative controls rejected | The graph is well formed and internally consistent |
+| `validate_graph.py --require-schema` | Not rerun here. The `jsonschema` package is not installed in the import environment. The shipped report records a pass with jsonschema 4.26.0 | Per-record schema conformance rests on the bundle's own report |
+| `reproduce_counterexamples.py` | Reran. Output identical to the shipped `counterexample-results.json` | The seven models are deterministic and say what the bundle says they say |
+
+Both scripts were read before they were run. They use the standard library only, make no network requests, and spawn no processes. The reproducer writes one JSON file beside itself.
+
+None of this establishes a claim about Nomos. The counterexamples are Python models of the draft formal documents. They show that the drafts, read literally, admit the bad outcomes. They do not show that Rust code has a bug, because there is no Rust code yet.
+
+## Findings Against the Repository
+
+Each finding was checked against the draft it cites. *Confirmed* means the draft says what the finding says and the argument holds. *Qualification* means the draft's claim is stronger than it can be. *Design input* means no draft covers the topic yet. The last column says where the correction or the concern now lives.
+
+| Finding | Draft | Verdict | Where it went |
+| --- | --- | --- | --- |
+| `final-check` | `reconciliation.md` tested $V = \varnothing$ only before `execute`. With $k = 1$, a successful last mutation returned `NonConvergent(bound)` | Confirmed error | The loop now observes after the last permitted execution |
+| `activation-missing` | `warp.md` made an `on_change` dependent ready once its source was terminal. Its own table said activation needs a change | Confirmed inconsistency | $\mathrm{Ready}$ now requires activation by a verified change |
+| `noop-anchor` | $V$ held only mutating Actions, so a satisfied `requires` target had no vertex and its edge dangled | Confirmed gap | Satisfaction anchors, working definition |
+| `scc-not-cycle` | `warp.md` called strongly connected components "the minimal cycles" | Confirmed overstatement | One explicit witness cycle per component, no minimality claim |
+| `budget-not-world` | `invariants.md` wrote N9 as $\forall f: \mathrm{Unavailable}(f) \le k_f$, a bound on the world. Spec §58 says budgets are never *intentionally* exceeded | Confirmed overstatement | N9 predicate is now about admission |
+| `bound-not-termination` | The termination proof counted iterations and said nothing about a call that never returns | Qualification | Termination names its deadline assumption; a fired deadline does not undo an effect |
+| `fingerprint-limits` | One repeated observation fingerprint meant oscillation | Qualification | A repeat counts only on the managed-resource projection and with no work in flight |
+| `fence-race` | `fencing-and-idempotency.md` checked the generation before dispatch; the effect came later | Confirmed gap | The N5 theorem now states its atomicity assumption. ADR candidate `recovery-authority` |
+| `dedup-scope` | The idempotency key's scope was undefined. A semantic-content key would suppress later repairs | Design gap | The key names one execution within one Plan |
+| `lost-refresh` | The crash-window argument assumed every effect is visible in Variance. A lost restart is not | Design gap | Caveat in the crash window; Known Gaps in `warp.md`. ADR candidate `warp-gates` |
+| `replay-not-reality` | `event-log.md` called the fold over $L$ "state" | Qualification | The fold is control state. Recovery re-observes the host |
+| `trace-scope` | N1 compared whole machines | Qualification | N1 compares a projection onto managed-resource properties |
+| `layer-policy` | ADR 0000 said the manifests make the build enforce the dependency rule | Confirmed overstatement | ADR 0000 amended. Experiment `layer-policy` |
+| `types-not-world` | The leverage section implied a constructor proves a property | Qualification | Note in `invariants.md` on what a type proves |
+| `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Design input | Grounding plan, wave 3. ADR candidate `canon-artifact` |
+| `partial-assessment` | Spec §9 `diff` returns Variance or nothing | Design input | Grounding plan, wave 1. Known Gaps in `reconciliation.md`. ADR candidate `evidence-model` |
+| `single-controller` | The reconciliation model has one controller | Design input | Grounding plan, wave 4 |
+| `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 10 and CONTRIBUTING.md |
+| `epoch-not-oracle`, `identity-path`, `secrets-scope`, `incremental-scope` | Beyond Phase 0 | Deferred | Listed under deferred experiments in the grounding plan |
+
+The six corrections in the bundle retract guidance from the conversation that produced it, not text in this repository. None of the retracted forms appears in the repository, and the corrected forms are what the grounding plan carries forward.
+
+## Conflicts With the Specification
+
+Three points in the bundle disagree with the specification or with the agent rules. They are recorded here and not adopted. Adopting any of them is a specification amendment plus an ADR, which is the user's decision.
+
+**Canon authoring surface.** Spec §5 shows Canon as YAML, §54 lists the syntax ablation as strict YAML against TOML with the same typed intermediate representation (IR) either way, and §5 says Canon does not embed a general-purpose programming language. The bundle takes a Rust-authored Canon, a crate that generates an inert artifact, as the intended direction. Its source for that is a conversation decision (`src:user-decisions`), not the specification, and the bundle itself notes that Rust authoring is code execution and needs an isolated build job without host credentials. The repository documents keep the specification's model. The grounding plan runs the Canon-boundary experiments on the typed IR, which is the same under either authoring surface, and gates the one experiment that only makes sense for Rust authoring (`build-hermeticity`) on decision D1.
+
+**Vocabulary.** The bundle uses *Condition*, *Observation*, *Assessment*, and *Indeterminate*. Spec §3 fixes Canon, Trait, Cipher, Variance, Trace, Enforce, Event, and Event Log, and §9 already uses Observation and Variance in the driver contract. The mapping is:
+
+| Bundle term | Specification | Status |
+| --- | --- | --- |
+| Condition | A resource's `spec` in Canon, $D_r$ | Existing concept, no new name needed yet |
+| Observation | `Observation`, $O_r$ | Already in spec §9 |
+| Assessment: Satisfied, Variance, Indeterminate | The result of `diff` | `diff` has two outcomes today. The third, for evidence that supports neither, is proposed. ADR candidate `evidence-model` |
+
+The repository documents describe the third outcome in words where they need it and coin no term for it.
+
+**Package-manager invocation.** Recommendation `substrate` says a controlled `argv` invocation of an unavoidable package-manager command line is not shell interpolation. AGENTS.md rule 5 says no shell execution in Substrate, and spec §12 requires D-Bus for systemd. A direct `execve` with a fixed argument vector is not a shell, but nobody has decided whether it is allowed, and `package` is a Phase 1 resource (spec §10, §55). Recorded, not decided.
+
+## Recommendations and Where They Land
+
+The bundle groups its 26 recommendations into eight ADR candidates. The grounding plan assigns each candidate to the wave whose experiments produce its evidence.
+
+| ADR candidate | Recommendations | Fed by |
+| --- | --- | --- |
+| `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | Wave 0, wave 4 |
+| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | Wave 1, wave 4. `identity-recovery` deferred |
+| `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | Wave 1, wave 2 |
+| `recovery-authority` | `effect-recovery`, `fencing`, `budget` | Wave 2. `fencing` deferred to before remote execution |
+| `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | Wave 3, after decision D1 |
+| `event-history` | `log-boundary`, `log-retention` | Phase 2. Concerns recorded in `event-log.md` |
+| `boundary-security` | `substrate`, `cipher` | Phase 1 and Phase 6 |
+| `future-algorithms` | `incremental`, `plan-witness` | After Phase 0 |
+
+The bundle's recommendation dependency edges form a DAG. Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The wave order follows that DAG.
+
+## Querying the Graph
+
+```python
+import json
+from pathlib import Path
+
+records = [json.loads(line) for line in
+           Path("snapshot/nomos-research.ndjson").read_text(encoding="utf-8").splitlines()]
+recs = [r for r in records if r.get("node_kind") == "recommendation"]
+recs.sort(key=lambda r: (-r["weights"]["salience"], -r["weights"]["importance"], r["id"]))
+for r in recs:
+    d = r["details"]
+    print(d["phase"], d["disposition"], r["title"], sep="\t")
+```
+
+Node IDs are stable within the snapshot and have the form `urn:moiric:nomos:research:2026-09-28:<kind>:<key>`. The formal documents cite counterexamples and experiments by their `<key>`.
+
+## Revision Policy
+
+`snapshot/` never changes. A revised graph is a new dated directory with its own manifest and its own evaluation. Results of the grounding experiments go under `results/` here, one record per experiment, and a result record is written only after the experiment ran.
