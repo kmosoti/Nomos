@@ -1,0 +1,58 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Warning: Please run the Java VM which executes TLC with a throughput optimized garbage collector by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 123 and seed -2298271233570120919 with 1 worker on 4 cores with 3422MB heap and 64MB offheap memory  (Linux 6.18.44-fc-v37 amd64, Ubuntu 21.0.10 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /home/user/Nomos/formal/tla/ActionLifecycle.tla
+Parsing file /tmp/TLC.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Parsing file /tmp/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module ActionLifecycle
+Starting... (2026-09-28 14:36:45)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-28 14:36:45.
+Error: Invariant SucceededIsVerified is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ last = "Init"
+/\ reserved = FALSE
+/\ verified = FALSE
+/\ effect = "None"
+/\ stage = "Prepared"
+
+State 2: <Dispatch line 47, col 5 to line 52, col 25 of module ActionLifecycle>
+/\ last = "Dispatch"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Dispatched"
+
+State 3: <Accept line 61, col 5 to line 64, col 23 of module ActionLifecycle>
+/\ last = "Accept"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Accepted"
+
+State 4: <Start line 67, col 5 to line 70, col 22 of module ActionLifecycle>
+/\ last = "Start"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Unsettled"
+/\ stage = "Running"
+
+State 5: <Complete line 74, col 5 to line 78, col 25 of module ActionLifecycle>
+/\ last = "Complete"
+/\ reserved = TRUE
+/\ verified = FALSE
+/\ effect = "Settled"
+/\ stage = "Succeeded"
+
+14 states generated, 12 distinct states found, 4 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 2 (minimum is 0, the maximum 3 and the 95th percentile is 3).
+Finished in 00s at (2026-09-28 14:36:45)

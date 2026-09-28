@@ -1,0 +1,92 @@
+---------------- MODULE /home/user/Nomos/tests/fixtures/tla/RefreshRecovery/trace_0_29 -----------------
+STATE_1 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Init"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 1
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_2 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "NewRun"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 2
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_3 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Running"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "NewRun"
+/\ refresh = "Idle"
+/\ crashes = 0
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_4 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Crash"
+/\ refresh = "Idle"
+/\ crashes = 1
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+STATE_5 == 
+/\ writeReceipt = FALSE
+/\ outcome = "Failed"
+/\ writeEffect = "None"
+/\ obligation = FALSE
+/\ disk = "old"
+/\ refreshEffect = "None"
+/\ other = "Idle"
+/\ last = "Crash"
+/\ refresh = "Idle"
+/\ crashes = 2
+/\ loaded = "old"
+/\ refreshReceipt = FALSE
+/\ gen = 3
+/\ activated = FALSE
+/\ write = "Idle"
+
+
+=================================================
