@@ -45,7 +45,9 @@ Five focused pull requests, in order. Each names its exit condition, and the exi
 
 *Landed 2026-09-28.* ADRs 0004 to 0006, the spec amendments, the corrected formal documents, strict whole-snapshot verification shared by the CLI and the tests, `cargo xtask check-layers` over the declared and resolved graphs with fixture cases for direct, renamed, optional, target-specific, build, and dev dependencies, an adapter naming two ports, a dependency on a bin crate, and core depending on a port, plus one allowed workspace so the checker cannot pass by rejecting everything. `cargo xtask research frozen --base <ref>` is the Git comparison checksums cannot replace. CI runs `--locked`, `verify-all`, and `check-layers` on every push, and `frozen` on pull requests. Exceptions to the dependency rule are none; the mock adapter does not become a dev-dependency of `nomos-app`.
 
-Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, and the allowed workspace passes. Still owed under PR 1: the `agent-proof-gate` fixtures and command, and mutation runs over `nomos-xtask` itself.
+Hardened the same day to the owner's PR 1 specification: one `verify_snapshot` with no weaker mode and a stable code on every failure, negative controls asserted by reason, the matching-port rule for adapters, `nomos-core`, dev, build, and tooling-crate cases, the real crate names in the fixtures, `cargo check --locked` in CI, and `--locked` in the `cargo xtask` alias.
+
+Exit, met: a forbidden dependency and a corrupted snapshot each fail the required check for the stated reason, the allowed workspace passes, and restoring the valid input passes again. The owner scoped PR 1 to specification alignment, snapshot integrity, layer enforcement, and CI. The `agent-proof-gate` experiment and mutation runs over `nomos-xtask` therefore move to their own pull request after PR 1.
 
 ### PR 2: The Assessment Algebra
 
@@ -168,7 +170,8 @@ The research snapshot's experiments remain the evidence units. The cards below c
 
 | Experiment | Pull request |
 | --- | --- |
-| `layer-policy`, `agent-proof-gate` | PR 1 |
+| `layer-policy` | PR 1 |
+| `agent-proof-gate` | Its own pull request, after PR 1 |
 | `assessment-algebra` | PR 2 |
 | `warp-truth-table` | PR 3 |
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | PR 4 |

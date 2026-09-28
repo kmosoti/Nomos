@@ -4,7 +4,7 @@ Dated research snapshots, the evaluation of each against the repository, and the
 
 | Snapshot | Scope | Status |
 | --- | --- | --- |
-| [2026-09-28-typed-core](2026-09-28-typed-core/README.md) | Typed core: algebraic Canon model, evidence and assessment, Warp gates, effect recovery, fencing, Event Log boundaries, verification discipline | Imported and evaluated. Decisions D1 and D2 recorded as ADRs 0004 to 0006. [Milestone 1 plan](2026-09-28-typed-core/grounding-plan.md) proposed; PR 1 partly landed, nothing else run |
+| [2026-09-28-typed-core](2026-09-28-typed-core/README.md) | Typed core: algebraic Canon model, evidence and assessment, Warp gates, effect recovery, fencing, Event Log boundaries, verification discipline | Imported and evaluated. Decisions D1 and D2 recorded as ADRs 0004 to 0006. [Milestone 1 plan](2026-09-28-typed-core/grounding-plan.md): PR 1 landed, nothing else run |
 
 ## Layout
 
