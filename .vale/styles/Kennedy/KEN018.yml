@@ -1,0 +1,12 @@
+# No generic closing invitations.
+extends: existence
+message: "KEN018: '%s' is a generic closing invitation. End on the substance."
+level: warning
+ignorecase: true
+tokens:
+  - let me know
+  - feel free to
+  - hope this helps
+  - happy to help
+  - don't hesitate
+  - reach out

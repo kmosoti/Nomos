@@ -1,0 +1,55 @@
+# Expand acronyms on first use.
+extends: conditional
+message: "KEN007: Expand '%s' on first use, for example 'directed acyclic graph (DAG)'."
+level: warning
+ignorecase: false
+first: '\b([A-Z]{3,5})\b'
+second: '(?:\b[A-Za-z][a-z0-9]+[ -])+\(([A-Z]{3,5})\)'
+# Terms the audience (Linux and distributed-systems engineers) already knows,
+# plus product and file names that are not acronyms to expand.
+exceptions:
+  - API
+  - CLI
+  - CPU
+  - HTTP
+  - HTTPS
+  - ASCII
+  - TLS
+  - YAML
+  - TOML
+  - JSON
+  - SQL
+  - NAT
+  - DNS
+  - TCP
+  - UDP
+  - SSH
+  - URL
+  - POSIX
+  - BSD
+  - PID
+  - UUID
+  - RAM
+  - FIFO
+  - ACID
+  - QUIC
+  - AST
+  - LMDB
+  - SPIFFE
+  - SPIRE
+  - TLA
+  # Repository vocabulary: document prefix defined in docs/adr/README.md.
+  - ADR
+  - README
+  - NOTICE
+  - LICENSE
+  - AGENTS
+  - GRPC
+  - CANON
+  - LOOM
+  - CELL
+  - WARP
+  - NOMOS
+  - EVENT
+  - FILE
+  - TRAITS

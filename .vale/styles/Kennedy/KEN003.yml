@@ -1,0 +1,22 @@
+# Do not use corporate filler.
+extends: existence
+message: "KEN003: '%s' is corporate filler. Name the mechanism instead."
+level: error
+ignorecase: true
+tokens:
+  - leverage synergies
+  - synergy
+  - synergies
+  - best-in-class
+  - game changer
+  - game-changer
+  - strategic value-add
+  - holistic solution
+  - unlock value
+  - unlocking the power
+  - revolutionary
+  - industry-leading
+  - deep dive
+  - key takeaways
+  - fast-paced landscape
+  - world-class

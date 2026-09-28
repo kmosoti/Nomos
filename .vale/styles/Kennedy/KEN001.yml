@@ -1,0 +1,9 @@
+# Do not open with praise or validation.
+extends: existence
+message: "KEN001: Don't open with praise or validation ('%s'). Start with the substance."
+level: error
+scope: paragraph
+ignorecase: false
+nonword: true
+tokens:
+  - '^(?:Great|Excellent|Absolutely|You''re (?:exactly )?right|That is a fantastic)\b'

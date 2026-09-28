@@ -2,61 +2,52 @@
 
 *νόμος: law, custom, established order.*
 
-Every machine in a fleet drifts. Someone edits a config by hand, a package
-updates, a service stops and nobody notices, a permission changes. Most tools
-respond by running scripts at machines and hoping the exit codes mean what
-they seem to mean.
+Every machine in a fleet drifts. Someone edits a config by hand. A package updates. A service stops and nobody notices. A permission changes. Most tools respond by firing scripts at machines and trusting that exit code zero means what it seems to mean.
 
-Nomos takes a different stance. You describe how your machines **should** be.
-We call that description the **Canon**. Nomos then keeps asking one question:
-*how are they actually?*
+Nomos asks a different question. You describe how your machines **should** be. That description is the **Canon**. Nomos then keeps asking: *how are they actually?*
 
-It observes each host and measures the **Variance** between reality and the
-Canon. From that, it works out the smallest safe set of changes. It applies
-them, then looks again to confirm the change really happened. Every step is
-written down as immutable history.
+It observes each host and measures the **Variance** between reality and the Canon. It works out the smallest safe set of changes, applies them, and looks again to confirm that reality moved. Every step is written down as immutable history.
 
-> Observe reality, compare it with Canon, derive the smallest valid change,
-> apply that change under explicit safety constraints, verify reality again,
-> and preserve what happened as immutable history.
+What does "done" mean here? The intended postcondition was observed on the machine. An exit code is a rumor.
 
-## The cast
+> Observe reality, compare it with Canon, derive the smallest valid change, apply that change under explicit safety constraints, verify reality again, and preserve what happened as immutable history.
 
-- **Cell** lives on each machine. It observes, reconciles and verifies, and it
-  keeps working when it is cut off from everything else.
-- **Loom** coordinates the fleet. It decides which machines a change applies
-  to, plans the rollout, and makes sure a change never takes down more than
-  you allowed.
-- **Warp** turns desired changes into a dependency graph of Actions, so things
-  happen in the right order and never twice at once.
-- **Substrate** is where Nomos meets the operating system. It uses native
-  Linux interfaces rather than scraped shell output.
+## The Cast
 
-**Trace** shows you what would change without touching anything. **Enforce**
-makes it so. Running Enforce a second time does nothing, because there is
-nothing left to do.
+- **Cell** lives on each machine. It observes, reconciles, and verifies, and it keeps working when cut off from everything else.
+- **Loom** coordinates the fleet. It decides which machines a change applies to, plans the rollout, and never takes down more than you allowed.
+- **Warp** turns desired changes into a dependency graph of Actions, so things happen in the right order and never collide.
+- **Substrate** is where Nomos meets the operating system. It speaks native Linux interfaces, not scraped shell output.
 
-## What Nomos is not
+**Trace** shows what would change without touching anything. **Enforce** makes it so. Run Enforce twice and the second run does nothing, because there is nothing left to do. That is the point.
 
-Nomos is not a container orchestrator, a secrets manager, a telemetry
-platform, or a way to broadcast shell commands. It solves one problem well:
+## What Nomos Is Not
 
-*Reliably describe, inspect, change and verify Linux host state, locally and
-across a fleet.*
+Nomos is not a container orchestrator, a secrets manager, a telemetry platform, or a way to broadcast shell commands. It solves one problem, and solves it properly:
 
-Nomos is part of **Moiric**. FabricO11y observes systems, Nomos controls them,
-and Metron bounds what computation may do.
+*Reliably describe, inspect, change, and verify Linux host state, locally and across a fleet.*
+
+That problem is hard enough without trying to colonize computing.
+
+Nomos is part of **Moiric**. FabricO11y observes systems, Nomos controls them, and Metron bounds what computation may do.
 
 ## Status
 
-Nomos is at the skeleton stage. The architecture and crate boundaries are in
-place. The implementation starts with Phase 0: deterministic Canon → Variance
-→ Plan against a simulated machine.
+Skeleton. The architecture and crate boundaries are in place, and the code is still empty. Phase 0 comes next: a deterministic Canon → Variance → Plan pipeline against a simulated machine.
 
-## Learn more
+## Learn More
 
 Everything technical lives in [`docs/`](docs/):
 
-- [Project specification](docs/PROJECT-SPEC.md): the model, semantics and safety invariants
-- [Architecture](docs/ARCHITECTURE.md): how the code is organised
-- [Decision records](docs/adr/): why it is organised that way
+- [Project specification](docs/PROJECT-SPEC.md): the model, semantics, and safety invariants
+- [Architecture](docs/architecture/): how the system and the code are organized
+- [Formal](docs/formal/): the algorithms, and the invariants Nomos must never break
+- [Decision records](docs/adr/): why it is organized that way
+
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).

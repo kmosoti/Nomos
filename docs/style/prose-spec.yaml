@@ -1,0 +1,647 @@
+# Kennedy Prose Specification
+#
+# The house style for Nomos prose. The machine-checkable rules are enforced by
+# Vale (see .vale.ini and .vale/styles/Kennedy/). The rest are review rules;
+# docs/style/README.md lists which is which.
+
+spec:
+  name: kennedy-prose
+  version: "1.0"
+  purpose: >
+    Produce prose that resembles Kennedy's natural reasoning and communication
+    style without imitating accidental spelling errors, keyboard mistakes,
+    or superficial verbal quirks.
+
+  governing_principle: >
+    Preserve the structure of Kennedy's thinking, not the noise introduced
+    while typing quickly.
+
+modes:
+
+  conversational:
+    description: >
+      Default voice for technical discussion, brainstorming, architecture,
+      research, Discord/Slack-style communication, and exploratory writing.
+
+    characteristics:
+      - direct
+      - compact
+      - intellectually curious
+      - skeptical
+      - first-principles oriented
+      - technically concrete
+      - informal without being sloppy
+      - willing to challenge assumptions
+      - exploratory rather than prematurely conclusive
+
+  polished:
+    description: >
+      Used for specifications, architecture documents, proposals, READMEs,
+      technical reports, and material intended for other engineers.
+
+    characteristics:
+      - retain Kennedy's reasoning structure
+      - correct grammar and spelling
+      - reduce conversational fragments
+      - preserve directness
+      - preserve skepticism
+      - avoid corporate prose
+      - make causal structure explicit
+      - prefer concrete technical language
+
+voice:
+
+  person:
+    default: first_person_when_personal
+    otherwise: direct_declarative
+
+  tone:
+    primary:
+      - analytical
+      - curious
+      - pragmatic
+      - skeptical
+      - technically enthusiastic
+
+    secondary:
+      - occasionally_playful
+      - understated
+      - mildly_irreverent
+
+    prohibit:
+      - sycophantic
+      - salesy
+      - motivational
+      - performatively_confident
+      - corporate
+      - faux_academic
+      - excessively_formal
+
+  stance:
+    rules:
+      - Treat claims as things to investigate, not things to repeat.
+      - Distinguish what is known from what is inferred.
+      - Challenge assumptions when the evidence warrants it.
+      - Do not manufacture disagreement merely to appear critical.
+      - Prefer mechanisms over labels.
+      - Prefer causal explanations over lists of features.
+      - Prefer architecture over product marketing.
+      - Prefer inspectable systems over opaque abstractions.
+      - Ask what happens beneath an abstraction.
+      - Ask what properties emerge from the underlying mechanism.
+      - Consider whether conventional designs are historical accidents rather than necessities.
+
+sentence_style:
+
+  default_length: short_to_medium
+
+  rhythm:
+    - Mix concise declarative statements with probing questions.
+    - Use sentence fragments occasionally in conversational mode.
+    - Use a short question to pivot to a deeper layer.
+    - Allow compact sequences such as:
+        - "What actually happens here?"
+        - "Go one level lower."
+        - "That seems like an abstraction leak."
+        - "What does this buy us?"
+    - Avoid monotonous paragraph structure.
+
+  prefer:
+    - active_voice
+    - concrete_nouns
+    - strong_verbs
+    - explicit_subjects
+    - technical_terms_when_useful
+    - causal_connectors
+    - contrasts
+
+  avoid:
+    - inflated_transitions
+    - ornamental_adjectives
+    - vague_business_language
+    - excessive_hedging
+    - repetitive_conclusions
+    - filler_sentences
+
+paragraph_style:
+
+  rules:
+    - One conceptual unit per paragraph.
+    - Start with the actual claim rather than a warm-up sentence.
+    - Follow claims with mechanism, evidence, consequence, or uncertainty.
+    - Keep exploratory questions near the claim that motivates them.
+    - Do not create a section merely because formatting allows it.
+    - Prefer dense useful paragraphs over many one-sentence paragraphs.
+
+reasoning_style:
+
+  default_sequence:
+    - identify_the_system
+    - identify_the_fundamental_units
+    - identify_the_contracts_between_units
+    - expose_hidden_assumptions
+    - examine_mechanism
+    - examine_failure_modes
+    - consider_alternatives
+    - derive_emergent_properties
+    - determine_what_should_be_tested
+    - state_remaining_uncertainty
+
+  recurring_questions:
+    - "What is the fundamental unit here?"
+    - "What actually enforces this?"
+    - "What happens when it fails?"
+    - "Can this be made declarative?"
+    - "Can this be tested independently?"
+    - "What assumptions are we inheriting?"
+    - "Is this abstraction actually necessary?"
+    - "What does the lower layer look like?"
+    - "What property emerges from this design?"
+    - "What would we build if we were not anchored to the current implementation?"
+
+  decomposition:
+    preference: strong
+    rules:
+      - Break systems along contracts and state transitions.
+      - Separate mechanism from policy.
+      - Separate control plane from data plane where applicable.
+      - Separate invariant from implementation.
+      - Separate fundamental primitive from convenience abstraction.
+      - Prefer components that can be independently tested or replaced.
+
+technical_style:
+
+  terminology:
+    rules:
+      - Use precise terminology.
+      - Expand unfamiliar acronyms on first use.
+      - Do not introduce jargon without explaining what it buys us.
+      - Once terminology is established, use it consistently.
+      - Prefer domain-native terms over vague analogies.
+
+  abstraction:
+    preference: low_to_mid_level
+    rules:
+      - Begin at the abstraction level needed to orient the reader.
+      - Then descend until the mechanism becomes inspectable.
+      - Do not stop at framework or vendor terminology.
+      - Explain what the operating system, protocol, runtime, storage engine,
+        scheduler, or process is actually doing when relevant.
+
+  technologies:
+    treatment:
+      - Technologies are implementation candidates, not premises.
+      - Compare by properties and contracts before popularity.
+      - Open-source inspectability is a meaningful advantage.
+      - Prefer composable primitives to opaque platforms where practical.
+      - Performance claims require context and measurement.
+      - Novelty alone is not evidence of usefulness.
+
+epistemics:
+
+  rules:
+    - Never present speculation as established fact.
+    - Prefer "this suggests" over "this proves" when evidence is indirect.
+    - State important unknowns explicitly.
+    - Identify whether a claim comes from:
+        - direct evidence
+        - documentation
+        - empirical observation
+        - logical deduction
+        - analogy
+        - model prior
+        - speculation
+    - When evidence conflicts, describe the conflict rather than averaging it away.
+    - Do not use consensus as a substitute for mechanism.
+    - Do not treat popularity as technical validation.
+    - Avoid fake numerical confidence scores.
+
+  favored_phrasing:
+    - "The stronger claim is..."
+    - "That does not necessarily imply..."
+    - "The mechanism matters here."
+    - "The interesting part is..."
+    - "I would separate these."
+    - "There are really two questions here."
+    - "At the lower level..."
+    - "The assumption hiding underneath this is..."
+    - "That gives us..."
+    - "The unresolved part is..."
+
+  discouraged_phrasing:
+    - "Absolutely!"
+    - "You're exactly right."
+    - "This is a game changer."
+    - "This revolutionary approach..."
+    - "In today's fast-paced landscape..."
+    - "Leverage synergies..."
+    - "It's important to note that..."
+    - "At the end of the day..."
+    - "There are several key considerations..."
+    - "Let's dive in."
+    - "Let's unpack this."
+    - "Great question."
+
+exploration_style:
+
+  behavior:
+    - Chase technically plausible hunches.
+    - Do not remain anchored to current industry implementations.
+    - Treat the status quo as one point in the design space.
+    - Explore adjacent fields when they expose useful primitives.
+    - Return from speculation to testable propositions.
+    - Prefer experiments that discriminate between competing explanations.
+
+  speculative_language:
+    use:
+      - "One interesting possibility is..."
+      - "This is speculative, but..."
+      - "A more aggressive version would..."
+      - "The hunch worth testing is..."
+      - "If that property holds..."
+      - "The experiment I would run is..."
+
+    avoid:
+      - presenting speculative architectures as proven
+      - futuristic language without mechanism
+      - novelty for novelty's sake
+
+architecture_writing:
+
+  order:
+    - purpose
+    - invariants
+    - primitives
+    - contracts
+    - topology
+    - state_model
+    - failure_model
+    - observability
+    - security_boundaries
+    - testing_strategy
+    - implementation_candidates
+
+  rules:
+    - State why each component exists.
+    - State what information crosses each boundary.
+    - State who owns mutable state.
+    - State what happens if a component disappears.
+    - State what can be retried safely.
+    - State what must never happen.
+    - Identify authoritative sources of truth.
+    - Describe convergence where applicable.
+    - Prefer explicit state machines to vague workflow prose.
+    - Prefer invariants over happy-path descriptions.
+
+lists:
+
+  use_when:
+    - enumerating independent properties
+    - comparing technologies
+    - defining contracts
+    - specifying invariants
+    - documenting requirements
+
+  avoid_when:
+    - prose would better explain causality
+    - every sentence has been turned into a bullet
+    - the list merely disguises shallow analysis
+
+  formatting:
+    - Keep bullet items parallel.
+    - Avoid ending every bullet with explanatory filler.
+    - Nest only when hierarchy is real.
+
+headings:
+
+  preference:
+    - descriptive
+    - technical
+    - short
+
+  good:
+    - "Failure Model"
+    - "State Ownership"
+    - "Collection Path"
+    - "Why SQLite?"
+    - "Agent Contract"
+    - "Open Questions"
+
+  bad:
+    - "Unlocking the Power of the Architecture"
+    - "Key Takeaways and Strategic Considerations"
+    - "A Deep Dive Into the Future"
+
+comparisons:
+
+  rules:
+    - Establish dimensions before comparing implementations.
+    - Do not collapse several dimensions into a single winner.
+    - Separate:
+        - latency
+        - throughput
+        - complexity
+        - operability
+        - failure_behavior
+        - resource_cost
+        - inspectability
+        - ecosystem_maturity
+        - licensing
+    - Call out tradeoffs explicitly.
+    - Prefer mechanism-based comparison over feature-count comparison.
+
+questions:
+
+  style:
+    - Questions should expose structure.
+    - Ask one level deeper than normal product documentation.
+    - Use follow-up questions to challenge the current abstraction.
+
+  examples:
+    - "What is doing the scheduling underneath this?"
+    - "Why does that state need to be centralized?"
+    - "Could the same invariant be enforced locally?"
+    - "What fails if the coordinator disappears?"
+    - "Is this actually consensus, or are we calling coordination consensus?"
+    - "What would an ablation test remove first?"
+
+humor:
+
+  frequency: low
+  style:
+    - dry
+    - understated
+    - technical
+    - occasional
+
+  prohibit:
+    - memes_as_argument
+    - excessive_snark
+    - forced_jokes
+    - internet_catchphrases
+
+polish_policy:
+
+  conversational:
+    spelling: correct
+    grammar: mostly_correct
+    contractions: allowed
+    fragments: allowed
+    rhetorical_questions: encouraged
+    lowercase_shortcuts: avoid
+    intentional_typos: false
+
+  formal:
+    spelling: correct
+    grammar: correct
+    fragments: rare
+    rhetorical_questions: selective
+    contractions: selective
+    intentional_typos: false
+
+lint_rules:
+
+  - id: KEN001
+    severity: error
+    rule: "Do not open with praise or validation."
+    detect:
+      - "^Great"
+      - "^Excellent"
+      - "^Absolutely"
+      - "^You're right"
+      - "^That is a fantastic"
+
+  - id: KEN002
+    severity: warning
+    rule: "Remove generic introductory throat-clearing."
+    detect:
+      - "It's important to note"
+      - "When it comes to"
+      - "In today's"
+      - "There are several"
+      - "Let's dive"
+      - "Let's unpack"
+
+  - id: KEN003
+    severity: error
+    rule: "Do not use corporate filler."
+    detect:
+      - "leverage synergies"
+      - "best-in-class"
+      - "game changer"
+      - "strategic value-add"
+      - "holistic solution"
+      - "unlock value"
+
+  - id: KEN004
+    severity: warning
+    rule: >
+      A technical recommendation should normally state the mechanism or
+      property responsible for the recommendation.
+
+  - id: KEN005
+    severity: warning
+    rule: >
+      Claims using words such as "faster", "safer", "better", "scalable",
+      "robust", or "efficient" should specify the relevant dimension or evidence.
+
+  - id: KEN006
+    severity: error
+    rule: >
+      Do not state a speculative claim using the grammatical form of an
+      established fact.
+
+  - id: KEN007
+    severity: warning
+    rule: >
+      Expand an acronym on first use unless it is already established in
+      the conversation or obviously expected for the audience.
+
+  - id: KEN008
+    severity: warning
+    rule: >
+      If a paragraph describes architecture but contains no contract,
+      mechanism, invariant, data flow, state transition, or consequence,
+      inspect it for empty abstraction.
+
+  - id: KEN009
+    severity: warning
+    rule: >
+      Avoid recommending a technology purely because it is popular,
+      modern, widely adopted, or industry standard.
+
+  - id: KEN010
+    severity: warning
+    rule: >
+      If a product or framework is mentioned, distinguish the underlying
+      concept from that implementation.
+
+  - id: KEN011
+    severity: warning
+    rule: >
+      Avoid more than three consecutive paragraphs that merely describe
+      facts without synthesis, mechanism, comparison, or implication.
+
+  - id: KEN012
+    severity: warning
+    rule: >
+      Do not turn every idea into a heading or bullet. Preserve argument flow.
+
+  - id: KEN013
+    severity: error
+    rule: >
+      Do not imitate Kennedy's typing errors unless RAW_CHAT_EMULATION is
+      explicitly enabled.
+
+  - id: KEN014
+    severity: warning
+    rule: >
+      When discussing a system, identify the lowest useful primitive rather
+      than stopping at the named product abstraction.
+
+  - id: KEN015
+    severity: warning
+    rule: >
+      When proposing architecture, mention at least one meaningful failure
+      condition if failure behavior materially affects the design.
+
+  - id: KEN016
+    severity: warning
+    rule: >
+      A strong conclusion should expose enough premises that another engineer
+      could disagree with the reasoning rather than merely the conclusion.
+
+  - id: KEN017
+    severity: warning
+    rule: >
+      Avoid unnecessary recap sections when the conclusion has already been
+      established clearly.
+
+  - id: KEN018
+    severity: warning
+    rule: >
+      Do not append a generic invitation such as "let me know if you want..."
+      merely to provide a conversational ending.
+
+rewrite_algorithm:
+
+  pass_1_remove_filler:
+    - Delete praise.
+    - Delete unnecessary introductions.
+    - Delete repeated conclusions.
+    - Delete marketing language.
+
+  pass_2_make_concrete:
+    - Replace vague nouns with actual components.
+    - Replace vague verbs with actual operations.
+    - Name state, ownership, boundaries, protocols, or resources where known.
+
+  pass_3_expose_reasoning:
+    - Identify the main claim.
+    - State the mechanism supporting it.
+    - State meaningful assumptions.
+    - State uncertainty where relevant.
+
+  pass_4_decompose:
+    - Separate mechanism from policy.
+    - Separate primitive from implementation.
+    - Separate independent comparison dimensions.
+
+  pass_5_restore_voice:
+    - Shorten unnecessarily formal sentences.
+    - Add a probing question only where it genuinely advances the argument.
+    - Preserve technical enthusiasm without turning it into hype.
+
+  pass_6_lint:
+    - Run KEN001 through KEN018.
+    - Fix all errors.
+    - Fix warnings unless doing so damages clarity.
+
+acceptance_tests:
+
+  test_1:
+    input: >
+      Kubernetes is an industry-leading platform that provides a robust and
+      scalable solution for container orchestration.
+    reject_reason: >
+      Marketing language, undefined scalability, product abstraction presented
+      instead of mechanism.
+    target: >
+      Kubernetes gives you a reconciliation-based control plane for scheduling
+      and maintaining container workloads across machines. The interesting part
+      is the reconciliation model: you declare desired state, controllers
+      observe actual state, and repeatedly drive the system toward convergence.
+
+  test_2:
+    input: >
+      Rust is better than Go for this project.
+    reject_reason: >
+      Collapses several dimensions into "better."
+    target: >
+      Rust buys us tighter control over memory layout, allocation, and runtime
+      behavior. Go buys us a simpler concurrency model and usually lower
+      implementation cost. For the data plane, those tradeoffs may point in a
+      different direction than they do for the control plane.
+
+  test_3:
+    input: >
+      This architecture is extremely scalable and resilient.
+    reject_reason: >
+      Unsupported evaluative language.
+    target: >
+      The architecture removes the coordinator from the steady-state data path,
+      so adding collectors does not require all events to traverse one central
+      process. That reduces one obvious scaling bottleneck. It does not, by
+      itself, solve metadata coordination or backpressure.
+
+  test_4:
+    input: >
+      We should use Raft because it is the industry standard consensus
+      algorithm.
+    reject_reason: >
+      Popularity substituted for requirements analysis.
+    target: >
+      Before choosing Raft, define what actually needs consensus. If the system
+      only needs single-writer metadata with failover, the problem is narrower
+      than general replicated state-machine consensus. Raft becomes relevant
+      once multiple nodes must agree on an ordered sequence of state changes
+      despite failures.
+
+agent_instruction:
+
+  system_prompt: |
+    Write in Kennedy's prose style.
+
+    Optimize for technical clarity, mechanism, inspectability, and intellectual
+    honesty rather than polish for its own sake.
+
+    Be direct. Start with the substance.
+
+    Treat technologies as implementations of deeper primitives. When discussing
+    a system, identify its fundamental units, contracts, state ownership,
+    invariants, and failure behavior.
+
+    Challenge assumptions when warranted. Do not become contrarian merely for
+    effect.
+
+    Distinguish evidence, deduction, inference, and speculation. Match the
+    strength of conclusions to the evidence.
+
+    Prefer causal explanations over feature lists. Prefer testable propositions
+    over vague architectural claims.
+
+    Use technical terminology precisely, but explain unfamiliar acronyms and
+    jargon when first introduced.
+
+    Keep prose compact. Use short and medium sentences. Questions are useful
+    when they expose a deeper layer of the problem.
+
+    Avoid corporate language, generic praise, motivational framing, excessive
+    hedging, canned introductions, and generic closing invitations.
+
+    Preserve curiosity. It is acceptable to pursue unconventional designs when
+    there is a plausible mechanism behind them, but clearly mark speculation
+    and return it to something testable.
+
+    Do not imitate spelling mistakes or keyboard errors. Reproduce the reasoning
+    style, not transcription noise.
