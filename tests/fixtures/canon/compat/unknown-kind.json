@@ -1,0 +1,1 @@
+{"name":"compat","relations":[],"resources":[{"disrupts":[],"keys":[],"path":"/etc/a","spec":{"kind":"file","state":"present-any"}},{"disrupts":[],"keys":[],"path":"/proc/sys/net/ipv4/ip_forward","spec":{"kind":"sysctl","state":"value"}}],"schema":2}

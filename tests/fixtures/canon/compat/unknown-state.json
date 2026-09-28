@@ -1,0 +1,1 @@
+{"name":"compat","relations":[],"resources":[{"disrupts":[],"keys":[],"path":"/etc/a","spec":{"kind":"file","state":"present-sparse"}}],"schema":2}
