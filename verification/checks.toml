@@ -1,0 +1,52 @@
+# The check registry. A verification receipt names one of these by `check_id`,
+# and its `command` must begin with the registered command up to the first
+# `<placeholder>`. A result of `passed` is recordable only for a check that is
+# here and was run. Adding a check is a verifier change (AGENTS.md rule 11).
+
+[checks.cargo-fmt]
+command = "cargo fmt --all --check"
+what = "formatting"
+
+[checks.cargo-check]
+command = "cargo check --workspace --locked"
+what = "the workspace compiles with the locked resolution"
+
+[checks.cargo-clippy]
+command = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+what = "lints, warnings as errors"
+
+[checks.cargo-test]
+command = "cargo test --workspace --locked"
+what = "unit and integration tests, the gates' negative controls included"
+
+[checks.research-verify-all]
+command = "cargo xtask research verify-all docs/research"
+what = "every accepted research snapshot: manifest, coverage, strict NDJSON, schema, references, negative controls"
+
+[checks.research-frozen]
+command = "cargo xtask research frozen --base <ref>"
+what = "no accepted research snapshot changed since the merge base"
+
+[checks.check-layers]
+command = "cargo xtask check-layers"
+what = "the dependency rule of ADR 0000 over declared and resolved graphs"
+
+[checks.check-core-purity]
+command = "cargo xtask check-core-purity"
+what = "the core purity policy of ADR 0016 over crates/core/"
+
+[checks.check-trust-boundary]
+command = "cargo xtask check-trust-boundary --base <ref>"
+what = "every commit since the merge base declares its oracle changes (ADR 0015)"
+
+[checks.receipts-validate]
+command = "cargo xtask receipts validate"
+what = "every receipt is well formed and names an executed, registered check"
+
+[checks.mutants-semantic]
+command = "cargo xtask mutants semantic"
+what = "every active semantic mutant is caught by its named test"
+
+[checks.mutants-calibration]
+command = "cargo mutants"
+what = "cargo-mutants over a named target; results are classified by hand, not scored"

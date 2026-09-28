@@ -30,6 +30,14 @@
 //!   merge base with `<ref>` declares the oracle it changes (ADR 0015), in a
 //!   `Trust-Boundary:` line, and adds no undeclared escape hatch. Prints one
 //!   `UNDECLARED` line per violation, with its stable code.
+//! - `receipts validate [--dir <dir>]`: every receipt under
+//!   `verification/receipts/` is one strict JSON object per line, satisfies
+//!   `verification/receipt.schema.json`, names a check registered in
+//!   `verification/checks.toml`, and claims `passed` only with evidence of a
+//!   zero exit status. Prints one `REJECTED` line per violation.
+//! - `receipts record <check-id> --out <file> -- <command...>`: runs the
+//!   command, never through a shell, and appends a receipt written from what
+//!   happened. Exits non-zero when the command did.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -41,6 +49,7 @@ mod graph;
 mod layers;
 mod manifest;
 mod purity;
+mod receipt;
 mod snapshot;
 mod strict_json;
 mod trust;
@@ -56,7 +65,9 @@ const USAGE: &str = "usage:
   cargo xtask research frozen     --base <ref>
   cargo xtask check-layers        [--manifest-path <Cargo.toml>]
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
-  cargo xtask check-trust-boundary --base <ref>";
+  cargo xtask check-trust-boundary --base <ref>
+  cargo xtask receipts validate   [--dir <receipts-dir>]
+  cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -68,6 +79,8 @@ fn main() -> ExitCode {
         ["check-layers", rest @ ..] => check_layers(rest),
         ["check-core-purity", rest @ ..] => check_core_purity(rest),
         ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
+        ["receipts", "validate", rest @ ..] => receipts_validate(rest),
+        ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -218,6 +231,67 @@ fn check_trust_boundary(rest: &[&str]) -> Result<(), String> {
             report.violations().len(),
             trust::POLICY_PATH
         ))
+    }
+}
+
+fn receipts_validate(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let mut paths = receipt::Paths::under(&root);
+    if let Some(dir) = option(rest, "--dir")? {
+        paths.receipts = PathBuf::from(dir);
+    }
+    let report = receipt::validate(&paths)?;
+    let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    print!("{rendered}");
+    for violation in report.violations() {
+        eprintln!("REJECTED {violation}");
+    }
+    if report.violations().is_empty() {
+        println!("{} receipt(s) valid", report.receipts());
+        Ok(())
+    } else {
+        Err(format!(
+            "{} receipt violation(s); see {}",
+            report.violations().len(),
+            receipt::SCHEMA_PATH
+        ))
+    }
+}
+
+fn receipts_record(check_id: &str, rest: &[&str]) -> Result<(), String> {
+    let (options, argv) = match rest.iter().position(|w| *w == "--") {
+        Some(i) => (&rest[..i], &rest[i + 1..]),
+        None => return Err(format!("the command follows --\n{USAGE}")),
+    };
+    let out = option(options, "--out")?
+        .map(PathBuf::from)
+        .ok_or_else(|| format!("--out <file.ndjson> is required\n{USAGE}"))?;
+    let unchecked = option(options, "--unchecked")?
+        .unwrap_or("not stated")
+        .to_owned();
+    let properties: Vec<String> = option(options, "--properties")?
+        .map(|p| p.split(',').map(str::to_owned).collect())
+        .unwrap_or_default();
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let line = receipt::record(&receipt::Context {
+        root,
+        check_id: check_id.to_owned(),
+        argv: argv.iter().map(|w| (*w).to_owned()).collect(),
+        properties,
+        unchecked,
+    })?;
+    let rendered = serde_json::to_string(&line).map_err(|e| e.to_string())? + "\n";
+    let mut existing = std::fs::read_to_string(&out).unwrap_or_default();
+    if !existing.is_empty() && !existing.ends_with('\n') {
+        existing.push('\n');
+    }
+    existing.push_str(&rendered);
+    std::fs::write(&out, existing).map_err(|e| format!("{}: {e}", out.display()))?;
+    print!("{rendered}");
+    if line["result"] == "passed" {
+        Ok(())
+    } else {
+        Err(format!("{check_id}: recorded as {}", line["result"]))
     }
 }
 
