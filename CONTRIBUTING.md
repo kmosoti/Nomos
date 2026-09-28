@@ -57,7 +57,7 @@ flowchart LR
 
 Prose follows the [Kennedy prose specification](docs/style/prose-spec.yaml). Direct, compact, skeptical, and built on mechanisms rather than labels. Humor is welcome when it is dry and rare. [docs/style/README.md](docs/style/README.md) has the short form, the formatting mechanics, and which rules are automated.
 
-Run the prose linter before opening a pull request:
+CI runs the prose linter as an advisory check that never blocks a merge. Running it locally first saves a round trip:
 
 ```sh
 .vale/lint.sh

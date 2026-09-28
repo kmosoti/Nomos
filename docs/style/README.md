@@ -36,6 +36,8 @@ Use correct spelling and grammar. Do not imitate the user's keyboard mistakes. P
 
 The script lints every tracked Markdown file, then runs the spec's acceptance tests. Every paragraph in [`.vale/fixtures/reject.md`](../../.vale/fixtures/reject.md) must raise an alert, and [`.vale/fixtures/accept.md`](../../.vale/fixtures/accept.md) must raise none. If a rule change lets marketing copy through, the script fails.
 
+CI runs Vale and markdownlint in the `docs-lint` job. It is advisory, not a gate. Findings appear as warning annotations on the changed lines, and the job never fails the build. Prose quality is a review conversation, not a merge blocker.
+
 ## Rule Coverage
 
 A linter can catch vocabulary. It cannot tell whether a paragraph has a mechanism in it. So the rules split in two.

@@ -61,7 +61,7 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 ## Documentation Conventions
 
 - Prose follows [docs/style/prose-spec.yaml](docs/style/prose-spec.yaml), in *polished* mode. Its `agent_instruction.system_prompt` is your writing instruction. Apply its `rewrite_algorithm` to any prose you write or edit.
-- Run `.vale/lint.sh`. Fix every error. Fix warnings unless the fix damages clarity.
+- Run `.vale/lint.sh`. Fix every error. Fix warnings unless the fix damages clarity. CI reports the same findings but does not block on them, so the fixing is on you.
 - The review-only rules (KEN004, KEN008, KEN010–KEN012, KEN014–KEN016) are your job, not the linter's. [docs/style/README.md](docs/style/README.md) lists them.
 - Humor is dry, understated, and rare. Never forced.
 - The README is narrative. Technical detail goes under `docs/`.

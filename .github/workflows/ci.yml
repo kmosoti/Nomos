@@ -16,3 +16,50 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
+  # Advisory: reports prose and Markdown findings as warnings. Never fails the build.
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Install Vale
+        id: install
+        continue-on-error: true
+        run: |
+          go install github.com/vale-cli/vale/v3/cmd/vale@v3.23.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Prose lint (Vale)
+        id: vale
+        continue-on-error: true
+        run: .vale/lint.sh
+      - name: Annotate prose findings
+        if: always() && steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mapfile -t docs < <(git ls-files '*.md' ':!:.vale/fixtures/*')
+          vale --no-exit --output=line "${docs[@]}" \
+            | sed -E 's/^([^:]+):([0-9]+):([0-9]+):[^:]+:(.*)$/::warning file=\1,line=\2,col=\3::\4/'
+      - name: Markdown lint
+        id: markdownlint
+        continue-on-error: true
+        run: npx --yes markdownlint-cli2@0.23.3 "**/*.md"
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Docs lint (advisory)"
+            echo "| Check | Outcome |"
+            echo "| --- | --- |"
+            echo "| Vale install | ${{ steps.install.outcome }} |"
+            echo "| Vale prose lint | ${{ steps.vale.outcome }} |"
+            echo "| markdownlint | ${{ steps.markdownlint.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for check in "vale-install=${{ steps.install.outcome }}" "vale=${{ steps.vale.outcome }}" "markdownlint=${{ steps.markdownlint.outcome }}"; do
+            if [[ "${check#*=}" != "success" ]]; then
+              echo "::warning title=Docs lint::${check%%=*} reported findings. Advisory only; see the job log."
+            fi
+          done
