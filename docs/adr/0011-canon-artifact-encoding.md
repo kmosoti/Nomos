@@ -39,6 +39,10 @@ Milestone `06-canon-artifact`:
 - `typed-validation` shows that no malformed input becomes a validated Canon by any path.
 - `build-hermeticity` shows identical declared inputs produce identical IR bytes, with every undeclared input denied or recorded.
 
+## Note, 2026-09-28: Working Definitions for the Canon Artifact
+
+Milestone `06-canon-artifact` implements this ADR against the working definitions in [canon-ir.md](../formal/canon-ir.md), written before the code: the restricted data model both profiles carry, schema versions 1 and 2, semantic equivalence and normalization, strict decoding in four stages with the canonical-form check, readers that name their schema versions and resource kinds, archival inspection that returns no Canon, migration with a lineage record, and `CanonID` over a profile tag, the schema version, and the canonical bytes. The hash is SHA-256, from the Secure Hash Algorithm (SHA) 2 family, as a working definition, implemented in `nomos-canon` because the audited `sha2` crate reaches `libc`, which the core purity policy denies. §2's choice between the two profiles is left to experiment `canonical-encoding`, which runs the same semantic tests against both.
+
 ## Consequences
 
 - The artifact file extension follows the chosen encoding and is recorded when this ADR is accepted.
