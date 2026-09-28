@@ -445,3 +445,49 @@ fn a_refresh_holds_the_keys_of_what_it_reads() {
         .expect("the refresh was dispatched");
     assert_eq!(refresh, [key("file:c"), key("svc")].into_iter().collect());
 }
+
+/// A complete, fresh observation of a one-resource Canon decides the
+/// iteration.
+#[test]
+fn a_complete_observation_decides() {
+    let mut one = plan("a", 1);
+    one.canon = Canon::new(
+        vec![managed("/etc/c", Kind::File, Content::Exactly(d(2)))],
+        vec![],
+    );
+    let (snapshot, _, _) = script(vec![
+        Input::Enforce(one),
+        Input::Observed(vec![seen("/etc/c", d(1), 0)]),
+    ]);
+    assert!(snapshot.round().is_some());
+}
+
+/// N9's freshness clause: a budget snapshot within its maximum age admits
+/// a disruptive Action, and one past it does not.
+#[test]
+fn budget_freshness_decides_disruptive_admission() {
+    let admitted = |observed_at: u64| {
+        let mut disruptive = plan("a", 1);
+        let mut conf = managed("/etc/c", Kind::File, Content::Exactly(d(2)));
+        conf.disrupts = [nomos_warp::budget::Node::new("n").unwrap()]
+            .into_iter()
+            .collect();
+        disruptive.canon = Canon::new(vec![conf], vec![]);
+        disruptive.policy.budgets = vec![nomos_warp::budget::Budget::new(
+            [nomos_warp::budget::Node::new("n").unwrap()]
+                .into_iter()
+                .collect(),
+            1,
+        )];
+        disruptive.policy.budget_observed_at = Instant(observed_at);
+        disruptive.policy.budget_max_age = 3;
+        let (snapshot, _, _) = script(vec![
+            Input::Tick(Instant(10)),
+            Input::Enforce(disruptive),
+            Input::Observed(vec![seen("/etc/c", d(1), 10)]),
+        ]);
+        !snapshot.effects().is_empty()
+    };
+    assert!(admitted(8), "two old, within three");
+    assert!(!admitted(6), "four old, past three");
+}
