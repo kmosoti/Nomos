@@ -31,6 +31,8 @@ A property counts as checked only when a verification record exists for it, with
 
 A gate ships with inputs it must reject, and each test asserts *why* it rejected them, through a stable code, not merely that it failed. A gate also ships with an input it must accept, so it cannot pass by rejecting everything. Restoring a corrupted input must make the gate pass again.
 
+The codes cover policy failures: `Code` in the snapshot verifier, `Rule` in the layer checker, and `FreezeCode` in the snapshot freeze. Operational failures, such as a Git revision that is not available or `cargo metadata` that cannot run, carry a message and no policy code. They fail closed: a gate that could not check never reports success.
+
 ### 3. The Dependency Rule Is a Check
 
 `cargo xtask check-layers` enforces ADR 0000 over the declared and the resolved dependency graphs, with no exemption by dependency kind, and CI runs it. Exceptions, if one is ever needed, are named by package and dependency kind in this ADR's successor, never added to the checker silently.

@@ -16,7 +16,8 @@
 //! - `research reproduce`: run the seven counterexample models of the draft
 //!   formal documents and print their report as JSON.
 //! - `research frozen --base <ref>`: fail if an accepted snapshot changed
-//!   relative to the merge base with `<ref>`.
+//!   relative to the merge base with `<ref>`. Each change prints one `FROZEN`
+//!   line with its stable code; an unavailable base fails closed.
 //! - `check-layers [--manifest-path <Cargo.toml>]`: the dependency-policy
 //!   check of ADR 0000 over the declared and resolved graphs. Prints the
 //!   report as JSON and one `FORBIDDEN` line per violation, with its stable
@@ -123,9 +124,12 @@ fn frozen(rest: &[&str]) -> Result<(), String> {
         println!("research snapshots unchanged since the merge base with {base}");
         return Ok(());
     }
+    for violation in &violations {
+        eprintln!("FROZEN {violation}");
+    }
     Err(format!(
-        "accepted research snapshots are frozen; a revision is a new dated snapshot:\n{}",
-        violations.join("\n")
+        "{} change(s) to accepted research snapshots; a revision is a new dated snapshot",
+        violations.len()
     ))
 }
 
