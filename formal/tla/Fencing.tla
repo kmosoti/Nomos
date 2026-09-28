@@ -18,9 +18,13 @@ EXTENDS Naturals, FiniteSets, TLC
 
 CONSTANTS Mutation, MaxGen, Ids, ActionsPerPlan
 
-VARIABLES gacc, planAt, checked, done, executed, last
+\* lastPlan names the Plan the last step acted on, so that a trace can be
+\* replayed through the kernel's fence step by step.
+VARIABLES gacc, planAt, checked, done, executed, last, lastPlan
 
-vars == <<gacc, planAt, checked, done, executed, last>>
+vars == <<gacc, planAt, checked, done, executed, last, lastPlan>>
+
+NoPlan == [g |-> 0, id |-> "none"]
 
 Plans == [g : 1..MaxGen, id : Ids]
 
@@ -31,6 +35,7 @@ TypeOK ==
     /\ done \in [Plans -> 0..ActionsPerPlan]
     /\ executed \subseteq (Plans \X (0..MaxGen))
     /\ last \in STRING
+    /\ lastPlan \in Plans \cup {NoPlan}
 
 Init ==
     /\ gacc = 0
@@ -39,6 +44,7 @@ Init ==
     /\ done = [p \in Plans |-> 0]
     /\ executed = {}
     /\ last = "Init"
+    /\ lastPlan = NoPlan
 
 StaleBound == IF Mutation = "stale-by-one" THEN gacc - 1 ELSE gacc
 
@@ -53,6 +59,7 @@ Accept(p) ==
     /\ planAt' = [planAt EXCEPT ![p.g] = p.id]
     /\ UNCHANGED <<checked, done, executed>>
     /\ last' = "Accept"
+    /\ lastPlan' = p
 
 Current(p) == gacc = p.g /\ planAt[p.g] = p.id
 
@@ -65,6 +72,7 @@ Admit(p) ==
     /\ executed' = executed \cup {<<p, gacc>>}
     /\ UNCHANGED <<gacc, planAt, checked>>
     /\ last' = "Admit"
+    /\ lastPlan' = p
 
 \* Mutation "split": the check passes, then the effect happens later.
 Check(p) ==
@@ -74,6 +82,7 @@ Check(p) ==
     /\ checked' = checked \cup {p}
     /\ UNCHANGED <<gacc, planAt, done, executed>>
     /\ last' = "Check"
+    /\ lastPlan' = p
 
 Effect(p) ==
     /\ Mutation = "split"
@@ -83,6 +92,7 @@ Effect(p) ==
     /\ executed' = executed \cup {<<p, gacc>>}
     /\ UNCHANGED <<gacc, planAt>>
     /\ last' = "Effect"
+    /\ lastPlan' = p
 
 Next ==
     \E p \in Plans : Accept(p) \/ Admit(p) \/ Check(p) \/ Effect(p)
