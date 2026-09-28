@@ -42,7 +42,7 @@ cargo xtask research verify-all docs/research   # every accepted snapshot: manif
 cargo xtask check-layers                         # the dependency rule, declared and resolved graphs
 ```
 
-`cargo test --workspace` runs the same checks as unit tests, through the same functions. A failure prints a stable code: `[checksum-mismatch]` or `[uncovered-file]` from the snapshot verifier, `FORBIDDEN [app-depends-outside-core-and-ports] ...` from the layer checker. Changing what either gate accepts is a trust-boundary change under rule 11. Pull-request CI additionally runs `cargo xtask research frozen --base origin/<base>`: an accepted snapshot never changes.
+`cargo test --workspace` runs the same checks as unit tests, through the same functions. A failure prints a stable code: `[checksum-mismatch]` or `[uncovered-file]` from the snapshot verifier, `FORBIDDEN [app-depends-outside-core-and-ports] ...` from the layer checker. Changing what either gate accepts is a trust-boundary change under rule 11. CI also runs `cargo xtask research frozen` on every push and pull request: an accepted snapshot never changes. It compares against the base branch for a pull request, the previous head for a push to the default branch, and the default branch otherwise, and fails when it cannot resolve that revision.
 
 ## Layout
 

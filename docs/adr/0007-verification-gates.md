@@ -39,7 +39,7 @@ The codes cover policy failures: `Code` in the snapshot verifier, `Rule` in the 
 
 ### 4. Research Evidence Is Verified and Frozen
 
-`cargo xtask research verify-all` verifies every snapshot as a whole through one function the tests also call, and `cargo xtask research frozen` fails a pull request that changes an accepted snapshot. The checksum stage cannot tell an accepted manifest from a rewritten one; the freeze can.
+`cargo xtask research verify-all` verifies every snapshot as a whole through one function the tests also call, and `cargo xtask research frozen` fails any change to an accepted snapshot. It runs on every push and pull request, not only on pull requests, because the checksum stage cannot tell an accepted manifest from a rewritten one and a direct push to the default branch would otherwise go unchecked. A push to the default branch is compared with its previous head; a revision that cannot be resolved fails the job.
 
 ### 5. Specifications Are Protected
 

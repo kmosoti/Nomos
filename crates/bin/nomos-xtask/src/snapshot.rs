@@ -14,8 +14,8 @@
 //!
 //! What this cannot establish: that the manifest is the one that was accepted.
 //! A file and its checksum rewritten together pass here. Freezing accepted
-//! snapshots is a Git comparison against the base branch, run in CI by
-//! `cargo xtask research frozen`.
+//! snapshots is a Git comparison against an accepted revision, run in CI on
+//! every push and pull request by `cargo xtask research frozen`.
 
 use std::path::Path;
 
