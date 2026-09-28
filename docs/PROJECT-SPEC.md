@@ -1066,11 +1066,11 @@ The unresolved parts, stated so they can be argued with:
 
 Canon ([ADR 0004](adr/0004-rust-typed-canon.md) decides the authoring surface and the inert-artifact boundary, and [ADR 0011](adr/0011-canon-artifact-encoding.md) proposes identity and versioning rules; these remain open):
 
-- **Artifact encoding.** A restricted deterministic CBOR profile or canonical JSON (§54).
+- **Artifact encoding.** A restricted deterministic CBOR profile or canonical JSON (§54). Both pass every semantic test of experiment `canonical-encoding`, and it recommends deterministic CBOR as the simpler; open until ADR 0011 is accepted.
 - **Artifact container and file extension.**
-- **Content hash profile.** The algorithm and domain separation behind $H$ in §6.
+- **Content hash profile.** The algorithm and domain separation behind $H$ in §6. [canon-ir.md](formal/canon-ir.md) uses SHA-256, from the Secure Hash Algorithm (SHA) 2 family, over a profile tag, the schema version, and the canonical bytes as a working definition.
 - **Artifact signing.** Whether artifacts are signed, by whom, and what a Cell checks.
-- **Extensibility model.** Whether resource kinds are a closed set or can be extended, and how an unknown kind is carried without being executed.
+- **Extensibility model.** Whether resource kinds are a closed set or can be extended, and how an unknown kind is carried without being executed. Today an unknown kind is refused for execution and readable only by archival inspection ([canon-ir.md](formal/canon-ir.md)).
 - **Condition composition.** Whether Conditions compose beyond a set, for example by disjunction or negation, and what a repair means for a composite.
 - **Trait-dependent expressions.** How a Condition may depend on a Trait value, and how that dependency is bounded.
 - **Authoring API form.** Builders, a macro layer, or both.

@@ -24,7 +24,8 @@ Both candidate encodings carry the same restricted data model:
 - text strings in the 8-bit Unicode Transformation Format (UTF), UTF-8, at most 4,096 bytes;
 - arrays of at most 65,536 items;
 - maps whose keys are text strings, each key at most once, with at most 64 entries;
-- nesting at most 8 levels deep.
+- nesting at most 8 levels deep;
+- an artifact of at most 16 mebibytes (MiB), refused before parsing.
 
 No floating point, no negative integers, no byte strings, no booleans, no null, no tags, no indefinite lengths. A digest is text: 64 lowercase hexadecimal characters. The integer bound is the largest range both encodings represent exactly; the IR uses integers only for the schema version.
 
@@ -75,8 +76,8 @@ A consumer decodes in four stages, and any failure rejects the artifact before a
 
 1. **Syntax.** The bytes parse under the profile into the data model. Anything outside it fails: a float, a tag, a negative integer, an indefinite length, invalid UTF-8, a duplicate map key, a limit exceeded, bytes after the value.
 2. **Canonical form.** Re-encoding the parsed value reproduces the input exactly.
-3. **Schema.** The schema version is one the reader supports; every map has exactly its fields; every `kind` and `state` is one the reader knows. An unknown field or variant is rejected, never skipped: skipping a resource a newer writer meant would silently change executable intent.
-4. **Validation.** The untrusted data-transfer object is converted into the validated `Canon` by the one validator the authoring API also uses.
+3. **Schema.** The schema version is one the reader supports; every map has exactly its fields; every `kind` is one the reader supports. An unknown field or kind is rejected, never skipped: skipping a resource a newer writer meant would silently change executable intent.
+4. **Validation.** The untrusted data-transfer object is converted into the validated `Canon` by the one validator the authoring API also uses. The validator rejects a `state` its kind does not have, so the table of requirements exists once. The validated `Canon`, encoded again in the schema the artifact was written in, must reproduce the input, or the artifact is rejected as non-canonical. Stage 2 cannot see this: resources out of path order, or a key listed twice, are canonical as values, and the validator collapses a duplicate into one set member.
 
 **Readers.** A reader names the schema versions and resource kinds it supports. The current reader supports versions 1 and 2 and both kinds; the version 1 reader, which the compatibility tests use as an old reader, supports version 1 and files only.
 

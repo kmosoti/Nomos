@@ -43,6 +43,17 @@ Milestone `06-canon-artifact`:
 
 Milestone `06-canon-artifact` implements this ADR against the working definitions in [canon-ir.md](../formal/canon-ir.md), written before the code: the restricted data model both profiles carry, schema versions 1 and 2, semantic equivalence and normalization, strict decoding in four stages with the canonical-form check, readers that name their schema versions and resource kinds, archival inspection that returns no Canon, migration with a lineage record, and `CanonID` over a profile tag, the schema version, and the canonical bytes. The hash is SHA-256, from the Secure Hash Algorithm (SHA) 2 family, as a working definition, implemented in `nomos-canon` because the audited `sha2` crate reaches `libc`, which the core purity policy denies. §2's choice between the two profiles is left to experiment `canonical-encoding`, which runs the same semantic tests against both.
 
+## Note, 2026-09-28: Evidence From `06-canon-artifact`
+
+Each acceptance criterion ran, and each record is under the research snapshot's `results/`:
+
+- **`canonical-encoding`** ([record](../research/2026-09-28-typed-core/results/canonical-encoding.md)). Both profiles pass every semantic test: 16 golden vectors agree with independent encoders and `sha2`, four laws hold on generated Canons, ten semantically different pairs keep distinct identities, and every adversarial encoding is rejected at its stage. Across two isolated builds the IR is identical and equals the golden vectors. Deterministic CBOR is the simpler profile: its codec is about half the size of the JCS codec, with 174 lines against 334 and 33 branch points against 83. By §2's rule it is the recommended profile, and `.cbor` is its extension.
+- **`compatibility-matrix`** ([record](../research/2026-09-28-typed-core/results/compatibility-matrix.md)). 78 reader and artifact cells do what §3 says; an unknown mutating kind reaches no effect; migrations keep meaning and record lineage.
+- **`typed-validation`** ([record](../research/2026-09-28-typed-core/results/typed-validation.md)). No malformed input became a Canon by any path, and a derive without the boundary was caught.
+- **`build-hermeticity`** ([record](../research/2026-09-28-typed-core/results/build-hermeticity.md)). Identical declared inputs gave identical IR bytes, with the network and the environment denied and every file, randomness, working-directory, and clock access recorded. The job must run from a root with no Cargo configuration above it.
+
+The ADR stays Proposed: the evidence is complete for its four criteria, and acceptance, with the choice of CBOR, is the owner's. What stays open after acceptance is §"Still Open" unchanged: the hash algorithm beyond the SHA-256 working definition, signing, and the extensibility model.
+
 ## Consequences
 
 - The artifact file extension follows the chosen encoding and is recorded when this ADR is accepted.
