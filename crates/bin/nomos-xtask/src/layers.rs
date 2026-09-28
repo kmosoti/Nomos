@@ -23,7 +23,8 @@
 //! No crate depends on a `bin/` crate, which keeps composition roots and the
 //! `nomos-xtask` tooling crate out of every production dependency graph. An
 //! adapter implements the port whose name prefixes its own
-//! (`nomos-<port>-<technology>`). Normal, dev, and build dependencies are held
+//! (`nomos-<port>-<technology>`), and depends on it unconditionally: a normal,
+//! non-optional dependency with no target condition. Normal, dev, and build dependencies are held
 //! to the same policy: there are no exemptions by dependency kind. A declared
 //! dependency is matched to a workspace crate by package name, not alias and
 //! not source, so a rename or a registry dependency with a workspace crate's
@@ -119,7 +120,9 @@ impl Rule {
             Rule::AdapterDependsOnForeignPort => {
                 "an adapter depends only on the port it implements"
             }
-            Rule::AdapterMissingItsPort => "an adapter depends on the port it implements",
+            Rule::AdapterMissingItsPort => {
+                "an adapter depends on the port it implements unconditionally: a normal, non-optional dependency with no target condition"
+            }
             Rule::AdapterNamesNoPort => {
                 "an adapter is named nomos-<port>-<technology> after a port in the workspace"
             }
@@ -395,7 +398,15 @@ pub(crate) fn check(opts: &Options) -> Result<Report, String> {
                 continue;
             };
             let kind = kind_name(&dep["kind"]);
-            if port.as_deref() == Some(to_name) && kind == "normal" {
+            // The port an adapter implements must be present in every build of the
+            // adapter: a normal dependency, not optional, with no target condition.
+            // An optional or target-specific declaration names the port without
+            // guaranteeing the edge exists.
+            if port.as_deref() == Some(to_name)
+                && kind == "normal"
+                && !dep["optional"].as_bool().unwrap_or(false)
+                && dep["target"].is_null()
+            {
                 depends_on_its_port = true;
             }
             if let Some(rule) = edge_rule(from, to, port.as_deref()) {
@@ -764,6 +775,28 @@ mod tests {
     }
 
     #[test]
+    fn an_adapter_whose_own_port_is_optional_is_missing_it() {
+        assert_case(
+            "adapter-own-port-optional",
+            &[Rule::AdapterMissingItsPort],
+            "nomos-substrate-linux",
+            Some("nomos-substrate"),
+            None,
+        );
+    }
+
+    #[test]
+    fn an_adapter_whose_own_port_is_target_specific_is_missing_it() {
+        assert_case(
+            "adapter-own-port-target",
+            &[Rule::AdapterMissingItsPort],
+            "nomos-substrate-linux",
+            Some("nomos-substrate"),
+            None,
+        );
+    }
+
+    #[test]
     fn an_adapter_named_after_no_port_is_rejected() {
         assert_case(
             "adapter-names-no-port",
@@ -818,6 +851,6 @@ mod tests {
                 "fixture case {case} has no test"
             );
         }
-        assert_eq!(cases.len(), 14);
+        assert_eq!(cases.len(), 16);
     }
 }

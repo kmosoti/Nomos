@@ -19,10 +19,12 @@ Each directory under `cases/` holds only the manifests it overrides, and introdu
 | `root-core` | `nomos-core` to `nomos-ids` | `root-core-has-workspace-dependency` | Core to core, allowed for every core crate except `nomos-core` |
 | `adapter-extra-port` | `nomos-substrate-linux` to `nomos-cipher` | `adapter-depends-on-foreign-port` | The adapter also keeps its own port |
 | `adapter-wrong-port` | `nomos-substrate-linux` to `nomos-cipher` | `adapter-depends-on-foreign-port`, `adapter-missing-its-port` | Exactly one port, the wrong one |
+| `adapter-own-port-optional` | `nomos-substrate-linux` to `nomos-substrate` | `adapter-missing-its-port` | The adapter's own port is `optional = true`, so a default build lacks it |
+| `adapter-own-port-target` | `nomos-substrate-linux` to `nomos-substrate` | `adapter-missing-its-port` | The adapter's own port is declared only for `cfg(windows)` |
 | `adapter-names-no-port` | `nomos-telemetry-otel` | `adapter-names-no-port` | Adds an adapter whose name names no port |
 | `app-to-tooling` | `nomos-app` to `nomos-xtask` | `depends-on-bin` | A production crate on the tooling crate |
 | `cell-to-tooling` | `nomos-cell` to `nomos-xtask` | `depends-on-bin` | A composition root on the tooling crate |
 
-Dependency kinds have no exemptions: a dev or build dependency is held to the same rule as a normal one, and the `build` and `dev` cases test exactly that. Each test asserts the complete set of rules the case breaks, so a case that starts failing for a different reason fails its test.
+Dependency kinds have no exemptions: a dev or build dependency is held to the same rule as a normal one, and the `build` and `dev` cases test exactly that. The reverse also holds for an adapter's own port: only a normal, non-optional, unconditional dependency counts as depending on it, and the two `adapter-own-port` cases test that. Each test asserts the complete set of rules the case breaks, so a case that starts failing for a different reason fails its test.
 
 To add a case, add a directory with the overriding manifests and a test in `crates/bin/nomos-xtask/src/layers.rs` that names it. A test fails if a case directory has no test.
