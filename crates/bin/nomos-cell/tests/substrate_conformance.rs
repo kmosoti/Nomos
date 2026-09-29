@@ -225,12 +225,20 @@ fn a_symbolic_link_at_the_resource_is_not_followed() {
 }
 
 /// A symbolic link in a parent directory is not followed either, even when
-/// it points inside the root.
+/// it points inside the root. The link is relative, so resolution beneath
+/// the root alone would follow it: only `RESOLVE_NO_SYMLINKS` refuses it.
+/// (A first version used an absolute target, which the beneath rule
+/// already refuses, and did not catch `SM-SUBSTRATE-002`.)
 #[test]
 fn a_symbolic_link_in_a_parent_is_not_followed() {
     let mut s = LinuxSubject::new("parent-link");
     s.put(&p("/real/f"), b"inside");
-    std::os::unix::fs::symlink(s.host_path(&p("/real")), s.host_path(&p("/alias"))).unwrap();
+    std::os::unix::fs::symlink("real", s.host_path(&p("/alias"))).unwrap();
+    assert_eq!(
+        std::fs::read(s.host_path(&p("/alias/f"))).unwrap(),
+        b"inside",
+        "the link resolves inside the root when followed"
+    );
     assert_eq!(
         observe_one(&mut s, "/alias/f"),
         Collection::Failed(CollectionFailure::Unsupported)
