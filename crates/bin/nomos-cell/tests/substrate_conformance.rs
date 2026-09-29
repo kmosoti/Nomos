@@ -358,6 +358,24 @@ fn a_planted_temporary_file_is_not_written_through() {
     assert_eq!(s.truth(&p("/etc/app.conf")), Truth::File(sha(b"old")));
 }
 
+/// A temporary file left behind by another execution, as a crash would
+/// leave it, does not block this one: each execution has its own name.
+#[test]
+fn a_stale_temporary_file_does_not_block_a_later_execution() {
+    let mut s = LinuxSubject::new("stale");
+    s.put(&p("/etc/app.conf"), b"old");
+    let wanted = s.content(b"new");
+    let requirement = FileCondition::Present {
+        content: Content::Exactly(wanted),
+    };
+    let crashed = replace("/etc/app.conf", 0, requirement);
+    let stale = nomos_substrate_linux::temporary_name("app.conf", &crashed.key);
+    std::fs::write(s.host_path(&p("/etc")).join(stale), b"half written").unwrap();
+    let receipts = s.apply(&replace("/etc/app.conf", 1, requirement));
+    assert_eq!(receipts.last(), Some(&Receipt::Completed { changed: true }));
+    assert_eq!(s.truth(&p("/etc/app.conf")), Truth::File(wanted));
+}
+
 /// A named pipe at the resource: observation returns at once, unsupported,
 /// and replacing it is refused.
 #[test]
