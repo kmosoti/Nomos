@@ -50,6 +50,19 @@ Recovery after a crash reuses the persisted incarnation and sequence. Recovery a
 - **Composition.** Experiment `controller-composition`, after milestone `05-transition-kernel`: two simulated controllers on one property, in shared, single-owner, and disjoint configurations. The shared case must be rejected or detected, and one safe composition demonstrated.
 - **Identity.** Experiment `identity-rollback`, before remote execution: crash, disk restore, reinstall, and full clone, each handled separately, with no stale authority accepted.
 
+## Note, 2026-09-29: Working Definitions for Controller Composition
+
+Experiment `controller-composition` needs definitions that §1 and §2 leave open. It takes these, written before the code. The ADR stays Proposed.
+
+- **Controller.** Anything that writes host properties toward its own intent. In the experiment, a controller is one transition kernel with its own Canon, Event Log, and fence, and every controller writes the same mock host.
+- **Property.** Text of the form `<kind>:<name>`, such as `file:/etc/example.conf#content` or `sysctl:vm.swappiness`, compared as text. A property names a resource key, not an OS identity (§3), so two keys that reach one inode or one service are two properties to the check.
+- **Footprint.** Three sets of properties per controller. The *guarantee* is what it writes: it writes no property outside the set. The *reliance* is what it relies on no other controller writing. The *reads* are what it observes and tolerates changing under another controller's guarantee.
+- **A write is relied on.** A controller that converges alone on a property converges because it is that property's only writer, so its reliance always includes its guarantee. The check leans on this definition, and semantic mutant `SM-COMPOSE-001` removes it.
+- **The composition check.** Footprints compose when their controllers are distinct and, for every pair of distinct controllers $i$ and $j$, $W_j \cap R_i = \varnothing$, where $W$ is a guarantee and $R$ a reliance. Otherwise the check names every interference, in an order that does not depend on the order of the footprints: a *shared write* when both controllers write the property, a *violated reliance* when one relies on a property only the other writes, and a *duplicate controller* when two footprints carry one name.
+- **Configurations.** *Disjoint*: no property appears in two footprints. *Single-owner*: every property has at most one writer, and any other controller at most reads it. *Shared*: some property has two writers.
+- **Not modeled.** §1's explicit conflict policy and §2's contested properties. No composition is accepted on a policy, and the check knows no contested category. The check is a pure function in the `footprint` module of `nomos-core`; wiring it into Canon admission, and deriving footprints from resource kinds, wait for acceptance.
+- **The invariant it serves.** N2: a successful Enforce leaves the host Converged toward its Canon. A run's Converged is sound at its last Observation, and under a shared write the next controller's run makes it false again. The check is the working precondition under which N2 keeps its meaning when more than one controller writes a host.
+
 ## Consequences
 
 - Canon admission gains a footprint check, and Conditions gain a footprint field.
