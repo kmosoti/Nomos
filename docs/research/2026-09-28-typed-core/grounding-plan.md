@@ -119,6 +119,14 @@ The first Linux adapter, with one narrowly scoped filesystem operation and the s
 
 Exit: the mock and the Linux adapter pass one suite; the suite's negative controls, a mutating Trace and a denied read reported as absence, fail it.
 
+*Built 2026-09-29 on branch `milestone/07-substrate-conformance`.* [substrate-contract.md](../../formal/substrate-contract.md) was written first: nine clauses every adapter satisfies, the suite, and the Linux adapter's first operation.
+
+What was built. In `nomos-substrate-linux`: regular files beneath a root directory, resolved at use with `openat2` and no symbolic links, observed with a truthful mapping of every error, and replaced atomically from a content store, through `rustix` because the workspace forbids `unsafe`. In `nomos-substrate-mock`: a refresh it cannot perform is refused, and file sizes are reported. In `nomos-cell`'s tests: the conformance suite, generic over the adapter, its two negative controls, the production driver end to end on each adapter, and failure injection on Linux.
+
+Evidence, in the [record](results/substrate-contract.md): both adapters pass nine clauses; each negative control fails its clause on each adapter; the driver converges through each; symbolic links, a named pipe, a directory, a foreign writer, a planted hard link, and a real permission denial produce no false absence and no unauthorized change. `SM-SUBSTRATE-001` to `004` caught; `cargo-mutants` over the adapter found one defect, a blocking open of a named pipe, and four test gaps, all closed, with every remaining survivor classified.
+
+Exit, met, on one host: `the_mock_passes_the_suite` and `the_linux_adapter_passes_the_suite`, with `a_mutating_trace_fails_the_suite_on_{the_mock,linux}` and `a_denied_read_reported_as_absence_fails_the_suite_on_{the_mock,linux}`.
+
 ## Three Boundaries, Three Checks
 
 "Ports and adapters are enforced" is three properties.
@@ -202,7 +210,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | [bounded-convergence](results/bounded-convergence.md), [effect-recovery](results/effect-recovery.md), [refresh-recovery](results/refresh-recovery.md), [scheduler-admission](results/scheduler-admission.md), [kernel-conformance](results/kernel-conformance.md) |
 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | [typed-validation](results/typed-validation.md), [canonical-encoding](results/canonical-encoding.md), [compatibility-matrix](results/compatibility-matrix.md), [build-hermeticity](results/build-hermeticity.md) |
 | `controller-composition` | After `05-transition-kernel`, before `07-substrate-conformance` | none |
-| `substrate-contract` | `07-substrate-conformance` | none |
+| `substrate-contract` | `07-substrate-conformance` | [substrate-contract](results/substrate-contract.md) |
 
 ### layer-policy
 
