@@ -95,7 +95,9 @@ impl LinuxHost {
         let file = match rustix::fs::openat2(
             self.root.as_fd(),
             relative(path),
-            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW | OFlags::NOCTTY,
+            // Nonblocking, so that opening a named pipe at the resource
+            // returns at once instead of waiting for a writer.
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW | OFlags::NOCTTY | OFlags::NONBLOCK,
             Mode::empty(),
             RESOLVE,
         ) {

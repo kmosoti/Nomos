@@ -94,6 +94,7 @@ fn one_file(path: &str, digest: nomos_core::resource::Digest) -> Canon {
 /// The driver converges the file, a second Enforce executes nothing (N3),
 /// and a denied read ends Indeterminate with no execution (N13).
 fn end_to_end(s: &mut impl Subject) {
+    assert_eq!(s.executions(), 0);
     s.put(&p("/etc/app/app.conf"), b"old");
     let wanted = s.content(b"new configuration");
     let canon = one_file("/etc/app/app.conf", wanted);
@@ -329,6 +330,40 @@ fn replacement_leaves_no_temporary_file() {
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(names, vec!["x".to_string()]);
+}
+
+/// A named pipe at the resource: observation returns at once, unsupported,
+/// and replacing it is refused.
+#[test]
+fn a_named_pipe_is_unsupported_and_does_not_block() {
+    let mut s = LinuxSubject::new("fifo");
+    std::fs::create_dir_all(s.host_path(&p("/etc"))).unwrap();
+    rustix::fs::mknodat(
+        rustix::fs::CWD,
+        s.host_path(&p("/etc/pipe")),
+        rustix::fs::FileType::Fifo,
+        rustix::fs::Mode::from_raw_mode(0o644),
+        0,
+    )
+    .unwrap();
+    assert_eq!(
+        observe_one(&mut s, "/etc/pipe"),
+        Collection::Failed(CollectionFailure::Unsupported)
+    );
+    assert_eq!(
+        s.apply(&replace("/etc/pipe", 0, FileCondition::Absent)),
+        vec![Receipt::Refused]
+    );
+}
+
+/// A root that is not a directory is refused when the host is opened,
+/// rather than making every path under it look absent.
+#[test]
+fn a_root_that_is_not_a_directory_is_refused() {
+    let s = LinuxSubject::new("file-root");
+    let file = s.root.join("plain");
+    std::fs::write(&file, b"x").unwrap();
+    assert!(nomos_substrate_linux::LinuxHost::open(&file).is_err());
 }
 
 /// The denied read the suite uses is a real denial: this thread cannot

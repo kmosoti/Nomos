@@ -137,17 +137,27 @@ pub fn s2_truthful_absence(s: &mut impl Subject) -> Result<(), String> {
     })
 }
 
-/// S3: a present file with the digest of its content.
+/// S3: a present file with the digest of its content and its size, for
+/// an empty file, a small one, and one larger than any single read.
 pub fn s3_evidence(s: &mut impl Subject) -> Result<(), String> {
-    let bytes = b"evidence, not a verdict";
-    s.put(&p("/etc/s3"), bytes);
-    let observed = s.observe(&[p("/etc/s3")]);
-    let c = collection_of(&observed, &p("/etc/s3"))?;
-    let want = s.digest(bytes);
-    check(
-        matches!(c, Collection::Collected(FileEvidence::Present { digest, .. }) if *digest == want),
-        || format!("a file holding known bytes observed as {c:?}"),
-    )
+    let large: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    let files: [(&str, &[u8]); 3] = [
+        ("/etc/s3/empty", b""),
+        ("/etc/s3/small", b"evidence, not a verdict"),
+        ("/etc/s3/large", &large),
+    ];
+    for (path, bytes) in files {
+        s.put(&p(path), bytes);
+        let observed = s.observe(&[p(path)]);
+        let c = collection_of(&observed, &p(path))?;
+        let want = s.digest(bytes);
+        let len = bytes.len() as u64;
+        check(
+            matches!(c, Collection::Collected(FileEvidence::Present { digest, size }) if *digest == want && *size == len),
+            || format!("{path}, {len} bytes, observed as {c:?}"),
+        )?;
+    }
+    Ok(())
 }
 
 /// S4: observing changes nothing, however often it is repeated.
@@ -344,7 +354,7 @@ impl Mutate for MockSubject {
 
 impl Subject for MockSubject {
     fn put(&mut self, path: &ResourcePath, bytes: &[u8]) {
-        self.host.write(path, sha(bytes));
+        self.host.write_sized(path, sha(bytes), bytes.len() as u64);
     }
     fn remove(&mut self, path: &ResourcePath) {
         self.host.remove(path);
