@@ -17,6 +17,10 @@
 //! - [`plan`]        — Plan identity and the generation fence (N5)
 //! - [`effect`]      — idempotency keys, effect requests, receipts, settlement
 //!
+//! Working definition, experiment `controller-composition` (ADR 0008, Proposed):
+//! - [`footprint`]   — what a controller writes and relies on, and the
+//!   composition check over footprints
+//!
 //! Planned modules (none implemented yet):
 //! - `canon`       — Canon (compiled desired intent) domain types
 //! - `trait_`      — Trait (value, provenance, observation time, stability)
@@ -41,6 +45,7 @@ pub mod assessment;
 pub mod cipher;
 pub mod condition;
 pub mod effect;
+pub mod footprint;
 pub mod observation;
 pub mod plan;
 pub mod resource;

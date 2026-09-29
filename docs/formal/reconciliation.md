@@ -119,10 +119,22 @@ A repeated fingerprint is evidence of oscillation, not proof of it. Two qualific
 
 An Action reaches `Succeeded` only through `Verifying`. `Verifying` succeeds only if $\mathrm{assess}(C_r, O'_r) = \mathrm{Satisfied}$ on a fresh Observation. An exit code is never evidence, and an Indeterminate Assessment is not a verification. Fresh means the Observation's collection window starts at or after the completion receipt; an Observation collected before the effect finished says nothing about it. An Indeterminate verification leaves the Action in `Verifying` until a fresh Observation decides or its deadline makes it `TimedOut`.
 
+## Composition
+
+The model above has one controller. With several, each runs this loop over its own Canon, and ownership follows [ADR 0008](../adr/0008-ownership-and-identity.md) and its 2026-09-29 working definitions. Controller $i$ declares a guarantee $W_i$, the properties it writes, and a reliance $R_i \supseteq W_i$, the properties it relies on no other controller writing:
+
+$$
+\mathrm{Composable}(F_1, \ldots, F_n) \iff \forall i \ne j:\ W_j \cap R_i = \varnothing
+$$
+
+The oscillation diagnostic above cannot stand in for this check, because its fingerprint history belongs to one run. Two controllers that write one property in turn each observe one Variance, repair it, and end Converged, and no run repeats a fingerprint of its own. The oscillation is visible only in a fingerprint over every composed Canon, taken across runs. A *joint fixed point* is a sweep, one run per controller, in which every run ends Converged and nothing executes.
+
+The hypothesis experiment `controller-composition` tests: the check rejects the shared configuration before execution, and the disjoint and single-owner configurations it accepts reach a joint fixed point on the simulator.
+
 ## Known Gaps
 
 Assigned in the [grounding plan](../research/2026-09-28-typed-core/grounding-plan.md).
 
 - **Settlement evidence per resource.** What shows that a file write, a service-manager job, or an opaque effect can cause no further change is resource-specific and not yet written down. Milestone 1 pull request 4.
-- **Composition.** The model has one controller. Two controllers that each converge alone can oscillate together when they share a file or a sysctl. Experiment `controller-composition`.
+- **Composition.** The [composition check](#composition) rejects a shared file before execution, and the disjoint and single-owner pairs it accepts reach a joint fixed point, on the mock host ([record](../research/2026-09-28-typed-core/results/controller-composition.md)). Still open: a sysctl, a real host, wiring the check into Canon admission, and a writer outside Nomos that acts between runs, which the per-run oscillation diagnostic cannot see.
 - **Conditional liveness.** Convergence assumes stable intent, sufficient permissions, fair scheduling, and bounded interference. None of these is stated as an assumption yet. Experiment `bounded-convergence`.

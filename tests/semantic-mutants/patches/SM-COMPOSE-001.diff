@@ -1,0 +1,13 @@
+diff --git a/crates/core/nomos-core/src/footprint.rs b/crates/core/nomos-core/src/footprint.rs
+index c6b7dee..d09f7cd 100644
+--- a/crates/core/nomos-core/src/footprint.rs
++++ b/crates/core/nomos-core/src/footprint.rs
+@@ -176,7 +176,7 @@ impl Footprint {
+     /// The reliance: what the controller relies on no other controller
+     /// writing. It always includes the guarantee.
+     pub fn reliance(&self) -> BTreeSet<Property> {
+-        self.writes.union(&self.relies).cloned().collect()
++        self.relies.clone()
+     }
+ 
+     /// The reads.
