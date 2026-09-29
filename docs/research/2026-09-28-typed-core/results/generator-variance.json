@@ -1,0 +1,1065 @@
+{
+  "experiment": "generator-variance",
+  "reference": "crates/core/nomos-core/src/assessment.rs",
+  "reference_sha256": "b16c7f2dd64785940266433318e6082ff931750e02f2df0aac39c67d62e0af3c",
+  "candidates": [
+    {
+      "id": "cand-0",
+      "negative_control": true,
+      "candidate_sha256": "ab676cbf116efbdaeff27f2a94ea1082d1d7f20fa26115e4b66aa9e05c924098",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 46,
+      "tests_declared": 3,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 3,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "rejected",
+        "passed": 42,
+        "failed": 8,
+        "failed_tests": [
+          "action::tests::a_fresh_variance_fails_and_a_failed_read_establishes_nothing",
+          "assessment::tests::a_failed_observation_is_indeterminate",
+          "assessment::tests::a_denied_read_is_neither_satisfied_nor_variance",
+          "assessment::tests::an_indeterminate_assessment_does_not_hide_a_variance",
+          "assessment::tests::indeterminate_assessments_do_not_reach_the_plan",
+          "assessment::tests::two_failures_give_the_same_reason_in_either_order",
+          "only_failures_is_indeterminate_with_the_least_failure",
+          "collected_evidence_is_judged_when_it_agrees_and_indeterminate_when_it_does_not"
+        ],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "rejected",
+        "passed": 2,
+        "failed": 1,
+        "failed_tests": [
+          "assessment::candidate_tests::a_failed_observation_is_a_missing_file"
+        ],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "baseline-fails",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "baseline-fails",
+          "failed_tests": [
+            "assessment::candidate_tests::a_failed_observation_is_a_missing_file"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "baseline-fails",
+          "failed_tests": [
+            "assessment::candidate_tests::a_failed_observation_is_a_missing_file"
+          ]
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "id": "cand-1",
+      "negative_control": false,
+      "candidate_sha256": "298ede9fb672f2352eaa7ea2b922d774b0569480beae3efa1a871a012471c70b",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "content_assessment",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 57,
+      "tests_declared": 14,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 14,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "accepted",
+        "passed": 50,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "accepted",
+        "passed": 14,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::assessments_do_not_aggregate",
+            "assessment::candidate_tests::every_failure_reports_the_smallest_reason_in_any_order",
+            "assessment::candidate_tests::one_observation_agrees_with_assess_collection"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "survived",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "survived",
+          "failed_tests": []
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "id": "cand-2",
+      "negative_control": false,
+      "candidate_sha256": "70d461a3e3ba6f82c288e10bf8ed5b1eb9252b3b189d3f77d82425ce366fa3f3",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "judge_content",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 65,
+      "tests_declared": 17,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 17,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "accepted",
+        "passed": 50,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "accepted",
+        "passed": 17,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::a_single_observation_agrees_with_assess_collection",
+            "assessment::candidate_tests::denied_read_is_never_satisfied_or_variance",
+            "assessment::candidate_tests::every_failure_reports_the_smallest_reason_in_any_order"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "survived",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::a_single_observation_agrees_with_assess_collection",
+            "assessment::candidate_tests::a_failure_beside_collected_evidence_does_not_hide_it",
+            "assessment::candidate_tests::observations_of_other_resources_are_ignored"
+          ]
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "id": "cand-3",
+      "negative_control": false,
+      "candidate_sha256": "523c1b3c43379620a7a48929d70286b95589802906607d3bd0232467092ec3f2",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "assess_content",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 60,
+      "tests_declared": 17,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 17,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "accepted",
+        "passed": 50,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "accepted",
+        "passed": 17,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::all_failed_reports_the_smallest_failure_in_any_order",
+            "assessment::candidate_tests::a_single_observation_assesses_as_its_collection",
+            "assessment::candidate_tests::assessments_do_not_aggregate_across_resources",
+            "assessment::candidate_tests::only_failures_never_assess_as_satisfied_or_variance"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "survived",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "survived",
+          "failed_tests": []
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "id": "cand-4",
+      "negative_control": false,
+      "candidate_sha256": "806df0e91fa39886b42e4952064c585960f888f96bea74d8f5df3ec27e8cc6d6",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "assess_content",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 63,
+      "tests_declared": 16,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 16,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "accepted",
+        "passed": 50,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "accepted",
+        "passed": 16,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::a_denied_read_never_assesses_as_satisfied_or_variance",
+            "assessment::candidate_tests::every_failure_reports_the_smallest_reason_in_any_order",
+            "assessment::candidate_tests::one_observation_agrees_with_assess_collection",
+            "assessment::candidate_tests::an_indeterminate_resource_does_not_erase_another_variance"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "survived",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "survived",
+          "failed_tests": []
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "id": "cand-5",
+      "negative_control": false,
+      "candidate_sha256": "7987f2d6591ea5dc5fe5bba33fc1537d2a0535311553cd8b119f65f572d1c808",
+      "normalization_changed": false,
+      "functions": [
+        "assess_evidence",
+        "assess_content",
+        "assess_collection",
+        "assess"
+      ],
+      "implementation_code_lines": 60,
+      "tests_declared": 14,
+      "own_tests": {
+        "outcome": "accepted",
+        "passed": 14,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "oracle": {
+        "outcome": "accepted",
+        "passed": 50,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --no-fail-fast"
+      },
+      "own_tests_against_reference": {
+        "outcome": "accepted",
+        "passed": 14,
+        "failed": 0,
+        "failed_tests": [],
+        "detail": "cargo test --lib -- assessment::candidate_tests::"
+      },
+      "mutants": [
+        {
+          "id": "SM-ASSESS-001",
+          "wrong_behavior": "assess returns Variance when the Observation carries no evidence",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "caught",
+          "failed_tests": [
+            "assessment::candidate_tests::every_failure_reports_the_least_reason_in_any_order",
+            "assessment::candidate_tests::without_collected_evidence_nothing_is_known",
+            "assessment::candidate_tests::one_observation_agrees_with_assess_collection"
+          ]
+        },
+        {
+          "id": "SM-ASSESS-002",
+          "wrong_behavior": "plan input includes Indeterminate Assessments alongside Variances",
+          "touched_item": "Report",
+          "candidate_tests_name_it": false,
+          "outcome": "survived",
+          "failed_tests": []
+        },
+        {
+          "id": "SM-ASSESS-003",
+          "wrong_behavior": "assess treats a matching Observation as a Variance when its collection window closed before a fixed instant; freshness is a policy applied before assessment, never inside it",
+          "touched_item": "assess",
+          "candidate_tests_name_it": true,
+          "outcome": "survived",
+          "failed_tests": []
+        }
+      ],
+      "detail": ""
+    }
+  ],
+  "comparison": {
+    "impls": [
+      "reference",
+      "cand_0",
+      "cand_1",
+      "cand_2",
+      "cand_3",
+      "cand_4",
+      "cand_5"
+    ],
+    "domains": [
+      {
+        "function": "assess_evidence",
+        "domain": "exhaustive: 4 requirements x 5 evidences",
+        "cases": 20,
+        "pairs": [
+          {
+            "a": "reference",
+            "b": "cand_0",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_4",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          }
+        ]
+      },
+      {
+        "function": "assess_collection",
+        "domain": "exhaustive: 4 requirements x 9 collections",
+        "cases": 36,
+        "pairs": [
+          {
+            "a": "reference",
+            "b": "cand_0",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_4",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          }
+        ]
+      },
+      {
+        "function": "assess",
+        "domain": "exhaustive: lists of length 0..=3 over 36 Observations, 8 Conditions",
+        "cases": 383912,
+        "pairs": [
+          {
+            "a": "reference",
+            "b": "cand_0",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => reference: Indeterminate(CollectionFailed(PermissionDenied)); cand_0: Variance(Missing)",
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_1",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_1: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_2",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_2: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_3",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_3: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_4",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_4: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_5",
+            "disagreements": 96832,
+            "first": "Condition { path: ResourcePath(\"/r/0\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_5: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_4",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          }
+        ]
+      },
+      {
+        "function": "assess",
+        "domain": "generated: 4096 cases, lists of length 0..=10 over 3 paths, seed 0x677601 then zeros",
+        "cases": 4096,
+        "pairs": [
+          {
+            "a": "reference",
+            "b": "cand_0",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => reference: Indeterminate(CollectionFailed(PermissionDenied)); cand_0: Variance(Missing)",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => reference: Indeterminate(CollectionFailed(PermissionDenied)); cand_0: Variance(Missing)"
+          },
+          {
+            "a": "reference",
+            "b": "cand_1",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "reference",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_1",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => cand_0: Variance(Missing); cand_1: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_1: Indeterminate(CollectionFailed(PermissionDenied))"
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_2",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => cand_0: Variance(Missing); cand_2: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_2: Indeterminate(CollectionFailed(PermissionDenied))"
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_3",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => cand_0: Variance(Missing); cand_3: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_3: Indeterminate(CollectionFailed(PermissionDenied))"
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_4",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => cand_0: Variance(Missing); cand_4: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_4: Indeterminate(CollectionFailed(PermissionDenied))"
+          },
+          {
+            "a": "cand_0",
+            "b": "cand_5",
+            "disagreements": 835,
+            "first": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"c\"), window: Window { start: Instant(0), end: Instant(16519799893186538297) } } }, Observation { path: ResourcePath(\"/r/2\"), collection: Failed(TimedOut), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(722160734916027847) } } }, Observation { path: ResourcePath(\"/r/0\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"b\"), window: Window { start: Instant(0), end: Instant(17643809386842965498) } } }] => cand_0: Variance(Missing); cand_5: Indeterminate(CollectionFailed(PermissionDenied))",
+            "minimized": "Condition { path: ResourcePath(\"/r/2\"), requirement: Absent } vs [Observation { path: ResourcePath(\"/r/2\"), collection: Failed(PermissionDenied), provenance: Provenance { collector: CollectorId(\"a\"), window: Window { start: Instant(0), end: Instant(0) } } }] => cand_0: Variance(Missing); cand_5: Indeterminate(CollectionFailed(PermissionDenied))"
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_2",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_1",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_3",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_2",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_4",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_3",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          },
+          {
+            "a": "cand_4",
+            "b": "cand_5",
+            "disagreements": 0,
+            "first": null,
+            "minimized": null
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "n": 5,
+    "compiled": 5,
+    "own_tests_accepted": 5,
+    "oracle_accepted": 5,
+    "own_accepted_oracle_rejected": 0,
+    "mutants_caught": {
+      "SM-ASSESS-001": 5,
+      "SM-ASSESS-002": 0,
+      "SM-ASSESS-003": 1
+    },
+    "negative_control": {
+      "own_tests": "accepted",
+      "oracle": "rejected",
+      "as_required": true
+    }
+  }
+}
