@@ -1,6 +1,6 @@
 # Grounding Plan: An Executable Kernel Contract
 
-- **Status.** In progress, 2026-09-28. Four milestones landed; three remain. Six experiments have result records under [results/](results/).
+- **Status.** Milestones complete, 2026-09-29. All seven landed, and every experiment in the table below has a result record under [results/](results/). Five exit criteria are met; the second has one gap, recorded under [Exit Criteria](#exit-criteria).
 - **Goal.** One typed Canon, one shared assessment model, one deterministic planner, one replayable transition kernel, and a harness that demonstrably rejects broken boundaries and broken semantics.
 - **Not the goal.** Another round of adapters, networking, storage, or a testing platform with nothing meaningful to test.
 
@@ -11,13 +11,16 @@ The plan is organized as seven milestones with stable names. A milestone is a br
 | Area | Evidence | Not established |
 | --- | --- | --- |
 | Build and basic checks | CI green: formatting, Clippy, workspace tests, all `--locked` | Anything about the control system |
-| Research tooling | `nomos-xtask` verifies each snapshot as a whole, freezes accepted snapshots, and reproduces seven counterexample models | Convergence, fencing, or adapter correctness |
+| Research tooling | `nomos-xtask` verifies each snapshot as a whole, freezes accepted snapshots, and reproduces seven counterexample models | Anything beyond the snapshots' own claims |
 | Architecture | `cargo xtask check-layers` rejects a forbidden workspace edge in the declared and resolved graphs | Anything about registry crates; see the next row |
-| Core purity | `#![no_std]`, panic lints, and `cargo xtask check-core-purity` over `crates/core/PURITY.toml` | Purity of behavior; the crates are still empty |
-| Oracle protection | `cargo xtask check-trust-boundary` fails an undeclared specification or verifier change and an undeclared escape hatch | Semantic weakening inside a declared change |
-| Records | Receipts under `verification/receipts/`, validated; the matrix is filled from them | Any semantic property: every invariant row is `not run` or `planned` |
-| Domain kernel | The assessment algebra for the file family and the Warp graph, frontier, and selection: truth tables, laws on generated inputs against independent references, compile-fail boundaries, five Kani harnesses, six semantic mutants caught | Any transition semantics, Obligations, budgets; every resource family but files |
-| Formal verification | Written algorithms and proof sketches; `formal/tla/` holds a README | A checked executable model |
+| Core purity | `#![no_std]`, panic lints, and `cargo xtask check-core-purity` over `crates/core/PURITY.toml`; a denied class admits no crate, declared or transitive | Effects reached through a caller-supplied function |
+| Oracle protection | `cargo xtask check-trust-boundary` fails an undeclared specification or verifier change and an undeclared escape hatch; 29 semantic mutants, each caught by its named test, on the required path | Semantic weakening inside a declared change; wrong behaviors nobody wrote a mutant for |
+| Records | Receipts under `verification/receipts/`, validated; 17 result records; the matrix is filled from them | A receipt for the `mutation-calibration` runs |
+| Domain kernel | Assessment, Warp, and the transition kernel: lifecycle, fences, effect recovery, Obligations, and budgets, driven by a deterministic simulator; truth tables, laws against independent references, Kani harnesses | Losing Loom (N11); budgets across Cells; every resource family but files and the service refresh |
+| Canon artifact | Deterministic Concise Binary Object Representation (CBOR) under [ADR 0011](../../adr/0011-canon-artifact-encoding.md); validation on every acceptance path; schema migration with lineage; a hermetic build of one authoring crate | Other machines and toolchains; procedural macros at build time; signing and the hash algorithm |
+| Substrate | The mock and a Linux adapter for regular files beneath a root pass one nine-clause conformance suite on one host | Other hosts and file systems; races between system calls; crash consistency; services |
+| Composition | A footprint check rejects a harmful pair of controllers before execution, on the mock | A real host; wiring into Canon admission; a writer that acts between runs |
+| Formal verification | TLA+ models of the Action lifecycle, fencing, and refresh recovery, checked by the TLA+ model checker (TLC) with negative controls; lifecycle and fence traces replay through the production rules | The Event Log ordering model; refinement for refresh recovery |
 
 A green build is not a verified engine. The milestones exist to change the right-hand column, one row at a time, with evidence.
 
@@ -204,12 +207,12 @@ The research snapshot's experiments remain the evidence units, joined by four th
 | `agent-proof-gate` | `02-verification-foundation` | [results/agent-proof-gate.md](results/agent-proof-gate.md) |
 | `core-purity` | `02-verification-foundation` | [results/core-purity.md](results/core-purity.md) |
 | `mutation-calibration` | `02-verification-foundation` | [results/mutation-calibration.md](results/mutation-calibration.md) |
-| `generator-variance` | `02-verification-foundation` designed; runs when a kernel exists | [results/generator-variance.md](results/generator-variance.md) |
+| `generator-variance` | Designed in `02-verification-foundation`; run on the assessment kernel | [results/generator-variance.md](results/generator-variance.md) |
 | `assessment-algebra` | `03-assessment-kernel` | [results/assessment-algebra.md](results/assessment-algebra.md) |
 | `warp-truth-table` | `04-warp-kernel` | [results/warp-truth-table.md](results/warp-truth-table.md) |
 | `bounded-convergence`, `effect-recovery`, `refresh-recovery`, `scheduler-admission`, `kernel-conformance` | `05-transition-kernel` | [bounded-convergence](results/bounded-convergence.md), [effect-recovery](results/effect-recovery.md), [refresh-recovery](results/refresh-recovery.md), [scheduler-admission](results/scheduler-admission.md), [kernel-conformance](results/kernel-conformance.md) |
 | `typed-validation`, `canonical-encoding`, `compatibility-matrix`, `build-hermeticity` | `06-canon-artifact` | [typed-validation](results/typed-validation.md), [canonical-encoding](results/canonical-encoding.md), [compatibility-matrix](results/compatibility-matrix.md), [build-hermeticity](results/build-hermeticity.md) |
-| `controller-composition` | After `05-transition-kernel`, before `07-substrate-conformance` | none |
+| `controller-composition` | After `05-transition-kernel` | [controller-composition](results/controller-composition.md) |
 | `substrate-contract` | `07-substrate-conformance` | [substrate-contract](results/substrate-contract.md) |
 
 ### layer-policy
@@ -247,8 +250,8 @@ The research snapshot's experiments remain the evidence units, joined by four th
 
 - **Question.** When several independent generations implement one kernel property, how often does a fixed oracle reject a candidate its own generated tests accept?
 - **Rival.** Generated tests and fixed oracles agree, and ADR 0015 §5 is unnecessary caution.
-- **Harness.** Designed in its [record](results/generator-variance.md). Runs on the first kernel function; exploratory; never gates.
-- **Decision rule.** The disagreement rate is recorded as a research finding, and no threshold is set.
+- **Harness.** `cargo xtask generator-variance`, over five candidates of `assess` generated from one specification pack, and a negative control; exploratory; never gates.
+- **Decision rule, met.** The disagreement rate is 0 of 5, recorded as a research finding in the [record](results/generator-variance.md), and no threshold is set. One generator in five sessions is not independence.
 
 ### assessment-algebra
 
@@ -345,7 +348,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 - **Question.** Do two isolated builds with the same declared inputs produce the same IR, and is every undeclared input denied or recorded? The contract is ADR 0004 §3.
 - **Rival.** Wall clock, locale, temporary paths, hash seeds, environment, or network reach the generator.
 - **Harness.** The same Canon crate built twice in isolation with each ambient input varied; undeclared reads and network attempts observed, not assumed absent.
-- **Decision rule.** Adopt the pipeline only after each undeclared-input path is denied or recorded; identical outputs alone prove nothing.
+- **Decision rule, met for one crate on one machine.** Each undeclared-input path is denied or recorded ([record](results/build-hermeticity.md)); a build script is caught by its control. A procedural macro is loaded, not executed, and the check does not see it.
 
 ### controller-composition
 
@@ -353,7 +356,7 @@ The research snapshot's experiments remain the evidence units, joined by four th
 - **Rival.** The two oscillate together and nothing in the model sees it.
 - **Harness.** Two mock controllers sharing a file or a sysctl, in shared, single-owner, and disjoint configurations, on the `05-transition-kernel` simulator.
 - **Negative control.** The shared-ownership configuration must oscillate and be detected or rejected.
-- **Decision rule.** One safe composition demonstrated and one counterexample detected before any whole-host claim.
+- **Decision rule, met on the mock.** Two safe compositions demonstrated and the shared configuration rejected before execution ([record](results/controller-composition.md)). No whole-host claim is made.
 
 ### substrate-contract
 
@@ -376,9 +379,11 @@ The research snapshot's experiments remain the evidence units, joined by four th
 
 ## Exit Criteria
 
-1. Seven milestones merged, each with its stated exit demonstrated by a named test.
-2. A result record under `results/` for every experiment in the table above, none claiming more than it ran, and a receipt for every command a record cites.
-3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true.
-4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md) (accepted 2026-09-28), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell (accepted 2026-09-28), and [0011](../../adr/0011-canon-artifact-encoding.md) (accepted 2026-09-29, deterministic CBOR). [ADR 0007](../../adr/0007-verification-gates.md), [0015](../../adr/0015-generator-verifier-development-model.md), and [0016](../../adr/0016-core-purity.md) are already accepted.
-5. Spec §62 updated: edge semantics closed, the encoding question closed. Both done, 2026-09-28 and 2026-09-29.
-6. The required CI path is small and green, with `--locked`, the layer checker, the purity checker, the trust-boundary gate, the receipt validator, the semantic mutants, and the snapshot freeze in it; mutation runs stay scheduled and non-blocking.
+Audited 2026-09-29, after pull requests #9 to #13 merged.
+
+1. Seven milestones merged, each with its stated exit demonstrated by a named test. **Met:** each milestone section above names its exit tests.
+2. A result record under `results/` for every experiment in the table above, none claiming more than it ran, and a receipt for every command a record cites. **Met with one gap:** every experiment has a record, and every record but one cites receipts that exist. [mutation-calibration](results/mutation-calibration.md) cites two `cargo mutants` runs from `02-verification-foundation` without receipts; the first ran on a tree with uncommitted changes.
+3. `docs/formal/verification-matrix.md` filled from records, with *not run* and *inconclusive* wherever true. **Met.**
+4. ADRs accepted from their evidence, or kept Proposed with the reason recorded: [0009](../../adr/0009-warp-activation-semantics.md) (accepted 2026-09-28), [0010](../../adr/0010-effect-recovery-and-fencing.md) for the Cell (accepted 2026-09-28), and [0011](../../adr/0011-canon-artifact-encoding.md) (accepted 2026-09-29, deterministic CBOR). [ADR 0007](../../adr/0007-verification-gates.md), [0015](../../adr/0015-generator-verifier-development-model.md), and [0016](../../adr/0016-core-purity.md) are already accepted. **Met:** [0008](../../adr/0008-ownership-and-identity.md) and [0013](../../adr/0013-trust-boundaries.md) stay Proposed, each with its evidence note and the reason: for 0008, the identity criterion has not run; for 0013, §3 and §4 have not been exercised.
+5. Spec §62 updated: edge semantics closed, the encoding question closed. **Met,** 2026-09-28 and 2026-09-29.
+6. The required CI path is small and green, with `--locked`, the layer checker, the purity checker, the trust-boundary gate, the receipt validator, the semantic mutants, and the snapshot freeze in it; mutation runs stay scheduled and non-blocking. **Met,** in `.github/workflows/ci.yml`.
