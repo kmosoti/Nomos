@@ -266,7 +266,7 @@ Every stage above the artifact runs in the author's build job. Every stage below
 
 The build job is ordinary code execution and is treated as such: no network, no host-management credentials, declared inputs only, and a provenance record (toolchain, lockfile digest, `nomos-canon` version, input digests) written beside the IR and excluded from `CanonID`. Two builds with the same declared inputs produce the same IR bytes. That is tested, not assumed. The consumer decodes the IR into untrusted data-transfer objects and converts them, fallibly, into the validated domain types through the same validator the authoring API uses. An IR that fails that conversion produces no Plan.
 
-The encoding of the IR, the artifact container and its file extension, the content hash profile behind $H$ below, and any artifact signing scheme are open (§62). This section fixes the stages and the boundary, not the bytes.
+The IR is encoded as deterministic Concise Binary Object Representation (CBOR), in files with the extension `.cbor` ([ADR 0011](adr/0011-canon-artifact-encoding.md), [canon-ir.md](formal/canon-ir.md)). A container around the artifact, the content hash profile behind $H$ below, and any artifact signing scheme are open (§62).
 
 The canonical intermediate representation (IR) serializes deterministically, which gives:
 
@@ -866,7 +866,7 @@ nomos-cell events
 | `enforce` | Standalone convergence |
 | `events` | Inspect the local Event Log |
 
-`--canon` names a Canon artifact. Its container format and file extension are open (§62), so the paths above have none.
+`--canon` names a Canon artifact, a `.cbor` file ([ADR 0011](adr/0011-canon-artifact-encoding.md)). The paths above predate the choice and carry no extension.
 
 ## 52. Design Lineage
 
@@ -912,7 +912,7 @@ The reference problem is simpler: *reliably describe, inspect, change, and verif
 Uncertain choices are settled by experiment before they are frozen.
 
 - **Persistence.** redb vs. SQLite vs. an LMDB-family store.
-- **Canonical IR encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) vs. the JSON Canonicalization Scheme (JCS), with the same typed model either way. The authoring surface is decided ([ADR 0004](adr/0004-rust-typed-canon.md)); the bytes are not.
+- **Canonical IR encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) vs. the JSON Canonicalization Scheme (JCS), with the same typed model either way. Settled: both passed every semantic test, and [ADR 0011](adr/0011-canon-artifact-encoding.md) chose deterministic CBOR as the simpler.
 - **Transport.** Validate tonic over HTTP/2 against requirements before looking at QUIC.
 - **File observation.** Metadata plus hash vs. full read vs. notification-assisted caching.
 - **Fleet targeting.** Predicate scans vs. bitmap indexes, at large synthetic fleet sizes only.
@@ -1066,8 +1066,8 @@ The unresolved parts, stated so they can be argued with:
 
 Canon ([ADR 0004](adr/0004-rust-typed-canon.md) decides the authoring surface and the inert-artifact boundary, and [ADR 0011](adr/0011-canon-artifact-encoding.md) proposes identity and versioning rules; these remain open):
 
-- **Artifact encoding.** A restricted deterministic CBOR profile or canonical JSON (§54). Both pass every semantic test of experiment `canonical-encoding`, and it recommends deterministic CBOR as the simpler; open until ADR 0011 is accepted.
-- **Artifact container and file extension.**
+- **Artifact encoding.** Closed: [ADR 0011](adr/0011-canon-artifact-encoding.md), accepted 2026-09-29, chooses deterministic CBOR (§54).
+- **Artifact container.** The extension is `.cbor` and the artifact is the bare encoded value; whether signing needs a container around it is open with signing.
 - **Content hash profile.** The algorithm and domain separation behind $H$ in §6. [canon-ir.md](formal/canon-ir.md) uses SHA-256, from the Secure Hash Algorithm (SHA) 2 family, over a profile tag, the schema version, and the canonical bytes as a working definition.
 - **Artifact signing.** Whether artifacts are signed, by whom, and what a Cell checks.
 - **Extensibility model.** Whether resource kinds are a closed set or can be extended, and how an unknown kind is carried without being executed. Today an unknown kind is refused for execution and readable only by archival inspection ([canon-ir.md](formal/canon-ir.md)).

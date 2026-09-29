@@ -1,6 +1,6 @@
 # ADR 0011: Canon Artifact Encoding, Identity, and Versioning
 
-- **Status.** Proposed
+- **Status.** Accepted, 2026-09-29
 - **Date.** 2026-09-28
 - **Candidate.** `canon-artifact` in the 2026-09-28 research snapshot (recommendations `canonical-profile`, `compatibility`, `validated-boundary`). The authoring surface and the inert-artifact boundary are accepted in [ADR 0004](0004-rust-typed-canon.md).
 
@@ -10,7 +10,7 @@ ADR 0004 fixed where Rust runs and what Loom and Cell accept. It deliberately le
 
 ## Decision
 
-Proposed. Nothing on this page is chosen until the experiments below have run.
+Accepted by the project owner on 2026-09-29, on the evidence of milestone `06-canon-artifact` recorded in the notes below. §2's choice is deterministic Concise Binary Object Representation (CBOR).
 
 ### 1. Identity Covers Meaning, Not Provenance
 
@@ -54,7 +54,16 @@ Each acceptance criterion ran, and each record is under the research snapshot's 
 
 The ADR stays Proposed: the evidence is complete for its four criteria, and acceptance, with the choice of CBOR, is the owner's. What stays open after acceptance is §"Still Open" unchanged: the hash algorithm beyond the SHA-256 working definition, signing, and the extensibility model.
 
+## Note, 2026-09-29: Acceptance
+
+The owner accepted this ADR with deterministic Concise Binary Object Representation (CBOR) as the IR encoding, the profile [canonical-encoding](../research/2026-09-28-typed-core/results/canonical-encoding.md) recommends. What that settles:
+
+- **The encoding.** An artifact is the deterministic CBOR encoding of [canon-ir.md](../formal/canon-ir.md)'s data model, and `CanonID` is computed under the CBOR profile tag. The JSON Canonicalization Scheme (JCS) codec stays in `nomos-canon` as the comparison the evidence rests on; it is not an artifact encoding, and whether to keep it is a later cleanup.
+- **The extension.** `.cbor`. The artifact is the bare encoded value; a container around it is open with signing.
+
+What stays open is §"Still Open After This ADR", unchanged: the hash algorithm beyond the SHA-256 working definition, signing, and the extensibility model.
+
 ## Consequences
 
-- The artifact file extension follows the chosen encoding and is recorded when this ADR is accepted.
+- The artifact file extension is `.cbor` (note, 2026-09-29).
 - **Revisit trigger.** Reopen if neither profile passes the equivalence tests, or if signing requires a container the chosen encoding cannot carry.
