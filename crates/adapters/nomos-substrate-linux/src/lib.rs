@@ -257,12 +257,21 @@ fn sync(dir: BorrowedFd<'_>, receipt: Receipt) -> Receipt {
     }
 }
 
-/// Writes `bytes` to `name` in `dir` through a temporary file and a rename.
-fn write_atomically(dir: BorrowedFd<'_>, name: &str, bytes: &[u8], key: &EffectKey) -> Receipt {
+/// The name of the temporary file an execution writes before renaming it
+/// over `name`: in the same directory, and named for the execution.
+pub fn temporary_name(name: &str, key: &EffectKey) -> String {
     let mut h = Sha256::new();
     h.update(format!("{key:?}").as_bytes());
     let tag: String = h.finish()[..8].iter().map(|b| format!("{b:02x}")).collect();
-    let temp = format!(".{name}.nomos-{tag}.tmp");
+    format!(".{name}.nomos-{tag}.tmp")
+}
+
+/// Writes `bytes` to `name` in `dir` through a temporary file and a rename.
+/// The temporary file is created exclusively: whatever is already at its
+/// name, a planted hard link included, fails the execution rather than
+/// being written through.
+fn write_atomically(dir: BorrowedFd<'_>, name: &str, bytes: &[u8], key: &EffectKey) -> Receipt {
+    let temp = temporary_name(name, key);
     let fd = match rustix::fs::openat(
         dir,
         temp.as_str(),

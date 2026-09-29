@@ -332,6 +332,32 @@ fn replacement_leaves_no_temporary_file() {
     assert_eq!(names, vec!["x".to_string()]);
 }
 
+/// A hard link planted at the temporary file's name is not written
+/// through: the execution fails, and the file it links to is unchanged.
+#[test]
+fn a_planted_temporary_file_is_not_written_through() {
+    let mut s = LinuxSubject::new("planted");
+    s.put(&p("/etc/shadow"), b"precious");
+    s.put(&p("/etc/app.conf"), b"old");
+    let wanted = s.content(b"new");
+    let request = replace(
+        "/etc/app.conf",
+        0,
+        FileCondition::Present {
+            content: Content::Exactly(wanted),
+        },
+    );
+    let temp = nomos_substrate_linux::temporary_name("app.conf", &request.key);
+    std::fs::hard_link(
+        s.host_path(&p("/etc/shadow")),
+        s.host_path(&p("/etc")).join(temp),
+    )
+    .unwrap();
+    assert_eq!(s.apply(&request).last(), Some(&Receipt::Failed));
+    assert_eq!(s.truth(&p("/etc/shadow")), Truth::File(sha(b"precious")));
+    assert_eq!(s.truth(&p("/etc/app.conf")), Truth::File(sha(b"old")));
+}
+
 /// A named pipe at the resource: observation returns at once, unsupported,
 /// and replacing it is refused.
 #[test]
