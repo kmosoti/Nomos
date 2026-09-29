@@ -40,6 +40,8 @@ The following are not available to a core function, by construction or by policy
 
 Dev-dependencies are exempt from the policy. They build test binaries; the artifact a composition root links has none of them.
 
+A denied class is absolute. A crate in one is rejected wherever the resolved graph reaches it, as a declared dependency or a transitive one, and no `[allow]` entry or `transitive` list admits it. A policy that names such a crate under `[allow]` contradicts its own `[deny]` and is itself rejected.
+
 ## What This Does Not Establish
 
 - **Purity is not correctness.** A pure `step` can be wrong in every way the invariants forbid. The kernels' tests, semantic mutants, and models address that; this page addresses only that the inputs are the arguments.
