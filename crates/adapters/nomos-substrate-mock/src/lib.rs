@@ -241,6 +241,17 @@ impl Mutate for MockHost {
             return receipts.clone();
         }
         let path = request.key.resource().clone();
+        let refreshable = self
+            .services
+            .iter()
+            .any(|(status, s)| *status == path || s.loaded_path.as_ref() == Some(&path));
+        if request.operation == Operation::Refresh && !refreshable {
+            // Nothing to refresh: an operation the machine cannot perform is
+            // refused before any effect (substrate-contract.md, S7).
+            self.ledger
+                .insert(request.key.clone(), vec![Receipt::Refused]);
+            return vec![Receipt::Refused];
+        }
         let receipts = match self.faults.remove(&path) {
             Some(Fault::Refuse) => vec![Receipt::Refused],
             Some(Fault::Fail) => vec![Receipt::Accepted, Receipt::Started, Receipt::Failed],

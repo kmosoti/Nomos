@@ -25,3 +25,4 @@ nomos-store.workspace = true
 nomos-substrate.workspace = true
 nomos-substrate-mock.workspace = true
 proptest.workspace = true
+rustix = { workspace = true, features = ["thread"] }
