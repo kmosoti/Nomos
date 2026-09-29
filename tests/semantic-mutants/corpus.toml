@@ -244,3 +244,13 @@ crate = "nomos-cell"
 patch = "patches/SM-CANON-007.diff"
 test = "a_decoded_artifact_converges_on_the_host"
 status = "active"
+
+[[mutant]]
+id = "SM-COMPOSE-001"
+property = "N2"
+threat = "two controllers that write one property are composed, so each run's Converged is undone by the other's next run"
+wrong_behavior = "a footprint's reliance omits its guarantee, so the composition check accepts two controllers that write the same property"
+crate = "nomos-cell"
+patch = "patches/SM-COMPOSE-001.diff"
+test = "the_shared_configuration_oscillates_and_the_check_rejects_it"
+status = "active"

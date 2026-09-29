@@ -1,6 +1,6 @@
 # Canon IR
 
-What the Canonical IR is, when two Canons are the same, how an artifact is encoded and decoded, and how a Canon gets its identity. [ADR 0004](../adr/0004-rust-typed-canon.md) fixes the boundary: Rust runs once in the author's build, and Loom and Cell accept only the IR. [ADR 0011](../adr/0011-canon-artifact-encoding.md) proposes the identity and versioning rules. This document gives the working definitions milestone `06-canon-artifact` implements and tests; the choices it leaves to an experiment say so.
+What the Canonical IR is, when two Canons are the same, how an artifact is encoded and decoded, and how a Canon gets its identity. [ADR 0004](../adr/0004-rust-typed-canon.md) fixes the boundary: Rust runs once in the author's build, and Loom and Cell accept only the IR. [ADR 0011](../adr/0011-canon-artifact-encoding.md), accepted 2026-09-29, decides the identity and versioning rules and the encoding. This document gives the working definitions milestone `06-canon-artifact` implements and tests; the choices it leaves to an experiment say so.
 
 ## Scope
 
@@ -68,7 +68,7 @@ and, for decoding, $\mathrm{dec}_P(b) = c \Rightarrow \mathrm{enc}_P(c) = b$. Th
 
 **JSON Canonicalization Scheme (JCS).** The scheme of RFC 8785 over the data model: no whitespace, object members sorted by the UTF-16 code units of their names, strings with only the escapes RFC 8785 requires, and integers in their shortest decimal form.
 
-Experiment `canonical-encoding` implements both, runs the same semantic tests against both, and chooses the simpler one that passes, as ADR 0011 §2 says. Throughput decides nothing.
+Experiment `canonical-encoding` implemented both, ran the same semantic tests against both, and found that both pass; by ADR 0011 §2's rule the simpler is chosen. **The artifact encoding is deterministic CBOR**, in `.cbor` files, and `CanonID` is taken under the CBOR tag. JCS stays implemented as the comparison and is not an artifact encoding.
 
 ## Strict Decoding
 
@@ -103,5 +103,5 @@ The build job writes a provenance record beside the IR (ADR 0004 §3): the Rust 
 
 - **Signing.** Open; ADR 0011.
 - **Extensibility beyond the version rule.** A resource kind a reader does not know is rejected; how a future kind is registered is open.
-- **The hash algorithm.** SHA-256 is a working definition until ADR 0011 is accepted.
+- **The hash algorithm.** SHA-256 is a working definition; ADR 0011 leaves the algorithm open.
 - **Conditions beyond the file family and the service refresh.** They arrive with their resource families.

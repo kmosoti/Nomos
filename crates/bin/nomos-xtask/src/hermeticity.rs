@@ -27,6 +27,14 @@
 //! undeclared path, network, or clock. `leaky` is the negative control: it
 //! reads each input above, and the harness must see every one. A control
 //! that does not fire fails the run.
+//!
+//! `leaky` runs no code at build time, so it cannot trip
+//! `build-executes-only-the-toolchain`. A second control can:
+//! [`Subject::BuildScript`] builds `tests/fixtures/canon/authoring-build-script`,
+//! a crate with a build script and no generators, through the same job and
+//! only the build checks. It must fail `build-executes-only-the-toolchain` and
+//! nothing else; the record names the checks that ran, those that did not
+//! apply, and the failure the control expects.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -48,8 +56,114 @@ const DECLARED: &[&str] = &[
     "Cargo.toml",
     "rust-toolchain.toml",
 ];
+/// The build-script control, relative to the workspace root.
+const BUILD_SCRIPT_CRATE: &str = "tests/fixtures/canon/authoring-build-script";
+/// Its declared inputs: the crate and the toolchain file. It depends on
+/// nothing, so nothing else is an input.
+const BUILD_SCRIPT_DECLARED: &[&str] = &[BUILD_SCRIPT_CRATE, "rust-toolchain.toml"];
 const GENERATORS: &[&str] = &["telemetry", "leaky"];
 const PROFILES: &[(&str, &str)] = &[("cbor", "cbor"), ("jcs", "json")];
+
+/// The checks on the build job alone, which every subject runs.
+const BUILD_CHECKS: &[&str] = &[
+    "build-network-attempts-all-denied",
+    "build-executes-only-the-toolchain",
+    "build-opens-no-undeclared-file",
+];
+/// The checks on the generators, which only the authoring crate has.
+const GENERATOR_CHECKS: &[&str] = &[
+    "telemetry-cbor-identical-across-roots",
+    "telemetry-cbor-is-golden",
+    "telemetry-jcs-identical-across-roots",
+    "telemetry-jcs-is-golden",
+    "telemetry-touches-no-undeclared-path",
+    "telemetry-makes-no-network-call",
+    "telemetry-reads-no-clock",
+    "telemetry-reads-no-working-directory",
+    "control-output-differs",
+    "control-undeclared-file-recorded",
+    "control-network-attempt-recorded-and-denied",
+    "control-clock-recorded",
+    "control-randomness-recorded",
+    "control-working-directory-recorded",
+    "control-ambient-environment-denied",
+];
+
+/// What the harness builds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Subject {
+    /// The Canon authoring crate and its generators, under every check: the
+    /// experiment itself.
+    Authoring,
+    /// The build-script control: builds only, under the build checks, and
+    /// must fail `build-executes-only-the-toolchain` alone.
+    BuildScript,
+}
+
+impl Subject {
+    /// The subject a `--control` option names; none is the experiment.
+    pub fn from_control(control: Option<&str>) -> Result<Subject, String> {
+        match control {
+            None => Ok(Subject::Authoring),
+            Some("build-script") => Ok(Subject::BuildScript),
+            Some(other) => Err(format!(
+                "unknown control {other:?}; the one control is build-script"
+            )),
+        }
+    }
+
+    /// The control's name, or none for the experiment.
+    fn control(self) -> Option<&'static str> {
+        match self {
+            Subject::Authoring => None,
+            Subject::BuildScript => Some("build-script"),
+        }
+    }
+
+    fn krate(self) -> &'static str {
+        match self {
+            Subject::Authoring => CRATE,
+            Subject::BuildScript => BUILD_SCRIPT_CRATE,
+        }
+    }
+
+    fn declared(self) -> &'static [&'static str] {
+        match self {
+            Subject::Authoring => DECLARED,
+            Subject::BuildScript => BUILD_SCRIPT_DECLARED,
+        }
+    }
+
+    fn generators(self) -> &'static [&'static str] {
+        match self {
+            Subject::Authoring => GENERATORS,
+            Subject::BuildScript => &[],
+        }
+    }
+
+    /// The checks this subject runs, and those that do not apply to it.
+    fn checks(self) -> (Vec<&'static str>, Vec<&'static str>) {
+        match self {
+            Subject::Authoring => (
+                BUILD_CHECKS
+                    .iter()
+                    .chain(GENERATOR_CHECKS)
+                    .copied()
+                    .collect(),
+                Vec::new(),
+            ),
+            Subject::BuildScript => (BUILD_CHECKS.to_vec(), GENERATOR_CHECKS.to_vec()),
+        }
+    }
+
+    /// The checks a control exists to fail; none for the experiment.
+    fn expected_failures(self) -> &'static [&'static str] {
+        match self {
+            Subject::Authoring => &[],
+            Subject::BuildScript => &["build-executes-only-the-toolchain"],
+        }
+    }
+}
 
 /// One isolated root and what differs about it.
 struct Variant {
@@ -127,16 +241,38 @@ struct GeneratorRecord {
 struct Provenance {
     toolchain: String,
     lockfile_sha256: String,
-    nomos_canon_version: String,
+    /// Absent for the build-script control, which does not depend on it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nomos_canon_version: Option<String>,
     declared_files: usize,
     declared_sha256: String,
     ir_sha256: BTreeMap<String, String>,
+}
+
+/// What a control run was, and what it was for. Absent from the
+/// experiment's own record.
+#[derive(Debug, Serialize)]
+struct ControlRun {
+    /// The control's name, as `--control` takes it.
+    name: &'static str,
+    /// The crate built, relative to the workspace root.
+    #[serde(rename = "crate")]
+    krate: &'static str,
+    /// The checks that ran; each is in `checks`.
+    checks_run: Vec<&'static str>,
+    /// The checks that do not apply to this crate, and did not run.
+    checks_not_applicable: Vec<&'static str>,
+    /// The checks the control exists to fail.
+    expected_failures: Vec<&'static str>,
 }
 
 /// The experiment's record.
 #[derive(Debug, Serialize)]
 pub struct Record {
     experiment: &'static str,
+    /// Present only for a control run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    control: Option<ControlRun>,
     provenance: Provenance,
     build: BTreeMap<String, Access>,
     generators: BTreeMap<String, GeneratorRecord>,
@@ -154,6 +290,20 @@ impl Record {
             .map(|(k, _)| k.as_str())
             .collect()
     }
+
+    /// For a control run, whether it failed exactly the checks it exists to
+    /// fail; none for the experiment.
+    pub fn control_fired(&self) -> Option<bool> {
+        let control = self.control.as_ref()?;
+        Some(fired_exactly(&self.failures(), &control.expected_failures))
+    }
+}
+
+/// Whether `failures` is exactly `expected`, which is not empty.
+fn fired_exactly(failures: &[&str], expected: &[&str]) -> bool {
+    let failed: BTreeSet<&str> = failures.iter().copied().collect();
+    let wanted: BTreeSet<&str> = expected.iter().copied().collect();
+    !wanted.is_empty() && failed == wanted
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -193,12 +343,16 @@ fn tool(name: &str) -> Result<PathBuf, String> {
 
 /// Copies the declared inputs, as git lists them (tracked and untracked,
 /// not ignored), under `to`. Returns their digests by relative path.
-fn copy_declared(root: &Path, to: &Path) -> Result<BTreeMap<String, String>, String> {
+fn copy_declared(
+    root: &Path,
+    to: &Path,
+    declared: &[&str],
+) -> Result<BTreeMap<String, String>, String> {
     let listed = output(
         Command::new(tool("git")?)
             .current_dir(root)
             .args(["ls-files", "-co", "--exclude-standard", "--"])
-            .args(DECLARED),
+            .args(declared),
     )?;
     let mut digests = BTreeMap::new();
     for rel in String::from_utf8_lossy(&listed).lines() {
@@ -472,9 +626,9 @@ impl Job {
     }
 }
 
-/// Runs the experiment with scratch space under `scratch`, which it empties
-/// first.
-pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
+/// Runs the experiment, or the control `subject` names, with scratch space
+/// under `scratch`, which it empties first.
+pub fn run(root: &Path, scratch: &Path, subject: Subject) -> Result<Record, String> {
     let rustc = output(
         Command::new("rustc")
             .current_dir(root)
@@ -509,7 +663,7 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
         }
         let base = scratch.join(variant.dir);
         let source = base.join("src");
-        let digests = copy_declared(root, &source)?;
+        let digests = copy_declared(root, &source, subject.declared())?;
         match &declared {
             None => declared = Some(digests),
             Some(first) if *first == digests => {}
@@ -525,7 +679,7 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
             job: base.clone(),
             sysroot: sysroot.clone(),
         };
-        let manifest = source.join(CRATE).join("Cargo.toml");
+        let manifest = source.join(subject.krate()).join("Cargo.toml");
         let cargo = sysroot.join("bin/cargo");
         let trace = base.join("trace/build");
         let argv = [
@@ -545,7 +699,7 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
             read_strace(&trace, &layout, &job.env)?,
         );
 
-        for generator in GENERATORS {
+        for generator in subject.generators() {
             let bin = target.join("release").join(generator);
             let bytes = fs::read(&bin).map_err(|e| format!("{}: {e}", bin.display()))?;
             binaries.insert((generator, variant.name), bytes);
@@ -580,9 +734,9 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
         listing.push_str(&format!("{path}\0{digest}\n"));
     }
     let lock = declared
-        .get(&format!("{CRATE}/Cargo.lock"))
+        .get(&format!("{}/Cargo.lock", subject.krate()))
         .cloned()
-        .ok_or("the authoring crate's Cargo.lock is not a declared input")?;
+        .ok_or("the built crate's Cargo.lock is not a declared input")?;
     let canon_manifest = fs::read_to_string(root.join("crates/core/nomos-canon/Cargo.toml"))
         .map_err(|e| e.to_string())?;
     let workspace_manifest =
@@ -597,7 +751,37 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
         String::new()
     };
 
-    let mut checks = BTreeMap::new();
+    let mut checks = build_checks(&build);
+
+    let (checks_run, checks_not_applicable) = subject.checks();
+    let declared_files = declared.len();
+    let declared_sha256 = sha(listing.as_bytes());
+    let provenance = |nomos_canon_version, ir_sha256| Provenance {
+        toolchain,
+        lockfile_sha256: lock,
+        nomos_canon_version,
+        declared_files,
+        declared_sha256,
+        ir_sha256,
+    };
+    if let Some(name) = subject.control() {
+        check_names(&checks, &checks_run)?;
+        return Ok(Record {
+            experiment: "build-hermeticity",
+            control: Some(ControlRun {
+                name,
+                krate: subject.krate(),
+                checks_run,
+                checks_not_applicable,
+                expected_failures: subject.expected_failures().to_vec(),
+            }),
+            provenance: provenance(None, BTreeMap::new()),
+            build,
+            generators: BTreeMap::new(),
+            checks,
+        });
+    }
+
     let mut generators = BTreeMap::new();
     let golden = root.join("tests/fixtures/canon/golden");
     for generator in GENERATORS {
@@ -657,32 +841,6 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
         "telemetry-reads-no-working-directory".into(),
         t.runs.values().all(|a| a.getcwd == 0),
     );
-    checks.insert(
-        "build-network-attempts-all-denied".into(),
-        build.values().all(|a| {
-            a.network
-                .iter()
-                .all(|l| l.starts_with("socket(") || l.contains("= -1"))
-        }),
-    );
-    // Only the pinned toolchain and the system linker run at build time: no
-    // build script or procedural macro, the only user code that could read
-    // the clock or anything else while building.
-    checks.insert(
-        "build-executes-only-the-toolchain".into(),
-        build
-            .values()
-            .all(|a| a.executed.keys().all(|c| c == "toolchain" || c == "system")),
-    );
-    checks.insert(
-        "build-opens-no-undeclared-file".into(),
-        build.values().all(|a| {
-            a.undeclared
-                .values()
-                .all(|calls| !calls.iter().any(|c| c == "openat=ok" || c == "execve=ok"))
-        }),
-    );
-
     // The negative control: each undeclared input it reads is seen.
     let l = &generators["leaky"];
     let t_random = t.runs.values().map(|a| a.getrandom).max().unwrap_or(0);
@@ -728,24 +886,67 @@ pub fn run(root: &Path, scratch: &Path) -> Result<Record, String> {
     });
     checks.insert("control-ambient-environment-denied".into(), ambient_denied);
 
+    check_names(&checks, &checks_run)?;
     let ir_sha256 = PROFILES
         .iter()
         .map(|(p, _)| (p.to_string(), sha(&ir[&("telemetry", *p, "a")])))
         .collect();
     Ok(Record {
         experiment: "build-hermeticity",
-        provenance: Provenance {
-            toolchain,
-            lockfile_sha256: lock,
-            nomos_canon_version: version,
-            declared_files: declared.len(),
-            declared_sha256: sha(listing.as_bytes()),
-            ir_sha256,
-        },
+        control: None,
+        provenance: provenance(Some(version), ir_sha256),
         build,
         generators,
         checks,
     })
+}
+
+/// The checks on the build job, by root; every subject runs these.
+fn build_checks(build: &BTreeMap<String, Access>) -> BTreeMap<String, bool> {
+    let mut checks = BTreeMap::new();
+    checks.insert(
+        "build-network-attempts-all-denied".into(),
+        build.values().all(|a| {
+            a.network
+                .iter()
+                .all(|l| l.starts_with("socket(") || l.contains("= -1"))
+        }),
+    );
+    // Only the pinned toolchain and the system linker are executed at build
+    // time: no build script, which Cargo runs as its own process out of the
+    // target directory. A procedural macro is not executed: `rustc` loads it
+    // as a shared library, which this check does not see; that the authoring
+    // crate has none rests on its lockfile, not on this check.
+    checks.insert(
+        "build-executes-only-the-toolchain".into(),
+        build
+            .values()
+            .all(|a| a.executed.keys().all(|c| c == "toolchain" || c == "system")),
+    );
+    checks.insert(
+        "build-opens-no-undeclared-file".into(),
+        build.values().all(|a| {
+            a.undeclared
+                .values()
+                .all(|calls| !calls.iter().any(|c| c == "openat=ok" || c == "execve=ok"))
+        }),
+    );
+    checks
+}
+
+/// The checks computed are exactly the checks the subject declares it runs,
+/// so that the record's `checks_run` and `checks_not_applicable` cannot
+/// drift from the code that computes them.
+fn check_names(checks: &BTreeMap<String, bool>, run: &[&str]) -> Result<(), String> {
+    let computed: BTreeSet<&str> = checks.keys().map(String::as_str).collect();
+    let declared: BTreeSet<&str> = run.iter().copied().collect();
+    if computed == declared {
+        Ok(())
+    } else {
+        Err(format!(
+            "harness error: the checks computed, {computed:?}, are not the checks declared, {declared:?}"
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -855,6 +1056,122 @@ mod tests {
             ),
             "undeclared"
         );
+    }
+
+    /// A build that runs only the toolchain passes the build checks; the
+    /// same build running a build script out of the target directory fails
+    /// `build-executes-only-the-toolchain` and nothing else. The synthetic
+    /// traces stand in for `strace`, which the harness's own run needs and
+    /// these tests do not.
+    #[test]
+    fn a_build_script_fails_only_the_toolchain_check() {
+        let toolchain = "execve(\"/toolchain/bin/cargo\", [\"cargo\"], 0x0 /* 4 vars */) = 0\n\
+             execve(\"/toolchain/bin/rustc\", [\"rustc\"], 0x0 /* 4 vars */) = 0\n\
+             execve(\"/usr/bin/cc\", [\"cc\"], 0x0 /* 4 vars */) = 0\n";
+        let clean = BTreeMap::from([("a".to_string(), trace("clean", &[("1", toolchain)]))]);
+        assert!(build_checks(&clean).values().all(|ok| *ok));
+
+        let script = "execve(\"/j/target/release/build/c-0123/build-script-build\", [\"build-script-build\"], 0x0 /* 9 vars */) = 0\n\
+             openat(AT_FDCWD, \"/etc/ld.so.cache\", O_RDONLY|O_CLOEXEC) = 3\n";
+        let dirty = BTreeMap::from([(
+            "a".to_string(),
+            trace("script", &[("1", toolchain), ("2", script)]),
+        )]);
+        assert!(
+            dirty["a"].executed["build-output"]
+                .contains("$JOB/target/release/build/c-0123/build-script-build")
+        );
+        let checks = build_checks(&dirty);
+        let failed: Vec<&str> = checks
+            .iter()
+            .filter(|(_, ok)| !**ok)
+            .map(|(k, _)| k.as_str())
+            .collect();
+        assert_eq!(failed, ["build-executes-only-the-toolchain"]);
+        assert!(fired_exactly(
+            &failed,
+            Subject::BuildScript.expected_failures()
+        ));
+    }
+
+    #[test]
+    fn the_control_option_names_a_subject_or_fails() {
+        assert_eq!(Subject::from_control(None), Ok(Subject::Authoring));
+        assert_eq!(
+            Subject::from_control(Some("build-script")),
+            Ok(Subject::BuildScript)
+        );
+        assert!(Subject::from_control(Some("build_script")).is_err());
+        assert!(Subject::from_control(Some("")).is_err());
+    }
+
+    /// The experiment runs every check and names no control; the control
+    /// runs the build checks, lists the rest as not applicable, and expects
+    /// to fail one check that it runs.
+    #[test]
+    fn each_subject_runs_the_checks_it_declares() {
+        let (all, none) = Subject::Authoring.checks();
+        assert!(none.is_empty());
+        assert_eq!(all.len(), BUILD_CHECKS.len() + GENERATOR_CHECKS.len());
+        assert_eq!(Subject::Authoring.control(), None);
+        assert!(Subject::Authoring.expected_failures().is_empty());
+        assert_eq!(Subject::Authoring.krate(), CRATE);
+        assert_eq!(Subject::Authoring.generators(), GENERATORS);
+
+        let (run, skipped) = Subject::BuildScript.checks();
+        assert_eq!(run, BUILD_CHECKS);
+        assert_eq!(skipped, GENERATOR_CHECKS);
+        let mut union: Vec<&str> = run.iter().chain(&skipped).copied().collect();
+        union.sort_unstable();
+        let mut every = all.clone();
+        every.sort_unstable();
+        assert_eq!(union, every);
+        assert!(Subject::BuildScript.generators().is_empty());
+        for expected in Subject::BuildScript.expected_failures() {
+            assert!(run.contains(expected), "{expected} is expected but not run");
+        }
+    }
+
+    /// The control crate is where the harness looks for it, has a build
+    /// script, and has the lockfile `--locked` needs.
+    #[test]
+    fn the_build_script_control_crate_is_in_place() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let krate = root.join(Subject::BuildScript.krate());
+        assert!(krate.join("build.rs").is_file());
+        assert!(krate.join("Cargo.lock").is_file());
+        let manifest = fs::read_to_string(krate.join("Cargo.toml")).unwrap();
+        assert!(manifest.contains("[workspace]"));
+        assert!(
+            Subject::BuildScript
+                .declared()
+                .contains(&BUILD_SCRIPT_CRATE)
+        );
+    }
+
+    #[test]
+    fn a_control_fires_only_on_exactly_its_expected_failures() {
+        let expected = ["build-executes-only-the-toolchain"];
+        assert!(fired_exactly(&expected, &expected));
+        assert!(!fired_exactly(&[], &expected));
+        assert!(!fired_exactly(
+            &[
+                "build-executes-only-the-toolchain",
+                "build-opens-no-undeclared-file"
+            ],
+            &expected
+        ));
+        assert!(!fired_exactly(&[], &[]));
+    }
+
+    #[test]
+    fn computed_checks_must_match_the_declared_checks() {
+        let checks: BTreeMap<String, bool> =
+            BUILD_CHECKS.iter().map(|c| (c.to_string(), true)).collect();
+        assert!(check_names(&checks, BUILD_CHECKS).is_ok());
+        assert!(check_names(&checks, &BUILD_CHECKS[..2]).is_err());
+        let (all, _) = Subject::Authoring.checks();
+        assert!(check_names(&checks, &all).is_err());
     }
 
     #[test]

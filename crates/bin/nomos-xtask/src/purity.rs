@@ -10,7 +10,11 @@
 //!   allowlisted, with default features off when the policy says so and no
 //!   feature the policy does not name, and is in no denied class;
 //! - every crate the resolved graph reaches from a core crate, under all
-//!   features, is allowlisted directly or as a declared transitive dependency;
+//!   features, is in no denied class, and is allowlisted directly or as a
+//!   declared transitive dependency;
+//! - no `[allow]` entry, and no `transitive` list, names a crate in a denied
+//!   class: a denied class is never admitted, directly or transitively, and a
+//!   policy that says otherwise contradicts itself;
 //! - the crate root declares `#![no_std]` and denies the required lints as
 //!   inner attributes, and the manifest inherits the workspace lints, which
 //!   forbid `unsafe`.
@@ -45,6 +49,8 @@ pub(crate) enum PurityCode {
     PolicyMalformed,
     /// The policy lists a crate the workspace does not have under `crates/core/`.
     PolicyNamesUnknownCrate,
+    /// An `[allow]` entry, or its `transitive` list, names a crate in a denied class.
+    PolicyAllowsDeniedClass,
     /// A workspace crate under `crates/core/` is not in the policy.
     CoreCrateUnlisted,
     /// A core crate has a build script.
@@ -55,6 +61,8 @@ pub(crate) enum PurityCode {
     DependencyNotAllowlisted,
     /// An allowed dependency keeps default features or enables an unlisted feature.
     DependencyFeatures,
+    /// The resolved graph reaches a crate in a denied class, whatever `[allow]` says.
+    TransitiveDependencyDeniedClass,
     /// The resolved graph reaches a crate the policy does not name.
     TransitiveDependencyNotAllowlisted,
     /// The crate root does not declare `#![no_std]`.
@@ -72,11 +80,15 @@ impl PurityCode {
             PurityCode::PolicyMissing => "purity-policy-missing",
             PurityCode::PolicyMalformed => "purity-policy-malformed",
             PurityCode::PolicyNamesUnknownCrate => "purity-policy-names-unknown-crate",
+            PurityCode::PolicyAllowsDeniedClass => "purity-policy-allows-denied-class",
             PurityCode::CoreCrateUnlisted => "core-crate-unlisted",
             PurityCode::BuildScript => "core-build-script",
             PurityCode::DependencyDeniedClass => "core-dependency-denied-class",
             PurityCode::DependencyNotAllowlisted => "core-dependency-not-allowlisted",
             PurityCode::DependencyFeatures => "core-dependency-features",
+            PurityCode::TransitiveDependencyDeniedClass => {
+                "core-transitive-dependency-denied-class"
+            }
             PurityCode::TransitiveDependencyNotAllowlisted => {
                 "core-transitive-dependency-not-allowlisted"
             }
@@ -407,6 +419,32 @@ pub(crate) fn check(opts: &Options) -> Result<Report, String> {
         .flat_map(|a| a.transitive.iter().map(String::as_str))
         .collect();
 
+    // A denied class is never admitted. An allow entry or a transitive list
+    // that names one contradicts the policy's own [deny], and is rejected
+    // here; the graph walks below reject the crate itself wherever it is
+    // reached, so the contradiction cannot admit it either way.
+    for (allowed, entry) in &policy.allow {
+        let named = std::iter::once(allowed).chain(&entry.transitive);
+        for name in named {
+            if let Some(class) = class_of(name) {
+                let place = if name == allowed {
+                    format!("[allow.{allowed}]")
+                } else {
+                    format!("[allow.{allowed}].transitive")
+                };
+                violations.insert(Violation {
+                    code: PurityCode::PolicyAllowsDeniedClass,
+                    package: allowed.clone(),
+                    dependency: Some(name.clone()),
+                    class: Some(class.to_owned()),
+                    detail: format!(
+                        "{place} names {name}, in the denied class {class}; a denied class is never allowed"
+                    ),
+                });
+            }
+        }
+    }
+
     // Declared dependencies and manifests. A direct dependency is reported
     // here, by its own code, and not again by the transitive walk below.
     let mut direct: BTreeSet<(String, String)> = BTreeSet::new();
@@ -582,16 +620,35 @@ pub(crate) fn check(opts: &Options) -> Result<Report, String> {
                     queue.push_back((pkg, via));
                     continue;
                 }
+                let declared_here = direct.contains(&(krate.name.clone(), name.to_owned()));
+                // The class is checked before the allowlist, as for a
+                // declared dependency: no allow entry admits a denied class.
+                // A declared edge to one is already reported above.
+                if let Some(class) = class_of(name) {
+                    if !declared_here {
+                        violations.insert(Violation {
+                            code: PurityCode::TransitiveDependencyDeniedClass,
+                            package: krate.name.clone(),
+                            dependency: Some(name.to_owned()),
+                            class: Some(class.to_owned()),
+                            detail: format!(
+                                "reached through {} under all features; {name} is in the denied class {class}, which no allow entry admits",
+                                via.unwrap_or(name)
+                            ),
+                        });
+                    }
+                    queue.push_back((pkg, via));
+                    continue;
+                }
                 let allowed = policy.allow.contains_key(name)
                     || transitively_allowed.contains(name)
-                    || direct.contains(&(krate.name.clone(), name.to_owned()));
+                    || declared_here;
                 if !allowed {
-                    let class = class_of(name);
                     violations.insert(Violation {
                         code: PurityCode::TransitiveDependencyNotAllowlisted,
                         package: krate.name.clone(),
                         dependency: Some(name.to_owned()),
-                        class: class.map(str::to_owned),
+                        class: None,
                         detail: format!(
                             "reached through {} under all features; not in [allow] and not a declared transitive dependency",
                             via.unwrap_or(name)
@@ -723,7 +780,7 @@ mod tests {
             "rand-dep",
             &[
                 PurityCode::DependencyDeniedClass,
-                PurityCode::TransitiveDependencyNotAllowlisted,
+                PurityCode::TransitiveDependencyDeniedClass,
             ],
             "nomos-core",
             Some("rand"),
@@ -804,14 +861,77 @@ mod tests {
 
     #[test]
     fn a_transitive_dependency_the_policy_does_not_name_is_rejected() {
+        // rand is in a denied class, so the class is the reason, checked
+        // before the allowlist as it is for a declared dependency.
         let found = assert_case(
             "transitive",
-            &[PurityCode::TransitiveDependencyNotAllowlisted],
+            &[PurityCode::TransitiveDependencyDeniedClass],
             "nomos-canon",
             Some("rand"),
         );
         assert_eq!(found[0].class(), Some("randomness"));
         assert!(found[0].detail.contains("through serde"), "{found:#?}");
+    }
+
+    /// Milestone 06 finding: a denied-class crate named in an allowed
+    /// dependency's `transitive` list passed the check. The oracle is the
+    /// policy's own statement that a denied class is never allowed.
+    #[test]
+    fn a_transitive_allow_does_not_admit_a_denied_class() {
+        let found = assert_case(
+            "transitive-denied-class",
+            &[
+                PurityCode::PolicyAllowsDeniedClass,
+                PurityCode::TransitiveDependencyDeniedClass,
+            ],
+            "nomos-canon",
+            Some("rand"),
+        );
+        assert!(found.iter().all(|v| v.class() == Some("randomness")));
+        assert!(
+            found
+                .iter()
+                .any(|v| v.code() == PurityCode::PolicyAllowsDeniedClass
+                    && v.package == "serde"
+                    && v.dependency() == Some("rand")
+                    && v.detail.contains("[allow.serde].transitive")),
+            "{found:#?}"
+        );
+        assert!(
+            found
+                .iter()
+                .any(|v| v.code() == PurityCode::TransitiveDependencyDeniedClass
+                    && v.detail.contains("through serde")),
+            "{found:#?}"
+        );
+    }
+
+    #[test]
+    fn a_policy_that_allows_a_denied_crate_is_rejected() {
+        let found = assert_case(
+            "policy-allows-denied-class",
+            &[PurityCode::PolicyAllowsDeniedClass],
+            "rand",
+            Some("rand"),
+        );
+        assert!(found[0].detail.contains("[allow.rand]"), "{found:#?}");
+        // The same allow entry, with serde pulling rand in: the graph walk
+        // rejects rand on its own, so the allow entry admits nothing.
+        let dir = workspace("allow-denied-reached", Some("transitive"));
+        copy_tree(
+            &fixtures().join("cases").join("policy-allows-denied-class"),
+            &dir,
+        );
+        let found = check_dir(&dir);
+        assert_eq!(
+            codes(&found),
+            [
+                PurityCode::PolicyAllowsDeniedClass,
+                PurityCode::TransitiveDependencyDeniedClass,
+            ]
+            .into(),
+            "{found:#?}"
+        );
     }
 
     #[test]
@@ -931,6 +1051,6 @@ mod tests {
                 "fixture case {case} has no test"
             );
         }
-        assert_eq!(cases.len(), 14);
+        assert_eq!(cases.len(), 16);
     }
 }
