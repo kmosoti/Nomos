@@ -43,7 +43,13 @@
 //!   isolation, runs its generators, compares the IR, and records every
 //!   undeclared input the jobs touched. Prints the record as JSON and one
 //!   `LEAK` line per failed check; needs `strace`, `unshare`, and `valgrind`,
-//!   and fails when one is missing.
+//!   and fails when one is missing. With `--control build-script` it builds
+//!   the negative control `tests/fixtures/canon/authoring-build-script`
+//!   instead, runs only the build checks, and names in the record the checks
+//!   that ran, those that did not apply, and the one it must fail,
+//!   `build-executes-only-the-toolchain`. A control run exits non-zero when
+//!   any check fails, the expected one included, and says on its last line
+//!   whether the control fired exactly as expected.
 //! - `mutants semantic [--corpus <corpus.toml>]`: applies every active
 //!   semantic mutant of `tests/semantic-mutants/corpus.toml` to a scratch
 //!   copy of the workspace and runs its named test, which must fail. Prints
@@ -81,7 +87,7 @@ const USAGE: &str = "usage:
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
-  cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>]";
+  cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -183,7 +189,8 @@ fn hermeticity(rest: &[&str]) -> Result<(), String> {
         // Outside the workspace: Cargo reads `.cargo/config.toml` in every
         // ancestor of the build, and the workspace's own would be read.
         .unwrap_or_else(|| std::env::temp_dir().join("nomos-hermeticity"));
-    let record = hermeticity::run(&root, &scratch)?;
+    let subject = hermeticity::Subject::from_control(option(rest, "--control")?)?;
+    let record = hermeticity::run(&root, &scratch, subject)?;
     let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
     if let Some(out) = option(rest, "--out")? {
         std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
@@ -192,6 +199,15 @@ fn hermeticity(rest: &[&str]) -> Result<(), String> {
     let failures = record.failures();
     for check in &failures {
         eprintln!("LEAK [{check}]");
+    }
+    match record.control_fired() {
+        Some(true) => {
+            eprintln!("control fired: it failed exactly the checks it exists to fail")
+        }
+        Some(false) => eprintln!(
+            "CONTROL DID NOT FIRE AS EXPECTED: the failed checks are not exactly the expected ones"
+        ),
+        None => {}
     }
     if failures.is_empty() {
         Ok(())
