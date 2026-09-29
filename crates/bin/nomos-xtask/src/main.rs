@@ -48,6 +48,14 @@
 //!   semantic mutant of `tests/semantic-mutants/corpus.toml` to a scratch
 //!   copy of the workspace and runs its named test, which must fail. Prints
 //!   one line per mutant with its outcome.
+//! - `generator-variance [--candidates <dir>] [--out <file>]`: experiment
+//!   `generator-variance`. Splices each candidate implementation of the
+//!   assessment functions into a scratch copy of the workspace, runs its own
+//!   tests, the fixed oracle, and the semantic mutants of the reference
+//!   against its tests, and compares every candidate that compiles on
+//!   exhaustive bounded and generated inputs. Prints the record as JSON; fails
+//!   only when the negative control is not reported as own-tests-accepted and
+//!   oracle-rejected, or a step cannot run. A candidate's outcome never fails it.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -55,6 +63,7 @@
 mod counterexamples;
 mod error;
 mod freeze;
+mod generator_variance;
 mod graph;
 mod hermeticity;
 mod layers;
@@ -81,7 +90,8 @@ const USAGE: &str = "usage:
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
-  cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>]";
+  cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>]
+  cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -97,6 +107,7 @@ fn main() -> ExitCode {
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
         ["mutants", "semantic", rest @ ..] => mutants_semantic(rest),
         ["hermeticity", rest @ ..] => hermeticity(rest),
+        ["generator-variance", rest @ ..] => generator_variance(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -200,6 +211,37 @@ fn hermeticity(rest: &[&str]) -> Result<(), String> {
             "{} build-hermeticity check(s) failed",
             failures.len()
         ))
+    }
+}
+
+fn generator_variance(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let candidates = option(rest, "--candidates")?
+        .map(|c| root.join(c))
+        .unwrap_or_else(|| root.join("tests/fixtures/generator-variance"));
+    let record = generator_variance::run(&generator_variance::Options {
+        candidates,
+        // Outside the workspace, for the reason `hermeticity` gives.
+        scratch: std::env::temp_dir()
+            .join(format!("nomos-generator-variance-{}", std::process::id())),
+        // Shared with the semantic-mutant runner: both build scratch copies
+        // of the same workspace, so the dependencies build once.
+        target_dir: root.join("target/semantic-mutants"),
+        root,
+    })?;
+    let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
+    if let Some(out) = option(rest, "--out")? {
+        std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
+    }
+    print!("{rendered}");
+    let failures = record.failures();
+    for failure in &failures {
+        eprintln!("NOT MEASURING [{failure}]");
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("{} harness check(s) failed", failures.len()))
     }
 }
 
