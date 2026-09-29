@@ -63,6 +63,17 @@ Experiment `controller-composition` needs definitions that §1 and §2 leave ope
 - **Not modeled.** §1's explicit conflict policy and §2's contested properties. No composition is accepted on a policy, and the check knows no contested category. The check is a pure function in the `footprint` module of `nomos-core`; wiring it into Canon admission, and deriving footprints from resource kinds, wait for acceptance.
 - **The invariant it serves.** N2: a successful Enforce leaves the host Converged toward its Canon. A run's Converged is sound at its last Observation, and under a shared write the next controller's run makes it false again. The check is the working precondition under which N2 keeps its meaning when more than one controller writes a host.
 
+## Note, 2026-09-29: Evidence From `controller-composition`
+
+The composition criterion ran, on the mock host and a two-kernel harness ([record](../research/2026-09-28-typed-core/results/controller-composition.md)):
+
+- **The counterexample is detected.** The check rejects two controllers that write one file with a shared write, before anything executes. Run without the check, the pair oscillates on the mock: each sweep rewrites the file twice, and a projection over both Canons repeats at the second sweep. Semantic mutant `SM-COMPOSE-001`, which drops the guarantee from the reliance, is caught by that test.
+- **Two safe compositions are demonstrated.** Disjoint and single-owner pairs are accepted and reach a joint fixed point, in either order and at 25 start offsets.
+- **§2's detector misses a writer that takes turns.** Every run of the oscillating pair ends Converged, and across 25 offsets no run ends NonConvergent. The per-run oscillation diagnostic cannot see a writer that acts between runs; seeing one needs fingerprint history across runs of the same Canon, which nothing implements.
+- **The check is as good as its footprints.** A write left out of a footprint passes the check, and only an audit of executions against guarantees sees it. A declared reliance rejects a pair that converges without the check.
+
+The ADR stays Proposed. Nothing ran on a real host, no sysctl was modeled, and the check is not wired into Canon admission. The identity criterion (`identity-rollback`) has not run. Acceptance is the owner's.
+
 ## Consequences
 
 - Canon admission gains a footprint check, and Conditions gain a footprint field.
