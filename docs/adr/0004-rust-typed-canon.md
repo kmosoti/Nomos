@@ -46,8 +46,8 @@ Resource specifications are sum types that cannot express contradictions, for ex
 
 None of these is decided by this ADR, and none may be treated as decided until its own record exists:
 
-- **Canonical artifact encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) or the JSON Canonicalization Scheme (JCS). Milestone `06-canon-artifact`, experiment `canonical-encoding`.
-- **Artifact container and file extension.** Examples carry no extension.
+- **Canonical artifact encoding.** A restricted deterministic profile of Concise Binary Object Representation (CBOR) or the JSON Canonicalization Scheme (JCS). Milestone `06-canon-artifact`, experiment `canonical-encoding`. *Decided 2026-09-29 by [ADR 0011](0011-canon-artifact-encoding.md): deterministic CBOR.*
+- **Artifact container and file extension.** Examples carry no extension. *The extension is `.cbor` ([ADR 0011](0011-canon-artifact-encoding.md)); a container is open with signing.*
 - **Content hash algorithm and profile.** What $H$ is, and what domain separation and version tag it hashes over.
 - **Artifact signing.** Whether artifacts are signed, by whom, and what a consumer verifies.
 - **Extensibility model.** Whether resource kinds are closed or extensible, and how an unknown kind is preserved without being executed.
