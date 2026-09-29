@@ -1,0 +1,17 @@
+# Negative control: the allowed dependency pulls in a crate in a denied class,
+# and the case's policy names that crate as a declared transitive dependency.
+[package]
+name = "serde"
+version = "1.0.0"
+edition = "2021"
+publish = false
+
+[features]
+default = ["std"]
+std = []
+alloc = []
+derive = ["dep:serde_derive"]
+
+[dependencies]
+serde_derive = { path = "../serde_derive", optional = true }
+rand = { path = "../rand" }

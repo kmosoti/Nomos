@@ -1,0 +1,20 @@
+# Negative control: a transitive allow names a crate in a denied class, and
+# the allowed dependency pulls that crate in. The policy contradicts itself
+# and the resolved graph reaches the crate; each is rejected by its own code.
+[policy]
+no_std = true
+build_scripts = false
+required_lints = ["clippy::unwrap_used", "clippy::expect_used", "clippy::panic", "clippy::todo", "clippy::unimplemented"]
+
+[crates.nomos-core]
+[crates.nomos-canon]
+
+[allow.serde]
+default_features = false
+features = ["alloc", "derive"]
+transitive = ["serde_derive", "rand"]
+reason = "fixture: an allow entry that tries to admit a denied class"
+
+[deny]
+async-runtime = ["tokio"]
+randomness = ["rand"]

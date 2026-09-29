@@ -1,0 +1,18 @@
+# Negative control for build-hermeticity's `build-executes-only-the-toolchain`:
+# an authoring crate with a build script, the user code a Canon build must
+# not run. Its own workspace and lockfile, and nothing from a registry.
+# Built by `cargo xtask hermeticity --control build-script`, which must fail
+# that check and only that check.
+[package]
+name = "canon-authoring-build-script"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[dependencies]
+
+[profile.release]
+debug = false
