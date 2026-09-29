@@ -51,6 +51,7 @@ The provenance ADR 0004 §3 names is in the record: the toolchain, the lockfile'
 
 - **The leaky generator.** Every check above that concerns it fired; a control that does not fire fails the run.
 - **An ancestor configuration.** Run with its scratch directory inside the repository, the harness failed `build-opens-no-undeclared-file`: Cargo opened `/home/user/Nomos/.cargo/config.toml`, found by searching the build's ancestors. The default scratch directory is outside the workspace for that reason, and a real build job must run from a root with no configuration above it, or pass its configuration explicitly.
+- **A build script.** `cargo xtask hermeticity --control build-script` builds `tests/fixtures/canon/authoring-build-script`, a crate with its own workspace and lockfile whose `build.rs` does nothing, through the same job in both roots, and runs only the three build checks; the record lists the 15 generator checks as not applicable and names the one failure the control expects. It failed `build-executes-only-the-toolchain` and nothing else, printing `LEAK [build-executes-only-the-toolchain]`: in each root the build executed `$JOB/target/release/build/canon-authoring-build-script-<hash>/build-script-build`, classified as build output. The network and undeclared-file checks passed; the build probed for `.git` and `HEAD` in each ancestor and opened none. Unit tests show the same outcome on a synthetic trace, without `strace`. The run is recorded as failed in `verification/receipts/2026-09-29-verifier-hardening.ndjson`, as a negative control is.
 - **The parser.** Its unit tests show that the harness's own `env` is not charged to the job, that relative paths resolve against the working directory after a `chdir`, that a path climbing out with `..` is not taken for a declared one (the first version was, and the test found it), and that only Internet-family sockets count as network.
 
 ## Findings
@@ -66,7 +67,7 @@ The provenance ADR 0004 §3 names is in the record: the toolchain, the lockfile'
 - Other machines, kernels, file systems, and toolchain installations. Both roots were built on one machine with one toolchain.
 - Timing-dependent generators whose behavior differs only rarely; two runs cannot see them, and the clock record is what would.
 - Mount-level isolation. Files outside the declared inputs are recorded, not denied; a job that must deny them needs a mount namespace, which this harness does not build.
-- A negative control for `build-executes-only-the-toolchain`: no build script was written to trip it.
+- Procedural macros at build time. `rustc` loads a procedural macro as a shared library and does not execute it, so `build-executes-only-the-toolchain` cannot see one; a probe outside the harness, with `rustc` 1.94.1 rather than the pinned toolchain, showed the macro's `.so` opened from the target directory and no `execve` of it. That the authoring crate runs none rests on its lockfile, which names only `nomos-canon` and `nomos-core`, neither a procedural macro; no check covers it, and no control trips one.
 
 ## Decision
 
