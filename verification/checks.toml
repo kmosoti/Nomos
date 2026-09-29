@@ -62,3 +62,7 @@ what = "the TLA+ model checker on a model and configuration under formal/tla/; a
 [checks.hermeticity]
 command = "cargo xtask hermeticity"
 what = "experiment build-hermeticity: two isolated builds of the Canon authoring crate give identical IR, and every undeclared input is denied or recorded; needs strace, unshare, and valgrind, and fails without them"
+
+[checks.generator-variance]
+command = "cargo xtask generator-variance"
+what = "experiment generator-variance: each candidate against its own tests, the fixed nomos-core oracle, and the SM-ASSESS mutants of the reference, with a generated-input comparison; exploratory, never gating; passes when the negative control is own-tests-accepted and oracle-rejected"
