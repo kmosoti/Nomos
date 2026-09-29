@@ -78,7 +78,7 @@ The grounding plan's exit audit found that neither run above has a receipt, and 
 | Field | Value |
 | --- | --- |
 | Command | `cargo mutants -p nomos-xtask -f manifest.rs -f strict_json.rs -f snapshot.rs --no-shuffle -j 3 --gitignore true --shard K/4 --output <dir>`, for `K` from 0 to 3 |
-| Configuration | `.cargo/mutants.toml` as committed: the `with Verified::` and `::for_harness ` exclusions, `--locked`, a timeout multiplier of 3 |
+| Configuration | `.cargo/mutants.toml` as committed: the `with Verified::` and `::for_harness` exclusions, `--locked`, a timeout multiplier of 3 |
 | Trees | Commits `21f5602` (shards 0 and 1), `9835e5a` (shard 2), and `c7e167e` (shard 3), each clean; they differ from one another only in receipt files, and none changed a mutated file since `997df85` |
 | Machine | The development container, 4 cores, 3 parallel jobs |
 | Receipts | `verification/receipts/2026-09-29-mutation-calibration.ndjson` (the failed first attempt) and `2026-09-29-mutation-calibration-shards.ndjson` (one receipt per shard) |
