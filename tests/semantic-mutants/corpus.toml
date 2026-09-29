@@ -244,3 +244,43 @@ crate = "nomos-cell"
 patch = "patches/SM-CANON-007.diff"
 test = "a_decoded_artifact_converges_on_the_host"
 status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-001"
+property = "N13"
+threat = "a read the adapter could not perform is reported as an absent file, so a denied read becomes a Variance and drives a mutation"
+wrong_behavior = "the Linux adapter maps a permission error to an absent file"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-001.diff"
+test = "the_linux_adapter_passes_the_suite"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-002"
+property = "N1"
+threat = "resolution follows a symbolic link in a parent directory, so an Observation or a mutation reaches a file the resource does not name"
+wrong_behavior = "the Linux adapter resolves paths without RESOLVE_NO_SYMLINKS"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-002.diff"
+test = "a_symbolic_link_in_a_parent_is_not_followed"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-003"
+property = "N2"
+threat = "a retried request executes again and undoes a later change"
+wrong_behavior = "the Linux adapter does not answer a key it has seen from its ledger"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-003.diff"
+test = "the_linux_adapter_passes_the_suite"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-004"
+property = "N3"
+threat = "an execution that changed nothing reports a change, so a converged host appears to need its on_change refreshes"
+wrong_behavior = "removing an already absent file reports changed = true"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-004.diff"
+test = "the_linux_adapter_passes_the_suite"
+status = "active"
