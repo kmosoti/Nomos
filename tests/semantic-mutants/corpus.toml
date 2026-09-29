@@ -2,8 +2,9 @@
 # `cargo xtask mutants semantic`. A mutant becomes active, with a patch under
 # patches/, in the milestone that lands its kernel, and the named test must
 # fail against it before the milestone is complete. Every mutant here is
-# active: the Assessment, Warp, and Transition Kernels' and the Canon
-# artifact's (`06-canon-artifact`).
+# active: the Assessment, Warp, and Transition Kernels', the Canon
+# artifact's (`06-canon-artifact`), and the Substrate adapter's
+# (`07-substrate-conformance`).
 
 [[mutant]]
 id = "SM-ASSESS-001"
