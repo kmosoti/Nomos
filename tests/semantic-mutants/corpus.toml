@@ -247,6 +247,16 @@ test = "a_decoded_artifact_converges_on_the_host"
 status = "active"
 
 [[mutant]]
+id = "SM-COMPOSE-001"
+property = "N2"
+threat = "two controllers that write one property are composed, so each run's Converged is undone by the other's next run"
+wrong_behavior = "a footprint's reliance omits its guarantee, so the composition check accepts two controllers that write the same property"
+crate = "nomos-cell"
+patch = "patches/SM-COMPOSE-001.diff"
+test = "the_shared_configuration_oscillates_and_the_check_rejects_it"
+status = "active"
+
+[[mutant]]
 id = "SM-SUBSTRATE-001"
 property = "N13"
 threat = "a read the adapter could not perform is reported as an absent file, so a denied read becomes a Variance and drives a mutation"
