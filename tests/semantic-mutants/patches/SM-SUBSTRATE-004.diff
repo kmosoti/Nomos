@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -132,7 +132,7 @@
+         };
+         match requirement {
+             FileCondition::Absent => match before {
+-                None => Receipt::Completed { changed: false },
++                None => Receipt::Completed { changed: true },
+                 Some(_) => {
+                     match rustix::fs::unlinkat(parent.as_fd(), name.as_str(), AtFlags::empty()) {
+                         Ok(()) => sync(parent.as_fd(), Receipt::Completed { changed: true }),

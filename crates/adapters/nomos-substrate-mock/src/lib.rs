@@ -58,6 +58,7 @@ pub enum Fault {
 pub struct MockHost {
     now: Instant,
     files: BTreeMap<ResourcePath, Digest>,
+    sizes: BTreeMap<ResourcePath, u64>,
     services: BTreeMap<ResourcePath, Service>,
     denied: BTreeSet<ResourcePath>,
     faults: BTreeMap<ResourcePath, Fault>,
@@ -78,6 +79,7 @@ impl MockHost {
         MockHost {
             now: Instant(0),
             files: BTreeMap::new(),
+            sizes: BTreeMap::new(),
             services: BTreeMap::new(),
             denied: BTreeSet::new(),
             faults: BTreeMap::new(),
@@ -92,14 +94,24 @@ impl MockHost {
         self.now = now;
     }
 
-    /// Writes a file as something other than Nomos would.
+    /// Writes a file as something other than Nomos would. Its size is
+    /// reported as 1: the mock holds digests, not bytes.
     pub fn write(&mut self, path: &ResourcePath, digest: Digest) {
         self.files.insert(path.clone(), digest);
+        self.sizes.remove(path);
+    }
+
+    /// Writes a file of `size` bytes whose content has `digest`, as
+    /// something other than Nomos would.
+    pub fn write_sized(&mut self, path: &ResourcePath, digest: Digest, size: u64) {
+        self.files.insert(path.clone(), digest);
+        self.sizes.insert(path.clone(), size);
     }
 
     /// Removes a file as something other than Nomos would.
     pub fn remove(&mut self, path: &ResourcePath) {
         self.files.remove(path);
+        self.sizes.remove(path);
     }
 
     /// The digest of the file at `path`, if one exists.
@@ -176,7 +188,7 @@ impl MockHost {
         Collection::Collected(match self.files.get(path) {
             Some(digest) => FileEvidence::Present {
                 digest: *digest,
-                size: 1,
+                size: self.sizes.get(path).copied().unwrap_or(1),
             },
             None => FileEvidence::Absent,
         })
@@ -195,6 +207,9 @@ impl MockHost {
                         content: Content::Any,
                     } => Some(before.unwrap_or(EMPTY)),
                 };
+                if before != after {
+                    self.sizes.remove(path);
+                }
                 match after {
                     Some(digest) => self.files.insert(path.clone(), digest),
                     None => self.files.remove(path),
@@ -241,6 +256,17 @@ impl Mutate for MockHost {
             return receipts.clone();
         }
         let path = request.key.resource().clone();
+        let refreshable = self
+            .services
+            .iter()
+            .any(|(status, s)| *status == path || s.loaded_path.as_ref() == Some(&path));
+        if request.operation == Operation::Refresh && !refreshable {
+            // Nothing to refresh: an operation the machine cannot perform is
+            // refused before any effect (substrate-contract.md, S7).
+            self.ledger
+                .insert(request.key.clone(), vec![Receipt::Refused]);
+            return vec![Receipt::Refused];
+        }
         let receipts = match self.faults.remove(&path) {
             Some(Fault::Refuse) => vec![Receipt::Refused],
             Some(Fault::Fail) => vec![Receipt::Accepted, Receipt::Started, Receipt::Failed],
