@@ -61,7 +61,7 @@ Each finding was checked against the draft it cites. *Confirmed* means the draft
 | `types-not-world` | The leverage section implied a constructor proves a property | Qualification | Note in `invariants.md` on what a type proves |
 | `decode-validation`, `sum-not-product`, `enum-wire`, `canonical-not-wire`, `build-not-pure` | `CANON.md` is unwritten | Adopted as direction | ADR 0004; implemented in milestone `06-canon-artifact` against [canon-ir.md](../../formal/canon-ir.md); ADR 0011 chose its encoding, deterministic Concise Binary Object Representation (CBOR) |
 | `partial-assessment` | Spec §9 `diff` returned Variance or nothing | Adopted | ADR 0005: `assess` with three outcomes, none aggregated. Milestone `03-assessment-kernel` |
-| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`, after milestone `05-transition-kernel` |
+| `single-controller` | The reconciliation model has one controller | Design input | Experiment `controller-composition`: a footprint check rejects a harmful pair on the mock ([record](results/controller-composition.md)); a Composition section in `reconciliation.md` |
 | `agent-spec-gaming` | No rule protected specifications from being weakened to pass a check | Adopted | AGENTS.md rule 11 and CONTRIBUTING.md; the gate is `check-trust-boundary` ([ADR 0015](../../adr/0015-generator-verifier-development-model.md)) |
 | `epoch-not-oracle`, `identity-path`, `secrets-scope`, `incremental-scope` | Beyond Phase 0 | Deferred | Listed under deferred experiments in the grounding plan |
 
@@ -85,7 +85,7 @@ The snapshot under `snapshot/` is a historical recommendation, preserved as rece
 | --- | --- |
 | `typed-canon` | Accepted: [ADR 0004](../../adr/0004-rust-typed-canon.md). Rust authoring, inert artifact, build job treated as code execution |
 | `evidence-assessment` | Accepted: [ADR 0005](../../adr/0005-assessment-vocabulary.md). Condition, Observation, and three-way Assessment |
-| `pure-kernel` | Accepted: [ADR 0006](../../adr/0006-kernel-contract.md). Not implemented |
+| `pure-kernel` | Accepted: [ADR 0006](../../adr/0006-kernel-contract.md). Implemented in `05-transition-kernel`: `step(snapshot, input) = decision`, driven by a deterministic simulator ([kernel-conformance](results/kernel-conformance.md)) |
 | `validated-boundary`, `algebraic-model` | Accepted as direction in ADR 0004. Implemented for the assessment types in `03-assessment-kernel` and for the Canon IR in `06-canon-artifact` ([typed-validation](results/typed-validation.md)) |
 | `canonical-profile` | Accepted: [ADR 0011](../../adr/0011-canon-artifact-encoding.md), 2026-09-29, deterministic Concise Binary Object Representation (CBOR), on the evidence of [canonical-encoding](results/canonical-encoding.md) |
 | `bounded-bindings` | Open, as Trait-dependent expressions. The snapshot's specific expression form is not adopted |
@@ -101,12 +101,12 @@ The bundle groups its 26 recommendations into eight ADR candidates. Each is now 
 | ADR candidate | Recommendations | Recorded as | Status |
 | --- | --- | --- | --- |
 | `verification-gates` | `formal`, `agent-proof`, `layer-enforcement` | [ADR 0007](../../adr/0007-verification-gates.md) | Accepted |
-| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed |
+| `evidence-model` | `evidence-assessment`, `composition`, `identity-recovery` | [ADR 0005](../../adr/0005-assessment-vocabulary.md), [ADR 0008](../../adr/0008-ownership-and-identity.md) | 0005 accepted; 0008 proposed, with the evidence of `controller-composition` recorded; the identity criterion has not run |
 | `warp-gates` | `warp-semantics`, `durable-refresh`, `scheduler` | [ADR 0009](../../adr/0009-warp-activation-semantics.md) | Accepted 2026-09-28 on the evidence of `04-warp-kernel` and `05-transition-kernel` |
 | `recovery-authority` | `effect-recovery`, `fencing`, `budget` | [ADR 0010](../../adr/0010-effect-recovery-and-fencing.md) | Accepted for the Cell 2026-09-28; `fence-interleavings` waits for Loom |
 | `canon-artifact` | `typed-canon`, `validated-boundary`, `algebraic-model`, `canonical-profile`, `bounded-bindings` | [ADR 0004](../../adr/0004-rust-typed-canon.md), [ADR 0011](../../adr/0011-canon-artifact-encoding.md) | Both accepted; 0011 on 2026-09-29 on the evidence of `06-canon-artifact` |
 | `event-history` | `log-boundary`, `log-retention` | [ADR 0012](../../adr/0012-event-history.md) | Proposed until Phase 2 |
-| `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed until the Linux adapter and Phase 6 |
+| `boundary-security` | `substrate`, `cipher` | [ADR 0013](../../adr/0013-trust-boundaries.md) | Proposed: §1 and §2 hold for the Linux adapter's first operation ([substrate-contract](results/substrate-contract.md)); §3 and §4 wait for Phase 6 |
 | `future-algorithms` | `incremental`, `plan-witness` | [ADR 0014](../../adr/0014-deferred-planning-algorithms.md) | Accepted as a deferral |
 
 The bundle's recommendation dependency edges form a directed acyclic graph (DAG). Six recommendations depend on nothing and are prerequisites of others: `algebraic-model`, `evidence-assessment`, `effect-recovery`, `log-boundary`, `pure-kernel`, and `formal`. The milestone order in the [grounding plan](grounding-plan.md) follows that DAG.
