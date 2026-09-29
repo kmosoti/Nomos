@@ -34,6 +34,10 @@ The package manager is `package`'s only interface. AGENTS.md rule 5 forbids shel
 - **Linux adapter, `substrate-contract`.** Denied reads, symlink races, directory replacement, aliases, and foreign writers on a disposable Linux machine. No unauthorized mutation, and no false Absent.
 - **Phase 6, `secret-nondisclosure`.** Sentinel secrets and their common encodings are absent from every forbidden sink across success and failure paths.
 
+## Note, 2026-09-29: Working Definitions for the First Linux Operation
+
+Milestone `07-substrate-conformance` implements §1 and §2 for one resource, regular files beneath a root directory, against [substrate-contract.md](../formal/substrate-contract.md), written before the code. Paths resolve at use through `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, and `RESOLVE_NO_MAGICLINKS`, relative to a descriptor of the root, so no symbolic link is followed and nothing resolves outside it. The system call wrapper is `rustix`, which gives these calls a safe interface, because the workspace forbids `unsafe`. The adapter runs with the test's privileges: the privileged helper of §2 is still Phase 5. The acceptance criterion `substrate-contract` is run for symbolic links at the leaf and in a parent, a directory in place of a file, a foreign writer, and a denied read; a race in which a link is swapped in between two system calls of one execution is reasoned about in the contract and not provoked. This ADR stays Proposed: §3 and §4 have not been exercised.
+
 ## Consequences
 
 - The Trace-with-secrets question of spec §62 is answered by §3 when this ADR is accepted: Trace does not resolve secrets into any sink it writes, and an observation that would need plaintext is assessed Indeterminate unless a provider can compare without exposing it.
