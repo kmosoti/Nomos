@@ -71,6 +71,10 @@ toml = "1"
 # Testing. Dev-dependencies only; exempt from the core purity policy (ADR 0016).
 proptest = { version = "1", default-features = false, features = ["std"] }
 trybuild = "1"
+# System calls for the Linux Substrate adapter (milestone 07): openat2 with
+# resolve flags, and the monotonic clock, through safe wrappers, because the
+# workspace forbids `unsafe`. Adapters only; the core purity policy denies it.
+rustix = { version = "1", default-features = false, features = ["std", "fs", "time"] }
 # Independent references for the Canon IR (milestone 06). Dev-dependencies
 # only: the encoders and the hash under test are written without them.
 ciborium = "0.2"
