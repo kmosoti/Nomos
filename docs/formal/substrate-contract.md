@@ -72,11 +72,40 @@ The collection window is the monotonic clock's reading before the open and after
 | Present, any content | Create an empty file if none exists. Completed, changed exactly when one was created |
 | Present, exact content | Write the content whose digest the requirement names, atomically: a temporary file in the same directory, written and synced, given mode `0644`, renamed over the target, and the directory synced (spec §11). Completed, changed exactly when the content differs from before |
 
-The adapter refuses (S7), changing nothing, when: the operation is a refresh, which waits for the systemd resource; the resource is not a file; the requirement states owner, group, or mode, which `09-file-and-directory` manages; the content of an exact requirement is not in the adapter's content store; the parent directory does not exist, since directories are a separate resource; or something other than a regular file is at the path. If the rename fails after the temporary file was written, the temporary file is removed and the receipt is `Failed`.
+The adapter refuses (S7), changing nothing, when: the operation is a refresh, which waits for the systemd resource; the resource is neither a file nor a directory; the content of an exact requirement is not in the content source; the parent directory does not exist, since directories are a separate resource; or something other than a regular file is at the path. If the rename fails after the temporary file was written, the temporary file is removed and the receipt is `Failed`.
 
-**Content.** An exact requirement carries a digest, not bytes. The adapter holds a content store, a map from digest to bytes, filled by whoever constructs it; the store is how content reaches a Cell until artifact content delivery is specified.
+**Content.** An exact requirement carries a digest, not bytes. The adapter reads bytes from a content source, a trait of its port that the composition root backs with the Cell's content store ([ADR 0017](../adr/0017-local-store.md)); a source that returns bytes whose digest is not the one asked for is treated as not having them.
 
 **Execution.** Each execution completes before `apply` returns (S8). The adapter remembers the receipts of every key it has seen (S6).
+
+## Files and Directories on Linux
+
+From `09-file-and-directory` the adapter serves the `directory` family and manages a file's metadata, as [resource-families.md](resource-families.md) states them.
+
+**Accounts.** An owner or group is named in a requirement and numbered on disk. The adapter reads `/etc/passwd` and `/etc/group` beneath its root, at use, with the same resolution as every other path, and never through the C library's name service. Evidence reports an ID by the first name the database gives it, and by number when it has none. A requirement that names an account the database does not have is refused before any effect.
+
+**Observation.** The parent is opened beneath the root, and the leaf is examined with `fstatat` and `AT_SYMLINK_NOFOLLOW`, so the leaf's type is known before anything is opened:
+
+| Leaf | File key | Directory key |
+| --- | --- | --- |
+| None, or a parent that is missing or not a directory | Collected, absent | Collected, absent |
+| A regular file | Its digest, size, and metadata, read through a descriptor opened with `O_NOFOLLOW` | Failed, unsupported |
+| A directory | Failed, unsupported | Its metadata |
+| A symbolic link or anything else | Failed, unsupported | Failed, unsupported |
+
+Permission and other errors map as in the first operation's table.
+
+**Mutation.** Metadata is set on a descriptor, never on a path, and before the rename (spec §11). A stated field is set; an unstated one is kept from the resource that was there, or is the default for a new one: owned by the adapter's user and group, mode `0644` for a file and `0755` for a directory.
+
+| Requirement | Effect |
+| --- | --- |
+| File present, content differs or absent | A temporary file in the same directory, created mode `0600`, written, given its owner, group, and mode, synced, renamed over the target, and the directory synced |
+| File present, content equal, metadata differs | The file opened with `O_NOFOLLOW`, its owner, group, and mode set on the descriptor, and synced |
+| Directory present, absent before | Created with `mkdirat` mode `0700`, opened with `O_DIRECTORY` and `O_NOFOLLOW`, given its owner, group, and mode, and the parent synced |
+| Directory present, metadata differs | Opened as above and its metadata set |
+| Directory absent | Removed with `unlinkat` and `AT_REMOVEDIR` when it has no entries |
+
+`changed` is true exactly when the content, the owner, the group, or the mode differs from before, or the resource was created or removed. The adapter refuses (S7), changing nothing, when the parent does not exist; a directory is where a file is required or a file where a directory is; a directory to remove has entries, read before any effect; or a requirement names an unknown account. An entry that appears between the check and the removal fails the removal, and the receipt is `Failed`.
 
 ## Failure Injection on Linux
 
@@ -84,8 +113,7 @@ Beyond the suite, the Linux adapter is tested against what a real file system ca
 
 ## Known Gaps
 
-- **File metadata.** Owner, group, and mode are observed, by number, but not managed: a requirement that states one is refused until `09-file-and-directory`.
-- **Directories, and every resource but regular files.** They arrive with their resource families; `systemd_unit` brings the refresh.
-- **Content delivery.** How content reaches a Cell with its Canon is open; the content store stands in for it.
+- **Every resource but files and directories.** They arrive with their resource families; `systemd_unit` brings the refresh.
+- **Supplementary groups, access control lists, and extended attributes.** Not managed or compared.
 - **Privilege separation.** The mutation helper of spec §55 is Phase 5; the adapter here runs with the test's privileges.
 - **Crash consistency of the rename.** The sequence follows spec §11, and a crash between its steps is not tested.

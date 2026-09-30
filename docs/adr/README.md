@@ -19,6 +19,7 @@
 | [0014](0014-deferred-planning-algorithms.md) | Incremental planning and Plan witnesses wait for measurement | Accepted |
 | [0015](0015-generator-verifier-development-model.md) | Generator-verifier development model | Accepted |
 | [0016](0016-core-purity.md) | Core purity | Accepted |
+| [0017](0017-local-store.md) | The Cell's local store: content and a durable Event Log | Proposed |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
