@@ -512,8 +512,7 @@ mod tests {
     /// Git directory, and keeps everything else.
     #[test]
     fn copy_tree_leaves_out_target_and_git() {
-        let base = std::env::temp_dir().join(format!("nomos-copy-tree-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
+        let base = crate::scratch::dir("copy-tree", "base");
         let (from, to) = (base.join("from"), base.join("to"));
         for dir in ["target/debug", ".git/objects", "src/nested"] {
             std::fs::create_dir_all(from.join(dir)).unwrap();

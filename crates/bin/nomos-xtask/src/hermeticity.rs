@@ -964,12 +964,7 @@ mod tests {
 
     /// A synthetic `strace -ff` trace, one file per process, read back.
     fn trace(name: &str, files: &[(&str, &str)]) -> Access {
-        let dir = std::env::temp_dir().join(format!(
-            "nomos-hermeticity-parse-{}-{name}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
+        let dir = crate::scratch::dir("hermeticity-parse", name);
         for (pid, text) in files {
             fs::write(dir.join(format!("t.{pid}")), text).unwrap();
         }
@@ -1176,8 +1171,7 @@ mod tests {
 
     #[test]
     fn clock_calls_are_counted_from_a_valgrind_trace() {
-        let dir = std::env::temp_dir().join(format!("nomos-hermeticity-vg-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
+        let dir = crate::scratch::dir("hermeticity-vg", "trace");
         let log = dir.join("vg");
         fs::write(
             &log,

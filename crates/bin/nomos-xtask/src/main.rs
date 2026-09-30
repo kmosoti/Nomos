@@ -96,6 +96,8 @@ mod manifest;
 mod package;
 mod purity;
 mod receipt;
+#[cfg(test)]
+mod scratch;
 mod semantic;
 mod snapshot;
 mod strict_json;
