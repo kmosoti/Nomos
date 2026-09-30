@@ -39,6 +39,10 @@ pub trait World: Observe + Mutate {
     /// Makes `key` what `evidence` says, as something other than Nomos
     /// would; `None` makes it absent, not installed, or unknown to its
     /// manager.
+    ///
+    /// An account arranged present takes its ID from every other account
+    /// that holds it, so that IDs stay unique unless a test makes an
+    /// alias on purpose.
     fn arrange(&mut self, key: &ResourceKey, evidence: Option<Evidence>);
     /// Makes `key` unreadable to the adapter.
     fn deny(&mut self, key: &ResourceKey);
@@ -155,6 +159,10 @@ fn wanted(owner: Option<&str>, group: Option<&str>, bits: Option<&str>) -> Metad
 pub const PASSWD: &str = "root:x:0:0:root:/root:/bin/sh\napp:x:1001:1001::/home/app:/bin/sh\n";
 /// The group database of [`PASSWD`].
 pub const GROUP: &str = "root:x:0:\nadm:x:4:\napp:x:1001:\n";
+/// The shadow database of [`PASSWD`]: no password for anyone.
+pub const SHADOW: &str = "root:*:19000:0:99999:7:::\napp:!:19000:0:99999:7:::\n";
+/// The group shadow database of [`GROUP`].
+pub const GSHADOW: &str = "root:*::\nadm:*::\napp:!::\n";
 
 fn root_owned(bits: &str) -> ObservedMetadata {
     meta(
@@ -620,6 +628,20 @@ impl World for MockSubject {
         PHASE_1.to_vec()
     }
     fn arrange(&mut self, key: &ResourceKey, evidence: Option<Evidence>) {
+        if let Some(Evidence::User(UserEvidence::Present { uid, .. })) = &evidence {
+            let holders: Vec<ResourceKey> = self
+                .host
+                .resources()
+                .filter(|(k, e)| {
+                    *k != key
+                        && matches!(e, Evidence::User(UserEvidence::Present { uid: other, .. }) if other == uid)
+                })
+                .map(|(k, _)| k.clone())
+                .collect();
+            for k in holders {
+                self.host.set(&k, None);
+            }
+        }
         self.host.set(key, evidence);
     }
     fn deny(&mut self, key: &ResourceKey) {
@@ -711,6 +733,11 @@ impl World for MockSubject {
                 let user = at(1);
                 self.arrange(&user, starts(family, &c)[1].clone());
                 requests.push(converge(&user, 78, requirements(family, &c)[3].clone()));
+                // An account whose ID another account also holds.
+                let aliased = at(2);
+                self.arrange(&aliased, starts(family, &c)[2].clone());
+                self.host.set(&at(3), starts(family, &c)[2].clone());
+                requests.push(converge(&aliased, 80, requirements(family, &c)[3].clone()));
             }
             Family::Package => {
                 // A refresh, which a package does not have.
@@ -755,7 +782,70 @@ fn account_of(id: u32, users: bool) -> Account {
 
 impl LinuxSubject {
     fn at(&self, key: &ResourceKey) -> std::path::PathBuf {
-        self.root.join(key.name().trim_start_matches('/'))
+        match key {
+            ResourceKey::Sysctl(_) => self
+                .root
+                .join("proc/sys")
+                .join(key.name().replace('.', "/")),
+            ResourceKey::User(_) => self.root.join("etc/passwd"),
+            _ => self.root.join(key.name().trim_start_matches('/')),
+        }
+    }
+
+    /// Rewrites a database beneath the root, keeping the lines `keep`
+    /// accepts and adding `add`; readable again, whatever a denial did.
+    fn rewrite(&self, file: &str, keep: impl Fn(&str) -> bool, add: Option<String>) {
+        use std::os::unix::fs::PermissionsExt;
+        let at = self.root.join(file);
+        let _ = std::fs::set_permissions(&at, std::fs::Permissions::from_mode(0o644));
+        let text = std::fs::read_to_string(&at).unwrap_or_default();
+        let mut out: String = text
+            .lines()
+            .filter(|l| keep(l))
+            .map(|l| format!("{l}\n"))
+            .collect();
+        if let Some(line) = add {
+            out.push_str(&line);
+        }
+        std::fs::write(&at, out).unwrap();
+    }
+
+    /// Makes the user database hold `evidence` for the account `name`.
+    fn arrange_user(&self, name: &str, evidence: Option<&UserEvidence>) {
+        let uid = match evidence {
+            Some(UserEvidence::Present { uid, .. }) => Some(*uid),
+            _ => None,
+        };
+        // Accounts leaving the database: this one, and any other holding
+        // its ID.
+        let passwd = std::fs::read_to_string(self.root.join("etc/passwd")).unwrap_or_default();
+        let leaving: Vec<String> = passwd
+            .lines()
+            .filter_map(|l| {
+                let f: Vec<&str> = l.split(':').collect();
+                let id: Option<u32> = f.get(2).and_then(|v| v.parse().ok());
+                (f[0] == name || (uid.is_some() && id == uid)).then(|| f[0].to_string())
+            })
+            .collect();
+        let gone = |l: &str| {
+            !leaving
+                .iter()
+                .any(|n| l.split(':').next() == Some(n.as_str()))
+        };
+        let (line, shadow) = match evidence {
+            Some(UserEvidence::Present {
+                uid,
+                gid,
+                home,
+                shell,
+            }) => (
+                Some(format!("{name}:x:{uid}:{gid}::{home}:{shell}\n")),
+                Some(format!("{name}:!:19000:0:99999:7:::\n")),
+            ),
+            _ => (None, None),
+        };
+        self.rewrite("etc/passwd", gone, line);
+        self.rewrite("etc/shadow", gone, shadow);
     }
 
     fn set_metadata(at: &std::path::Path, m: &ObservedMetadata) {
@@ -776,9 +866,22 @@ impl LinuxSubject {
 
 impl World for LinuxSubject {
     fn families(&self) -> Vec<Family> {
-        vec![Family::Directory, Family::File]
+        vec![
+            Family::Directory,
+            Family::File,
+            Family::Sysctl,
+            Family::User,
+        ]
     }
     fn arrange(&mut self, key: &ResourceKey, evidence: Option<Evidence>) {
+        if let ResourceKey::User(name) = key {
+            let user = match &evidence {
+                Some(Evidence::User(u)) => Some(u),
+                _ => None,
+            };
+            self.arrange_user(name.as_str(), user);
+            return;
+        }
         let at = self.at(key);
         std::fs::create_dir_all(at.parent().unwrap()).unwrap();
         match std::fs::symlink_metadata(&at) {
@@ -797,6 +900,9 @@ impl World for LinuxSubject {
                 std::fs::create_dir(&at).unwrap();
                 Self::set_metadata(&at, &metadata);
             }
+            Some(Evidence::Sysctl(SysctlEvidence { value })) => {
+                std::fs::write(&at, format!("{}\n", value.as_str())).unwrap();
+            }
             _ => {}
         }
     }
@@ -813,6 +919,28 @@ impl World for LinuxSubject {
     fn truth(&self, key: &ResourceKey) -> Option<Evidence> {
         use std::os::unix::fs::MetadataExt;
         let at = self.at(key);
+        match key {
+            ResourceKey::Sysctl(_) => {
+                let text = std::fs::read_to_string(&at).ok()?;
+                return Some(Evidence::Sysctl(SysctlEvidence {
+                    value: SysctlValue::normalized(&text),
+                }));
+            }
+            ResourceKey::User(name) => {
+                let text = std::fs::read_to_string(&at).ok()?;
+                let found = text.lines().find_map(|l| {
+                    let f: Vec<&str> = l.split(':').collect();
+                    (f.len() >= 7 && f[0] == name.as_str()).then(|| UserEvidence::Present {
+                        uid: f[2].parse().unwrap(),
+                        gid: f[3].parse().unwrap(),
+                        home: f[5].to_string(),
+                        shell: f[6].to_string(),
+                    })
+                });
+                return Some(Evidence::User(found.unwrap_or(UserEvidence::Absent)));
+            }
+            _ => {}
+        }
         let m = std::fs::symlink_metadata(&at).ok()?;
         let metadata = ObservedMetadata {
             owner: account_of(m.uid(), true),
@@ -854,6 +982,32 @@ impl World for LinuxSubject {
         let c = self.contents();
         let at = |i| resource(family, "s7", i);
         let mut requests = vec![wrong_family(&at(0), 70)];
+        match family {
+            Family::Sysctl => {
+                // A parameter the kernel does not have.
+                let unknown = at(1);
+                self.arrange(&unknown, None);
+                requests.push(converge(&unknown, 77, requirements(family, &c)[0].clone()));
+                return requests;
+            }
+            Family::User => {
+                // A system account asked to be a regular one.
+                let user = at(1);
+                self.arrange(&user, starts(family, &c)[1].clone());
+                requests.push(converge(&user, 78, requirements(family, &c)[3].clone()));
+                // An account whose ID another account also holds.
+                let aliased = at(2);
+                self.arrange(&aliased, starts(family, &c)[2].clone());
+                self.rewrite(
+                    "etc/passwd",
+                    |_| true,
+                    Some("alias:x:1001:1001::/:/bin/sh\n".into()),
+                );
+                requests.push(converge(&aliased, 80, requirements(family, &c)[3].clone()));
+                return requests;
+            }
+            _ => {}
+        }
         let other = |key: &ResourceKey| match key {
             ResourceKey::File(p) => ResourceKey::Directory(p.clone()),
             ResourceKey::Directory(p) => ResourceKey::File(p.clone()),

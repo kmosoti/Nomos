@@ -190,6 +190,11 @@ impl MockHost {
         }
     }
 
+    /// Every resource the world holds, with its evidence.
+    pub fn resources(&self) -> impl Iterator<Item = (&ResourceKey, &Evidence)> {
+        self.world.iter()
+    }
+
     /// What is true of `key`, read without the port: `None` when nothing
     /// is recorded for it.
     pub fn get(&self, key: &ResourceKey) -> Option<&Evidence> {
@@ -372,13 +377,26 @@ impl MockHost {
                     Requirement::Directory(DirectoryCondition::Absent)
                 ) && self.has_entries(path)
             }
-            (ResourceKey::User(_), _) => match (known, requirement) {
-                (
-                    Some(Evidence::User(UserEvidence::Present { uid, .. })),
-                    Requirement::User(UserCondition::Present { class, .. }),
-                ) => AccountClass::of(*uid) != *class,
-                _ => false,
-            },
+            (ResourceKey::User(_), _) => {
+                // An account whose ID another account holds: an alias.
+                let alias = match known {
+                    Some(Evidence::User(UserEvidence::Present { uid, .. })) => {
+                        self.world.iter().any(|(k, e)| {
+                            k != key
+                                && matches!(e, Evidence::User(UserEvidence::Present { uid: other, .. }) if other == uid)
+                        })
+                    }
+                    _ => false,
+                };
+                alias
+                    || match (known, requirement) {
+                        (
+                            Some(Evidence::User(UserEvidence::Present { uid, .. })),
+                            Requirement::User(UserCondition::Present { class, .. }),
+                        ) => AccountClass::of(*uid) != *class,
+                        _ => false,
+                    }
+            }
             _ => false,
         }
     }

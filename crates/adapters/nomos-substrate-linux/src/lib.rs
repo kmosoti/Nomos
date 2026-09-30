@@ -13,33 +13,38 @@
 //! written, synced, renamed over the target, and the directory synced (spec
 //! §11). Native system calls only; no shell (AGENTS.md rule 5).
 //!
-//! It serves the `file` and `directory` families, and the `unit` family
-//! when it is given a connection to systemd ([`units`], Units on Linux); a
-//! key of another family is observed as a failed collection
-//! (`Unsupported`), and an operation on one is refused. Owners and groups
-//! are resolved from the user and group databases beneath the root
-//! ([`accounts`]). Content comes from a [`ContentSource`], or from bytes
-//! added directly. Later families: `sysctl`, `user`, `package`.
+//! It serves the `file`, `directory`, `sysctl`, and `user` families, and
+//! the `unit` family when it is given a connection to systemd ([`units`],
+//! Units on Linux); a key of another family is observed as a failed
+//! collection (`Unsupported`), and an operation on one is refused. Owners
+//! and groups are resolved from the user and group databases beneath the
+//! root ([`accounts`]). Kernel parameters are the files of `/proc/sys`
+//! beneath the root; accounts are changed through the distribution's tools
+//! ([`users`]). Content comes from a [`ContentSource`], or from bytes added
+//! directly. Later family: `package`.
 //!
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
 pub mod accounts;
 pub mod units;
+pub mod users;
 
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nomos_canon::sha256::Sha256;
-use nomos_core::condition::{Content, DirectoryCondition, FileCondition, Metadata, Requirement};
+use nomos_core::condition::{
+    Content, DirectoryCondition, FileCondition, Metadata, Requirement, SysctlValue, UserCondition,
+};
 use nomos_core::effect::{Apply, EffectKey, Operation, Receipt};
 use nomos_core::observation::{
     Account, Collection, CollectionFailure, CollectorId, DirectoryEvidence, Evidence, FileEvidence,
-    Instant, Observation, ObservedMetadata, Provenance, Window,
+    Instant, Observation, ObservedMetadata, Provenance, SysctlEvidence, Window,
 };
-use nomos_core::resource::{Digest, ResourceKey, ResourcePath};
+use nomos_core::resource::{AccountName, Digest, ResourceKey, ResourcePath, SysctlKey};
 use nomos_substrate::{ContentSource, Mutate, Observe};
 use rustix::fs::{AtFlags, FileType, Gid, Mode, OFlags, ResolveFlags, Stat, Uid};
 use rustix::io::Errno;
@@ -61,6 +66,8 @@ const DIRECTORY_MODE: u16 = 0o755;
 /// The Linux Substrate for files and directories beneath `root`.
 pub struct LinuxHost {
     root: OwnedFd,
+    /// The root's path when it is not `/`, given to the account tools.
+    prefix: Option<PathBuf>,
     collector: CollectorId,
     content: BTreeMap<Digest, Vec<u8>>,
     source: Option<Box<dyn ContentSource>>,
@@ -112,8 +119,10 @@ impl LinuxHost {
         .map_err(|e| OpenError(e.into()))?;
         let collector = CollectorId::new("linux")
             .ok_or_else(|| OpenError(std::io::Error::other("the collector name is empty")))?;
+        let prefix = (root != Path::new("/")).then(|| root.to_path_buf());
         Ok(LinuxHost {
             root: dir,
+            prefix,
             collector,
             content: BTreeMap::new(),
             source: None,
@@ -184,6 +193,13 @@ impl LinuxHost {
     fn collect(&self, key: &ResourceKey) -> Collection {
         let path = match (key, &self.systemd) {
             (ResourceKey::File(p) | ResourceKey::Directory(p), _) => p,
+            (ResourceKey::Sysctl(name), _) => return self.read_sysctl(name),
+            (ResourceKey::User(name), _) => {
+                return match self.accounts() {
+                    Ok(a) => Collection::Collected(Evidence::User(users::evidence(&a, name))),
+                    Err(e) => failure(e),
+                };
+            }
             (ResourceKey::Unit(name), Some(systemd)) => {
                 return match systemd.examine(name) {
                     Collection::Collected(e) => Collection::Collected(Evidence::Unit(e)),
@@ -263,10 +279,101 @@ impl LinuxHost {
         Some(Target { uid, gid, mode })
     }
 
+    /// A kernel parameter, read from its file beneath the root (Kernel
+    /// Parameters on Linux).
+    fn read_sysctl(&self, name: &SysctlKey) -> Collection {
+        let path = sysctl_path(name);
+        let fd = match rustix::fs::openat2(
+            self.root.as_fd(),
+            path.as_str(),
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+            RESOLVE,
+        ) {
+            Ok(fd) => fd,
+            Err(Errno::NOENT | Errno::NOTDIR) => {
+                return Collection::Failed(CollectionFailure::Unavailable);
+            }
+            Err(e) => return failure(e),
+        };
+        match rustix::fs::fstat(&fd) {
+            Ok(st) if FileType::from_raw_mode(st.st_mode) == FileType::Directory => {
+                return Collection::Failed(CollectionFailure::Unsupported);
+            }
+            Ok(_) => {}
+            Err(e) => return failure(e),
+        }
+        let mut text = String::new();
+        match File::from(fd).read_to_string(&mut text) {
+            Ok(_) => Collection::Collected(Evidence::Sysctl(SysctlEvidence {
+                value: SysctlValue::normalized(&text),
+            })),
+            Err(e) => failure(errno(e)),
+        }
+    }
+
+    /// Writes a kernel parameter and reads it back.
+    fn write_sysctl(&self, name: &SysctlKey, value: &SysctlValue) -> Receipt {
+        let before = match self.read_sysctl(name) {
+            Collection::Collected(Evidence::Sysctl(e)) => e.value,
+            _ => return Receipt::Refused,
+        };
+        if before == *value {
+            return Receipt::Completed { changed: false };
+        }
+        let written = rustix::fs::openat2(
+            self.root.as_fd(),
+            sysctl_path(name).as_str(),
+            OFlags::WRONLY | OFlags::TRUNC | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+            RESOLVE,
+        )
+        .map_err(std::io::Error::from)
+        .and_then(|fd| File::from(fd).write_all(format!("{}\n", value.as_str()).as_bytes()));
+        if written.is_err() {
+            return Receipt::Failed;
+        }
+        match self.read_sysctl(name) {
+            Collection::Collected(Evidence::Sysctl(e)) if e.value == *value => {
+                Receipt::Completed { changed: true }
+            }
+            _ => Receipt::Failed,
+        }
+    }
+
+    /// Creates, changes, or deletes an account with the distribution's
+    /// tools (Users on Linux).
+    fn converge_user(&self, name: &AccountName, requirement: &UserCondition) -> Receipt {
+        let Ok(accounts) = self.accounts() else {
+            return Receipt::Refused;
+        };
+        let before = users::evidence(&accounts, name);
+        match users::plan(&accounts, name, requirement, self.prefix.as_deref()) {
+            users::Plan::Refuse => Receipt::Refused,
+            users::Plan::Nothing => Receipt::Completed { changed: false },
+            users::Plan::Run(tool) => {
+                let ran = tool.run();
+                match self.accounts() {
+                    Ok(a) => users::receipt(ran, &before, &users::evidence(&a, name)),
+                    Err(_) => Receipt::Failed,
+                }
+            }
+        }
+    }
+
     fn execute(&self, request: &Apply) -> Receipt {
         let Operation::Converge(requirement) = &request.operation else {
             return Receipt::Refused;
         };
+        match (request.key.resource(), requirement) {
+            (ResourceKey::Sysctl(name), Requirement::Sysctl(c)) => {
+                return self.write_sysctl(name, &c.value);
+            }
+            (ResourceKey::User(name), Requirement::User(c)) => {
+                return self.converge_user(name, c);
+            }
+            _ => {}
+        }
         let (path, requirement) = match (request.key.resource(), requirement) {
             (ResourceKey::File(p), Requirement::File(r)) => (p, Want::File(r)),
             (ResourceKey::Directory(p), Requirement::Directory(r)) => (p, Want::Directory(r)),
@@ -483,6 +590,12 @@ fn apply_metadata(fd: BorrowedFd<'_>, target: Target) -> Result<(), Errno> {
 /// The digest of `bytes`, as the adapter reports it.
 pub fn digest_of(bytes: &[u8]) -> Digest {
     Digest::from_bytes(nomos_canon::sha256::digest(bytes))
+}
+
+/// The path of a kernel parameter's file beneath the root.
+fn sysctl_path(name: &SysctlKey) -> String {
+    let key = ResourceKey::Sysctl(name.clone());
+    format!("proc/sys/{}", key.name().replace('.', "/"))
 }
 
 fn relative(path: &ResourcePath) -> &str {
