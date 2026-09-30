@@ -217,3 +217,35 @@ jobs:
               echo "::warning title=Docs lint::${check%%=*} reported findings. Advisory only; see the job log."
             fi
           done
+
+  # A release: on a tag `v<version>`, once the required checks pass on the
+  # tagged commit, the Cell's Debian package is built and attached to a
+  # GitHub pre-release whose notes are docs/releases/<tag>.md. The asset's
+  # name spells the version with `-`, since GitHub renames `~`; the package
+  # inside carries Debian's `~`.
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [check, debian, trust-boundary, research-frozen]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          targets: x86_64-unknown-linux-musl
+      - run: cargo xtask package --out dist
+      - run: |
+          for deb in dist/*.deb; do
+            name="$(basename "$deb")"
+            mv "$deb" "dist/${name//\~/-}"
+          done
+          sha256sum dist/*.deb | tee dist/SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          body_path: docs/releases/${{ github.ref_name }}.md
+          files: |
+            dist/*.deb
+            dist/SHA256SUMS
