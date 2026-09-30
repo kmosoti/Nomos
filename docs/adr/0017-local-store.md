@@ -1,6 +1,6 @@
 # ADR 0017: The Cell's Local Store
 
-- **Status.** Proposed
+- **Status.** Accepted 2026-09-30, when `10-durable-cell` met the second acceptance criterion
 - **Date.** 2026-09-30
 - **Provenance.** Decision 3 of the [Phase 1 plan](../plans/phase-1-masterless-cell.md), settled by the project owner on 2026-09-29: content comes from "a kind of internal artifactory managed by Nomos". [ADR 0012](0012-event-history.md) §1 and §5 for the Event Log. Milestones `09-file-and-directory` and `10-durable-cell`.
 
@@ -60,6 +60,10 @@ The storage engine for Loom's materialized state (the persistence ablation of `n
 ## Note, 2026-09-30: The First Criterion
 
 `09-file-and-directory` met the first acceptance criterion ([linux-files-and-directories](../plans/results/linux-files-and-directories.md)): the Linux file suite passes on Debian 12 and 13 with content from the store, a changed blob is refused, and a bundle with a bad entry is refused whole. The ADR stays Proposed until `10-durable-cell` meets the second.
+
+## Note, 2026-09-30: The Second Criterion
+
+`10-durable-cell` met the second acceptance criterion ([durable-log](../plans/results/durable-log.md)): a Cell killed after each of the 11 inputs of the refresh scenario, 8 of them with a refresh owed, recovered its snapshot and Obligations from the journal and converged; a torn final record was truncated and reported; a changed byte anywhere in a whole record failed the open. The Cell was killed in-process, not by power loss, which stays with Phase 2. The ADR is Accepted.
 
 ## Consequences
 
