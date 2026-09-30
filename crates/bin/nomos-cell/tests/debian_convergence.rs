@@ -348,7 +348,7 @@ fn converges(label: &str, state: &str, canon: &str, bundle: &str) -> usize {
 /// everything wrong, the converged host, and the converged host with each
 /// Condition in turn absent and wrong.
 #[test]
-#[ignore = "changes the host; run by "]
+#[ignore = "changes the host; run by `cargo xtask debian`"]
 fn the_demonstration_converges_from_every_enumerated_starting_state() {
     prepare();
     let dir = std::env::temp_dir().join(format!("nomos-demo-{}", std::process::id()));
