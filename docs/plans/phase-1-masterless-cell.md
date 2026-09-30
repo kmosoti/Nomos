@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `14-cell-commands` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `15-debian-convergence` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -106,6 +106,8 @@ Landed 2026-09-30: [cell-commands](results/cell-commands.md), as [cell-commands.
 The Phase 1 exit itself. The supported starting states are enumerated per family, not left open: for each Condition, absent, present and wrong, present and right, and each failure the family's suite injects. The demonstration Canon is a slice of spec §56: a system user, directories, a configuration file, a sysctl, a package, and a systemd service with its refresh.
 
 Exit: from every enumerated starting state, `enforce` converges the Debian host, a second `enforce` executes nothing (spec §39, N3), and `trace` afterward reports every Condition Satisfied.
+
+Landed 2026-09-30: [debian-convergence](results/debian-convergence.md), experiment `debian-fixed-point`, sixteen starting states on Debian 12 and 13.
 
 ### 16-alpha-release
 
