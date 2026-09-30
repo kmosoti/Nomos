@@ -6,8 +6,9 @@
 # artifact's (`06-canon-artifact`), the controller-composition
 # experiment's, the Substrate adapter's (`07-substrate-conformance`), the
 # resource families' (`08-resource-families`), the Linux files and
-# directories' and the content store's (`09-file-and-directory`), and the
-# durable log's (`10-durable-cell`). A patch is regenerated
+# directories' and the content store's (`09-file-and-directory`), the
+# durable log's (`10-durable-cell`), and the systemd units' on Debian
+# (`11-systemd-unit`). A patch is regenerated
 # against the code it mutates when that code moves, with the same wrong
 # behavior; the 08 regenerations are named in the milestone's record.
 
@@ -477,3 +478,63 @@ crate = "nomos-cell"
 patch = "patches/SM-TRANSITION-010.diff"
 test = "a_journal_that_refuses_stops_mutation"
 status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-009"
+property = "N13"
+threat = "a unit systemd cannot load is treated as known evidence, so an unknown drives a mutation"
+wrong_behavior = "the Linux adapter reports a unit with no unit file as inactive and disabled"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-009.diff"
+test = "a_unit_systemd_cannot_load_is_indeterminate"
+status = "active"
+host = "debian"
+target = "systemd_units"
+
+[[mutant]]
+id = "SM-SUBSTRATE-010"
+property = "N6"
+threat = "an execution is reported done before its job has run, so success is claimed before the effect exists"
+wrong_behavior = "the Linux adapter does not wait for a unit's job to leave the queue"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-010.diff"
+test = "a_unit_in_transition_is_observed_and_converged"
+status = "active"
+host = "debian"
+target = "systemd_units"
+
+[[mutant]]
+id = "SM-SUBSTRATE-011"
+property = "N6"
+threat = "a unit whose job failed is reported converged"
+wrong_behavior = "the Linux adapter completes a start without checking that the unit runs"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-011.diff"
+test = "a_job_that_fails_leaves_the_action_failed"
+status = "active"
+host = "debian"
+target = "systemd_units"
+
+[[mutant]]
+id = "SM-SUBSTRATE-012"
+property = "N10"
+threat = "an effect whose outcome is unknown is settled as if known"
+wrong_behavior = "the Linux adapter settles an execution whose job it cancelled at the deadline"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-012.diff"
+test = "a_job_pending_at_the_deadline_is_cancelled_and_unsettled"
+status = "active"
+host = "debian"
+target = "systemd_units"
+
+[[mutant]]
+id = "SM-SUBSTRATE-013"
+property = "N12"
+threat = "an operation the adapter cannot perform is attempted rather than refused before any effect"
+wrong_behavior = "the Linux adapter tries to enable a static unit instead of refusing"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-013.diff"
+test = "the_linux_adapter_passes_the_suite_for_units"
+status = "active"
+host = "debian"
+target = "systemd_units"

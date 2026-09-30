@@ -5,8 +5,10 @@
 //! builds the image `tests/fixtures/debian/Dockerfile` for the release, runs
 //! a fresh container of it with systemd as PID 1, privileged, on the host's
 //! network and cgroup namespace, waits for systemd to finish starting, copies
-//! each binary in, runs it as root, and removes the container whatever
-//! happened. A test binary runs there exactly as `cargo test` runs it here.
+//! each binary in, runs it as root with its ignored tests included, and
+//! removes the container whatever happened. A test binary runs there as
+//! `cargo test -- --include-ignored` runs it here: the suites that change
+//! the service manager are ignored everywhere but in the container.
 //!
 //! The record names the release, the image, what the container reports of
 //! itself (`/etc/os-release`, the kernel, systemd's state), and each binary's
@@ -28,7 +30,15 @@ pub(crate) const RELEASES: [&str; 2] = ["12", "13"];
 
 /// The integration tests run on Debian when none are named: every suite
 /// that drives the Linux adapter.
-pub(crate) const DEFAULT_TESTS: [(&str, &str); 1] = [("nomos-cell", "substrate_conformance")];
+pub(crate) const DEFAULT_TESTS: [(&str, &str); 2] = [
+    ("nomos-cell", "substrate_conformance"),
+    ("nomos-cell", "systemd_units"),
+];
+
+/// The arguments every test binary runs with on Debian. The suites that
+/// change the service manager are ignored on other hosts, where they must
+/// not run, and are run here, where they must.
+pub(crate) const TEST_ARGS: [&str; 1] = ["--include-ignored"];
 
 /// What one test binary did on the Debian host.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -172,14 +182,28 @@ fn build_image(root: &Path, release: &str) -> Result<String, String> {
     ))
 }
 
+/// How a run selects and builds its tests.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Selection<'a> {
+    /// Only the test of this exact name, in every binary.
+    pub(crate) exact: Option<&'a str>,
+    /// The Cargo target directory, when not the workspace's own.
+    pub(crate) target_dir: Option<&'a Path>,
+}
+
 /// Builds each test as a static binary and returns them with their names.
 fn build_tests(
     root: &Path,
     tests: &[(String, String)],
+    target_dir: Option<&Path>,
 ) -> Result<Vec<(String, String, PathBuf)>, String> {
     let mut out = Vec::new();
     for (package, test) in tests {
-        let messages = ok(Command::new("cargo")
+        let mut cargo = Command::new("cargo");
+        if let Some(dir) = target_dir {
+            cargo.env("CARGO_TARGET_DIR", dir);
+        }
+        let messages = ok(cargo
             .current_dir(root)
             .args(["test", "--locked", "--no-run", "--message-format=json"])
             .args([
@@ -205,11 +229,12 @@ pub(crate) fn run_suites(
     root: &Path,
     release: &str,
     tests: &[(String, String)],
+    selection: Selection<'_>,
 ) -> Result<Record, String> {
     if !RELEASES.contains(&release) {
         return Err(format!("release {release}: one of {RELEASES:?}"));
     }
-    let binaries = build_tests(root, tests)?;
+    let binaries = build_tests(root, tests, selection.target_dir)?;
     let image = build_image(root, release)?;
     let tag = format!("nomos-debian:{release}");
     let name = format!("nomos-debian-{release}-{}", std::process::id());
@@ -262,7 +287,12 @@ pub(crate) fn run_suites(
             .arg("cp")
             .arg(&exe)
             .arg(format!("{}:{inside}", container.0)))?;
-        let (status, stdout, stderr) = run(&mut exec(&[&inside]))?;
+        let mut args = vec![inside.as_str()];
+        args.extend(TEST_ARGS);
+        if let Some(name) = selection.exact {
+            args.extend([name, "--exact"]);
+        }
+        let (status, stdout, stderr) = run(&mut exec(&args))?;
         print!("{stdout}");
         eprint!("{stderr}");
         let (passed, failed) = test_counts(&stdout).unwrap_or((0, 0));

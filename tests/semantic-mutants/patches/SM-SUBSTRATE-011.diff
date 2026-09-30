@@ -1,0 +1,13 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/units.rs b/crates/adapters/nomos-substrate-linux/src/units.rs
+--- a/crates/adapters/nomos-substrate-linux/src/units.rs
++++ b/crates/adapters/nomos-substrate-linux/src/units.rs
+@@ -280,8 +280,7 @@ impl Systemd {
+         let Collection::Collected(after) = self.examine(name) else {
+             return Some(Receipt::Failed);
+         };
+-        let done = wanted.is_none_or(|w| w == after.file_state)
+-            && job.is_none_or(|j| j.succeeded(after.active));
++        let done = wanted.is_none_or(|w| w == after.file_state);
+         Some(if !done {
+             Receipt::Failed
+         } else if refresh {

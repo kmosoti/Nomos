@@ -1,0 +1,18 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/units.rs b/crates/adapters/nomos-substrate-linux/src/units.rs
+--- a/crates/adapters/nomos-substrate-linux/src/units.rs
++++ b/crates/adapters/nomos-substrate-linux/src/units.rs
+@@ -256,14 +256,6 @@ impl Systemd {
+         };
+         let wanted = asked(condition.enablement);
+         let enable = wanted.filter(|w| *w != before.file_state);
+-        if enable.is_some()
+-            && !matches!(
+-                before.file_state,
+-                UnitFileState::Enabled | UnitFileState::Disabled
+-            )
+-        {
+-            return Some(Receipt::Refused);
+-        }
+         if let Some(state) = enable
+             && self.set_enablement(name, state).is_err()
+         {

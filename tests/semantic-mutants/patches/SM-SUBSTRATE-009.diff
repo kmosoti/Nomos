@@ -1,0 +1,15 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/units.rs b/crates/adapters/nomos-substrate-linux/src/units.rs
+--- a/crates/adapters/nomos-substrate-linux/src/units.rs
++++ b/crates/adapters/nomos-substrate-linux/src/units.rs
+@@ -216,7 +216,10 @@ impl Systemd {
+                         active: ActiveState::Inactive,
+                         file_state: file_state(&state),
+                     })),
+-                    Err(e) if unknown(&e) => Ok(Collection::Failed(CollectionFailure::Unavailable)),
++                    Err(e) if unknown(&e) => Ok(Collection::Collected(UnitEvidence {
++                        active: ActiveState::Inactive,
++                        file_state: UnitFileState::Disabled,
++                    })),
+                     Err(e) => Err(e),
+                 };
+             }
