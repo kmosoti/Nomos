@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `11-systemd-unit` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `12-sysctl-and-user` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -82,6 +82,8 @@ Landed 2026-09-30: [systemd-refresh](results/systemd-refresh.md), on Debian 12 a
 `sysctl` through `/proc/sys`, which is file I/O and needs no program. `system_user` observed through the user database and changed under decision 1.
 
 Exit: both suites pass on Debian; a sysctl the running kernel does not have is Indeterminate, not a Variance; a user whose numeric ID another account already holds is refused before any effect.
+
+Landed 2026-09-30: [linux-kernel-parameters-and-users](results/linux-kernel-parameters-and-users.md), with [ADR 0013](../adr/0013-trust-boundaries.md) §4 decided as decision 1 states it.
 
 ### 13-package
 
