@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/packages.rs b/crates/adapters/nomos-substrate-linux/src/packages.rs
+--- a/crates/adapters/nomos-substrate-linux/src/packages.rs
++++ b/crates/adapters/nomos-substrate-linux/src/packages.rs
+@@ -203,7 +203,7 @@ pub fn plan(name: &PackageName, requirem
+         }
+         (PackageCondition::Installed { version: Some(v) }, _) => (
+             "install",
+-            format!("{}={}", name.as_str(), v.as_str()),
++            format!("{}", name.as_str()),
+             &["--no-install-recommends", "--allow-downgrades"],
+         ),
+     };
