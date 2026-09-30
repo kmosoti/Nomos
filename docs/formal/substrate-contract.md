@@ -107,13 +107,48 @@ Permission and other errors map as in the first operation's table.
 
 `changed` is true exactly when the content, the owner, the group, or the mode differs from before, or the resource was created or removed. The adapter refuses (S7), changing nothing, when the parent does not exist; a directory is where a file is required or a file where a directory is; a directory to remove has entries, read before any effect; or a requirement names an unknown account. An entry that appears between the check and the removal fails the removal, and the receipt is `Failed`.
 
+## Units on Linux
+
+From `11-systemd-unit` the adapter serves the `unit` family, as [resource-families.md](resource-families.md) states it, through systemd's D-Bus API: the manager `org.freedesktop.systemd1` on the system bus, over `zbus`'s blocking client (Phase 1 plan, decision 2). It never runs `systemctl` (AGENTS.md rule 5). Units are served only by a host given a connection to the bus; a host without one observes a unit as a failed collection, `unsupported`, and refuses every operation on it, as before.
+
+**Observation.** systemd unloads a unit that is not running and that nothing references, so a unit it does not report as loaded may still have a unit file.
+
+| systemd answers | Evidence |
+| --- | --- |
+| `GetUnit` names a unit whose `LoadState` is `loaded` or `masked` | Its `ActiveState` and `UnitFileState` |
+| `GetUnit` names a unit whose `LoadState` is anything else, such as `not-found`, `bad-setting`, or `error` | Failed, `unavailable` |
+| `GetUnit` fails with `NoSuchUnit`, and `GetUnitFileState` returns a state | `inactive`, with that state |
+| `GetUnit` fails with `NoSuchUnit`, and `GetUnitFileState` fails with `FileNotFound` or `NoSuchUnit` | Failed, `unavailable` |
+| An `ActiveState` other than the six of the family, such as `maintenance` or `refreshing` | Failed, `unsupported` |
+| `AccessDenied` from the bus | Failed, permission denied |
+| `NoReply` or `Timeout` from the bus | Failed, timed out |
+| No bus, or any other error | Failed, `io` |
+
+A `UnitFileState` of `enabled`, `disabled`, or `static` is that state; `masked` and `masked-runtime` are `masked`; anything else, such as `enabled-runtime`, `linked`, `indirect`, `generated`, or `transient`, is `other`.
+
+**Mutation.** The adapter first observes the unit as above. It refuses, changing nothing (S7), when the observation is not collected, when the requirement is of another family, or when the requirement states an enablement and the unit-file state is neither `enabled` nor `disabled`. Otherwise, in order:
+
+| Step | When | Call |
+| --- | --- | --- |
+| Enablement | The requirement states an enablement the unit-file state does not have | `EnableUnitFiles([name], false, false)` or `DisableUnitFiles([name], false)`, then `Reload` |
+| Activity, converge | The requirement says `active` and the unit is not `active` or `reloading` | `StartUnit(name, "replace")` |
+| Activity, converge | The requirement says `inactive` and the unit is not `inactive` or `failed` | `StopUnit(name, "replace")` |
+| Activity, refresh | The requirement says `inactive` | `StopUnit` when the unit is not `inactive` or `failed` |
+| Activity, refresh | Otherwise | `RestartUnit(name, "replace")` |
+
+**Settlement.** A job is the settlement evidence. After a start, stop, or restart, the adapter polls the unit's `Job` property until no job is pending, and then reads the unit again. A start or restart succeeded when the unit is `active` or `reloading`, and a stop when it is `inactive` or `failed`; otherwise the receipt is `Failed`, which leaves the Action Failed and not Converged. The adapter waits until the request's settle-by instant, on its own monotonic clock (S9), and at most 90 seconds. A job still pending then is cancelled, and the receipts end without a settling receipt: whether the unit changed is unknown, and stays unknown (N10).
+
+`changed` is true, for a convergence, exactly when the unit's evidence after the operation differs from its evidence before. A refresh that succeeds reports `changed: true`, as the mock does: a restart replaces the running service though its evidence reads the same, and the refresh is the Action's effect.
+
+**Testing.** The unit suite changes the host's service manager, so it runs only where systemd is PID 1 in a disposable container: `cargo xtask debian` runs it, and a workspace test run on any other host lists it as ignored rather than passing it. The suite writes its own unit files under `/etc/systemd/system`, arranges each starting point as a foreign writer would, with `systemctl`, and reads the ground truth with `systemctl show`, never through the adapter. A denied read is arranged with a mandatory D-Bus policy that denies messages to the unit's object path. The suite's starting points on Linux are the stable ones, `active`, `inactive`, and `failed` with each unit-file state: a unit `activating`, `deactivating`, or `reloading` leaves that state on its own, so a clause that compares the ground truth before and after an operation cannot hold it still. Those three are covered on the mock by the suite, and on Linux by a test that holds a unit in each for a few seconds and observes and converges it.
+
 ## Failure Injection on Linux
 
 Beyond the suite, the Linux adapter is tested against what a real file system can do to it: a symbolic link at the resource and one in a parent directory, a directory where a file is expected, a foreign writer that changes the file between an execution and its verification, and a read denied by file permissions. A test that must deny a read to a process with the capability to override file permissions drops that capability for its own thread first.
 
 ## Known Gaps
 
-- **Every resource but files and directories.** They arrive with their resource families; `systemd_unit` brings the refresh.
+- **Kernel parameters, users, and packages.** They arrive with their resource families, in `12-sysctl-and-user` and `13-package`.
 - **Supplementary groups, access control lists, and extended attributes.** Not managed or compared.
 - **Privilege separation.** The mutation helper of spec §55 is Phase 5; the adapter here runs with the test's privileges.
 - **Crash consistency of the rename.** The sequence follows spec §11, and a crash between its steps is not tested.
