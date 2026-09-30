@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `12-sysctl-and-user` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `13-package` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -90,6 +90,8 @@ Landed 2026-09-30: [linux-kernel-parameters-and-users](results/linux-kernel-para
 `package` under decision 1: installed, absent, or a pinned version, observed from the package database without running a program where possible.
 
 Exit: install, removal, and a pin converge on Debian; a lock held by another package manager is Indeterminate or a retry, never a false Variance; the fixed-point property (spec §39) holds after convergence.
+
+Landed 2026-09-30: [linux-packages](results/linux-packages.md), against a local repository of dummy packages the test builds.
 
 ### 14-cell-commands
 
