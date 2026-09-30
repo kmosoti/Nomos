@@ -1,4 +1,4 @@
-//! Experiment `debian-convergence`, the Phase 1 exit (plan,
+//! Experiment `debian-fixed-point`, the Phase 1 exit (plan,
 //! `15-debian-convergence`): from every enumerated starting state,
 //! `enforce` converges the Debian host, a second `enforce` executes
 //! nothing (spec §39, N3), and `trace` afterward reports every Condition
@@ -82,7 +82,7 @@ fn converges(label: &str, state: &str, canon: &str, bundle: &str) -> usize {
     executions
 }
 
-/// Experiment `debian-convergence`: the host with nothing, the host with
+/// Experiment `debian-fixed-point`: the host with nothing, the host with
 /// everything wrong, the converged host, and the converged host with each
 /// Condition in turn absent and wrong.
 #[test]
