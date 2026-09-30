@@ -22,6 +22,44 @@ use super::RESOLVE;
 pub struct Accounts {
     users: Vec<(String, u32)>,
     groups: Vec<(String, u32)>,
+    entries: Vec<User>,
+}
+
+/// One well-formed entry of `/etc/passwd`:
+/// `name:password:uid:gid:gecos:home:shell`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct User {
+    /// The account's name.
+    pub name: String,
+    /// Its numeric ID.
+    pub uid: u32,
+    /// Its primary group's numeric ID.
+    pub gid: u32,
+    /// Its home directory, as recorded.
+    pub home: String,
+    /// Its login shell, as recorded.
+    pub shell: String,
+}
+
+/// The well-formed entries of a user database. A line with fewer than
+/// seven fields, or a non-numeric ID, is skipped.
+fn users(text: &str) -> Vec<User> {
+    text.lines()
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split(':').collect();
+            if f.len() < 7 || f[0].is_empty() {
+                return None;
+            }
+            Some(User {
+                name: f[0].to_string(),
+                uid: f[2].parse().ok()?,
+                gid: f[3].parse().ok()?,
+                home: f[5].to_string(),
+                shell: f[6..].join(":"),
+            })
+        })
+        .collect()
 }
 
 /// The name and numeric ID of each well-formed line: `name:password:id:...`.
@@ -72,6 +110,7 @@ impl Accounts {
         Accounts {
             users: entries(passwd),
             groups: entries(group),
+            entries: users(passwd),
         }
     }
 
@@ -89,6 +128,16 @@ impl Accounts {
             .iter()
             .find(|(n, _)| n == name)
             .map(|(_, id)| *id)
+    }
+
+    /// The first full entry of `name`.
+    pub fn user(&self, name: &str) -> Option<&User> {
+        self.entries.iter().find(|u| u.name == name)
+    }
+
+    /// How many entries of the user database hold `uid`.
+    pub fn holders(&self, uid: u32) -> usize {
+        self.entries.iter().filter(|u| u.uid == uid).count()
     }
 
     /// The first name the user database gives `uid`.
@@ -125,5 +174,23 @@ mod tests {
         assert_eq!(a.user_name(4242), None);
         assert_eq!(a.gid("adm"), Some(4));
         assert_eq!(a.group_name(7), None);
+    }
+
+    #[test]
+    fn a_full_entry_has_seven_fields_and_numeric_ids() {
+        let a = Accounts::parse(
+            "root:x:0:0:root:/root:/bin/bash\nshort:x:5:5\nbad:x:1:g::/:/bin/sh\nalias:x:0:0::/:/bin/sh\n",
+            "",
+        );
+        let root = a.user("root").unwrap();
+        assert_eq!((root.uid, root.gid), (0, 0));
+        assert_eq!(
+            (root.home.as_str(), root.shell.as_str()),
+            ("/root", "/bin/bash")
+        );
+        assert_eq!(a.user("short"), None);
+        assert_eq!(a.user("bad"), None);
+        assert_eq!(a.holders(0), 2);
+        assert_eq!(a.holders(5), 0);
     }
 }

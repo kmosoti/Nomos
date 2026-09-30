@@ -436,6 +436,8 @@ impl LinuxSubject {
         std::fs::create_dir_all(root.join("etc")).unwrap();
         std::fs::write(root.join("etc/passwd"), families::PASSWD).unwrap();
         std::fs::write(root.join("etc/group"), families::GROUP).unwrap();
+        std::fs::write(root.join("etc/shadow"), families::SHADOW).unwrap();
+        std::fs::write(root.join("etc/gshadow"), families::GSHADOW).unwrap();
         LinuxSubject {
             host: LinuxHost::open(&root).unwrap(),
             root,

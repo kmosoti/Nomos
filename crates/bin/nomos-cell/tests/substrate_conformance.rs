@@ -69,8 +69,30 @@ fn the_linux_adapter_passes_the_suite_for_files_and_directories() {
         "the Linux suite for files and directories sets owners and needs root; \
          run it as root or through `cargo xtask debian`"
     );
+    use nomos_core::resource::Family;
     let mut s = LinuxSubject::new("families");
-    for family in families::World::families(&s) {
+    for family in [Family::Directory, Family::File] {
+        let results = families::all(&mut s, family);
+        println!("{family:?}: {:?}", report(&results));
+        passes(results);
+    }
+}
+
+/// The per-family suite for kernel parameters and users on Linux, each
+/// against a scratch root of its own: `proc/sys` as a tree of regular
+/// files, which is how the adapter reads it, and the user database
+/// changed through the distribution's tools with `--prefix`. Root only,
+/// as above.
+#[test]
+fn the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users() {
+    use nomos_core::resource::Family;
+    assert!(
+        rustix::process::geteuid().is_root(),
+        "the Linux suite for users runs the account tools and needs root; \
+         run it as root or through `cargo xtask debian`"
+    );
+    for family in [Family::Sysctl, Family::User] {
+        let mut s = LinuxSubject::new(&format!("families-{family:?}"));
         let results = families::all(&mut s, family);
         println!("{family:?}: {:?}", report(&results));
         passes(results);
@@ -81,10 +103,9 @@ fn the_linux_adapter_passes_the_suite_for_files_and_directories() {
 /// when observed, never absence, and refused when changed (S7).
 #[test]
 fn the_linux_adapter_refuses_the_families_it_does_not_serve() {
-    use nomos_core::resource::Family;
     let mut s = LinuxSubject::new("unserved");
     for family in families::PHASE_1 {
-        if matches!(family, Family::File | Family::Directory) {
+        if families::World::families(&s).contains(&family) {
             continue;
         }
         let key = families::resource(family, "unserved", 0);

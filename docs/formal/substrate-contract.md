@@ -31,7 +31,7 @@ The clauses name files, as the first operation did; from milestone `08-resource-
 - **S2.** Absence is family-specific evidence: no file or directory at the path, no account of the name, a package dpkg records as not installed. A unit systemd does not know and a sysctl the kernel does not have are failed collections, `unavailable`, never absence.
 - **S3.** A family reports the evidence its table lists, and nothing that judges it.
 - **S5.** `changed` is true exactly when the family's evidence would differ from before: a unit started, a value written that was not there, a package installed.
-- **S7.** Each family's refusals are part of its contract: removing a directory with entries; a file where a directory is, or a directory where a file is; changing a user's class; enabling or disabling a unit whose unit-file state is fixed; an operation on a unit or a kernel parameter the host does not know; a requirement of another family than the resource's; a refresh of anything but a unit or the legacy service; and any operation on a family the adapter does not serve.
+- **S7.** Each family's refusals are part of its contract: removing a directory with entries; a file where a directory is, or a directory where a file is; changing a user's class; changing or deleting an account whose numeric ID another account also holds; enabling or disabling a unit whose unit-file state is fixed; an operation on a unit or a kernel parameter the host does not know; a requirement of another family than the resource's; a refresh of anything but a unit or the legacy service; and any operation on a family the adapter does not serve.
 
 The conformance suite runs every clause for every family an adapter serves, from a list of requirements and starting points per family taken from its truth table; S8 is checked on every execution S5 and S7 perform. The mock serves all seven; the suite runs for the six Phase 1 families, and the legacy service keeps the file suite's and the transition kernel's checks. The Linux adapter serves a family from the milestone that implements it; until then, a key of the family is observed as a failed collection, `unsupported`, and every operation on it is refused.
 
@@ -142,13 +142,51 @@ A `UnitFileState` of `enabled`, `disabled`, or `static` is that state; `masked` 
 
 **Testing.** The unit suite changes the host's service manager, so it runs only where systemd is PID 1 in a disposable container: `cargo xtask debian` runs it, and a workspace test run on any other host lists it as ignored rather than passing it. The suite writes its own unit files under `/etc/systemd/system`, arranges each starting point as a foreign writer would, with `systemctl`, and reads the ground truth with `systemctl show`, never through the adapter. A denied read is arranged with a mandatory D-Bus policy that denies messages to the unit's object path. The suite's starting points on Linux are the stable ones, `active`, `inactive`, and `failed` with each unit-file state: a unit `activating`, `deactivating`, or `reloading` leaves that state on its own, so a clause that compares the ground truth before and after an operation cannot hold it still. Those three are covered on the mock by the suite, and on Linux by a test that holds a unit in each for a few seconds and observes and converges it.
 
+## Kernel Parameters on Linux
+
+From `12-sysctl-and-user` the adapter serves the `sysctl` family, as [resource-families.md](resource-families.md) states it, through the files of `/proc/sys` beneath its root: file I/O, with no program. A parameter's name maps to a path by replacing each dot with a slash, so `net.ipv4.ip_forward` is `proc/sys/net/ipv4/ip_forward`; a name has no `/`, so it cannot name a path outside `/proc/sys`. The path is resolved as every other path is (ADR 0013 §2).
+
+| The file | Evidence |
+| --- | --- |
+| Read | The value, normalized: its whitespace-separated tokens joined with one space |
+| Does not exist, or a component of its path does not | Failed, `unavailable`: the running kernel does not have the parameter |
+| Is a directory | Failed, `unsupported` |
+| Read denied | Failed, permission denied |
+| Any other error | Failed, `io` |
+
+A convergence writes the requested value, followed by a newline, in one `write` to the file opened for writing with truncation, as a shell's redirection opens it, and reads it back. The receipt is `Completed` when the value read back equals the value asked for, `changed` when it differs from the value before; it is `Failed` when the write fails or the kernel keeps another value, as it does for a value it clamps or rejects. A parameter the kernel does not have is refused before any effect (S7). The value lasts until the next boot.
+
+## Users on Linux
+
+From `12-sysctl-and-user` the adapter serves the `user` family.
+
+**Observation.** The user database, `/etc/passwd` beneath the root, read at use as for owners and groups, never through the C library's name service. An account is present with its numeric ID, primary group ID, home directory, and shell as the first entry of its name records them, and absent when no entry has the name.
+
+**Mutation.** Through the distribution's own tools, decided in [ADR 0013](../adr/0013-trust-boundaries.md) §4: `useradd`, `usermod`, and `userdel`, each run by a direct `execve` of its absolute path under `/usr/sbin`, with a fixed argument vector per operation, an environment of only `PATH=/usr/sbin:/usr/bin:/sbin:/bin` and `LC_ALL=C`, standard input from `/dev/null`, and no shell. An account name cannot begin with `-` and a path begins with `/`, so neither can be read as an option; the name follows `--` all the same. When the root is not `/`, every tool is given `--prefix` and the root, so a test manages the databases of a scratch tree.
+
+| Requirement | Evidence | Command |
+| --- | --- | --- |
+| `present` | `absent` | `useradd [--system] --no-create-home [--home-dir H] [--shell S] -- name`, `--system` for the `system` class |
+| `present` | `present`, home or shell differs | `usermod [--home H] [--shell S] -- name`, naming only the fields that differ; the home directory is not moved |
+| `absent` | `present` | `userdel -- name`, which leaves the home directory and the files the account owns |
+
+The tools own the locking of the databases and the consistency of the shadow files; Nomos never writes them itself. A tool that exits with any status but 0 gives the receipt `Failed`, whatever it did; the account is then read again from a new Observation. The adapter refuses, before any effect (S7):
+
+- an account in the other class than the requirement's, since renumbering changes the ownership of every file the account has;
+- an account whose numeric ID another entry of the database also holds, since the name managed and the number that owns files no longer name one identity;
+- a requirement of another family, or any refresh.
+
+`changed` is true exactly when the account's evidence after the command differs from before.
+
+**Testing.** The user suite runs here and on Debian against a scratch root, with `--prefix`, so it changes no account of the host. The kernel-parameter suite runs against a scratch root whose `proc/sys` is a tree of regular files, which is how the adapter reads it; a test in the Debian container reads and writes the running kernel's own `kernel.domainname`, which is private to the container's own namespace for host and domain names, and observes a parameter the kernel does not have.
+
 ## Failure Injection on Linux
 
 Beyond the suite, the Linux adapter is tested against what a real file system can do to it: a symbolic link at the resource and one in a parent directory, a directory where a file is expected, a foreign writer that changes the file between an execution and its verification, and a read denied by file permissions. A test that must deny a read to a process with the capability to override file permissions drops that capability for its own thread first.
 
 ## Known Gaps
 
-- **Kernel parameters, users, and packages.** They arrive with their resource families, in `12-sysctl-and-user` and `13-package`.
+- **Packages.** They arrive with their resource family in `13-package`.
 - **Supplementary groups, access control lists, and extended attributes.** Not managed or compared.
 - **Privilege separation.** The mutation helper of spec §55 is Phase 5; the adapter here runs with the test's privileges.
 - **Crash consistency of the rename.** The sequence follows spec §11, and a crash between its steps is not tested.

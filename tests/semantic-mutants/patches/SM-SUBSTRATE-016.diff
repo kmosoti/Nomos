@@ -1,0 +1,17 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -333,12 +333,7 @@ impl LinuxHost {
+         if written.is_err() {
+             return Receipt::Failed;
+         }
+-        match self.read_sysctl(name) {
+-            Collection::Collected(Evidence::Sysctl(e)) if e.value == *value => {
+-                Receipt::Completed { changed: true }
+-            }
+-            _ => Receipt::Failed,
+-        }
++        Receipt::Completed { changed: true }
+     }
+ 
+     /// Creates, changes, or deletes an account with the distribution's

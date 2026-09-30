@@ -85,7 +85,7 @@ A unit is Satisfied when both axes are; otherwise the Variance `unit-differs` na
 | `absent` | Satisfied | Variance `unexpected` |
 | `present` | Variance `missing` | Satisfied when the class matches the observed ID and every stated field equals the observed one; otherwise `account-differs` naming the first differing field in the order class, home, shell |
 
-The class is judged, but never changed by an Action: an account in the wrong class is a Variance whose Action is refused before any effect, since renumbering an account changes the ownership of every file it has.
+The class is judged, but never changed by an Action: an account in the wrong class is a Variance whose Action is refused before any effect, since renumbering an account changes the ownership of every file it has. An account whose numeric ID another account of the database also holds, an alias such as a second name for root, is refused the same way: the name the Canon manages and the number that owns files no longer name one identity.
 
 ### Package
 

@@ -30,9 +30,10 @@ pub(crate) const RELEASES: [&str; 2] = ["12", "13"];
 
 /// The integration tests run on Debian when none are named: every suite
 /// that drives the Linux adapter.
-pub(crate) const DEFAULT_TESTS: [(&str, &str); 2] = [
+pub(crate) const DEFAULT_TESTS: [(&str, &str); 3] = [
     ("nomos-cell", "substrate_conformance"),
     ("nomos-cell", "systemd_units"),
+    ("nomos-cell", "debian_host"),
 ];
 
 /// The arguments every test binary runs with on Debian. The suites that
@@ -189,6 +190,10 @@ pub(crate) struct Selection<'a> {
     pub(crate) exact: Option<&'a str>,
     /// The Cargo target directory, when not the workspace's own.
     pub(crate) target_dir: Option<&'a Path>,
+    /// Keep the test binaries' output to the record, rather than print it:
+    /// a caller that runs a test to see it fail, as the mutant runner
+    /// does, would otherwise print failures that are its expected result.
+    pub(crate) quiet: bool,
 }
 
 /// Builds each test as a static binary and returns them with their names.
@@ -293,8 +298,10 @@ pub(crate) fn run_suites(
             args.extend([name, "--exact"]);
         }
         let (status, stdout, stderr) = run(&mut exec(&args))?;
-        print!("{stdout}");
-        eprint!("{stderr}");
+        if !selection.quiet {
+            print!("{stdout}");
+            eprint!("{stderr}");
+        }
         let (passed, failed) = test_counts(&stdout).unwrap_or((0, 0));
         runs.push(Run {
             package,

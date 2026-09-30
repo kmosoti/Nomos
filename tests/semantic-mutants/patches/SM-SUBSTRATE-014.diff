@@ -1,0 +1,14 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -292,7 +292,9 @@ impl LinuxHost {
+         ) {
+             Ok(fd) => fd,
+             Err(Errno::NOENT | Errno::NOTDIR) => {
+-                return Collection::Failed(CollectionFailure::Unavailable);
++                return Collection::Collected(Evidence::Sysctl(SysctlEvidence {
++                    value: SysctlValue::normalized(""),
++                }));
+             }
+             Err(e) => return failure(e),
+         };

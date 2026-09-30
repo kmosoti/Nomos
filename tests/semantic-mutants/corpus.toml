@@ -7,8 +7,9 @@
 # experiment's, the Substrate adapter's (`07-substrate-conformance`), the
 # resource families' (`08-resource-families`), the Linux files and
 # directories' and the content store's (`09-file-and-directory`), the
-# durable log's (`10-durable-cell`), and the systemd units' on Debian
-# (`11-systemd-unit`). A patch is regenerated
+# durable log's (`10-durable-cell`), the systemd units' on Debian
+# (`11-systemd-unit`), and the kernel parameters' and users'
+# (`12-sysctl-and-user`). A patch is regenerated
 # against the code it mutates when that code moves, with the same wrong
 # behavior; the 08 regenerations are named in the milestone's record.
 
@@ -538,3 +539,45 @@ test = "the_linux_adapter_passes_the_suite_for_units"
 status = "active"
 host = "debian"
 target = "systemd_units"
+
+[[mutant]]
+id = "SM-SUBSTRATE-014"
+property = "N13"
+threat = "a kernel parameter the running kernel does not have is reported as evidence, so an unknown drives a write"
+wrong_behavior = "the Linux adapter reports a missing parameter as an empty value"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-014.diff"
+test = "the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-015"
+property = "N12"
+threat = "an account that is a second name for another account's ID is changed or deleted, and the files the ID owns change hands"
+wrong_behavior = "the Linux adapter changes an account whose ID another account also holds"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-015.diff"
+test = "the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-016"
+property = "N6"
+threat = "a write the kernel did not keep is reported as done"
+wrong_behavior = "the Linux adapter completes a kernel parameter write without reading the value back"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-016.diff"
+test = "the_running_kernel_s_parameters_are_read_and_written"
+status = "active"
+host = "debian"
+target = "debian_host"
+
+[[mutant]]
+id = "SM-SUBSTRATE-017"
+property = "N2"
+threat = "an account required in the system class is created in the regular range, and never satisfies its requirement"
+wrong_behavior = "the Linux adapter creates every account without --system"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-017.diff"
+test = "the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users"
+status = "active"
