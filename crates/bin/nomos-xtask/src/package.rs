@@ -205,6 +205,28 @@ pub(crate) fn assemble(
     Ok(deb)
 }
 
+/// The workspace's version, from `[workspace.package]` in the root
+/// manifest.
+pub(crate) fn workspace_version(root: &Path) -> Result<String, String> {
+    let text = std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| e.to_string())?;
+    let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
+    manifest["workspace"]["package"]["version"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "Cargo.toml has no workspace.package.version".into())
+}
+
+/// The package at the workspace's version and one at a later version with
+/// the same binary, for an install and an upgrade, built into `out`.
+pub(crate) fn base_and_upgrade(root: &Path, out: &Path) -> Result<(PathBuf, PathBuf), String> {
+    std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let version = debian_version(&workspace_version(root)?);
+    let binary = binary(root)?;
+    let base = assemble(root, &binary, out, &version)?;
+    let upgrade = assemble(root, &binary, out, &format!("{version}+upgrade1"))?;
+    Ok((base, upgrade))
+}
+
 /// The SHA-256 of a file, in hex.
 pub(crate) fn sha256(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;

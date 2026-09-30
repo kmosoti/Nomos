@@ -30,13 +30,18 @@ pub(crate) const RELEASES: [&str; 2] = ["12", "13"];
 
 /// The integration tests run on Debian when none are named: every suite
 /// that drives the Linux adapter.
-pub(crate) const DEFAULT_TESTS: [(&str, &str); 5] = [
+pub(crate) const DEFAULT_TESTS: [(&str, &str); 6] = [
     ("nomos-cell", "substrate_conformance"),
     ("nomos-cell", "systemd_units"),
     ("nomos-cell", "debian_host"),
     ("nomos-cell", "cell_commands"),
     ("nomos-cell", "debian_convergence"),
+    ("nomos-cell", "package_install"),
 ];
+
+/// The test that installs the Cell's package, which needs the package in
+/// the container.
+pub(crate) const INSTALL_TEST: &str = "package_install";
 
 /// The arguments every test binary runs with on Debian. The suites that
 /// change the service manager are ignored on other hosts, where they must
@@ -242,6 +247,15 @@ pub(crate) fn run_suites(
         return Err(format!("release {release}: one of {RELEASES:?}"));
     }
     let binaries = build_tests(root, tests, selection.target_dir)?;
+    // The install test's packages, built before the container starts.
+    let debs = if tests.iter().any(|(_, t)| t == INSTALL_TEST) {
+        Some(crate::package::base_and_upgrade(
+            root,
+            &root.join("target/deb"),
+        )?)
+    } else {
+        None
+    };
     let image = build_image(root, release)?;
     let tag = format!("nomos-debian:{release}");
     let name = format!("nomos-debian-{release}-{}", std::process::id());
@@ -287,6 +301,15 @@ pub(crate) fn run_suites(
     let os_release = pretty_name(&ok(&mut exec(&["cat", "/etc/os-release"]))?)
         .ok_or("the container has no PRETTY_NAME")?;
     let kernel = ok(&mut exec(&["uname", "-r"]))?.trim().to_string();
+    if let Some((base, upgrade)) = &debs {
+        ok(&mut exec(&["mkdir", "-p", "/root/debs"]))?;
+        for (deb, name) in [(base, "base.deb"), (upgrade, "upgrade.deb")] {
+            ok(Command::new("docker")
+                .arg("cp")
+                .arg(deb)
+                .arg(format!("{}:/root/debs/{name}", container.0)))?;
+        }
+    }
     let mut runs = Vec::new();
     for (package, test, exe) in binaries {
         let inside = format!("/usr/local/bin/{test}");

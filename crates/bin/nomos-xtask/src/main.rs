@@ -240,22 +240,11 @@ fn debian(rest: &[&str]) -> Result<(), String> {
     }
 }
 
-/// The workspace's version, from `[workspace.package]` in the root
-/// manifest.
-fn workspace_version(root: &Path) -> Result<String, String> {
-    let text = std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| e.to_string())?;
-    let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
-    manifest["workspace"]["package"]["version"]
-        .as_str()
-        .map(str::to_string)
-        .ok_or_else(|| "Cargo.toml has no workspace.package.version".into())
-}
-
 fn package(rest: &[&str]) -> Result<(), String> {
     let root = std::env::current_dir().map_err(|e| e.to_string())?;
     let version = match option(rest, "--version")? {
         Some(v) => v.to_string(),
-        None => package::debian_version(&workspace_version(&root)?),
+        None => package::debian_version(&package::workspace_version(&root)?),
     };
     let out = root.join(option(rest, "--out")?.unwrap_or("target/deb"));
     std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
