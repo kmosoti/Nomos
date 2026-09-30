@@ -30,7 +30,7 @@ use nomos_core::resource::{
 };
 use nomos_substrate::{Mutate, Observe};
 
-use super::{MockSubject, check};
+use super::{LinuxSubject, MockSubject, check};
 
 /// An adapter under test and the world around it, arranged as evidence.
 pub trait World: Observe + Mutate {
@@ -54,6 +54,19 @@ pub trait World: Observe + Mutate {
     /// Requests the adapter must refuse for `family`, with the world
     /// arranged for them.
     fn refusals(&mut self, family: Family) -> Vec<Apply>;
+    /// Three contents the world can write, as digest and size, for the
+    /// file family's starting points and requirements.
+    fn contents(&mut self) -> Contents;
+}
+
+/// Three contents, by digest and byte count.
+#[derive(Debug, Clone, Copy)]
+pub struct Contents(pub [(Digest, u64); 3]);
+
+impl Contents {
+    fn digest(&self, i: usize) -> Digest {
+        self.0[i].0
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -80,13 +93,15 @@ fn d(n: u8) -> Digest {
 }
 
 /// The resource of `family` the suite names `slot`, in a namespace of its
-/// own per clause, so that clauses do not see each other's arrangements.
+/// own per clause, so that clauses do not see each other's arrangements. A
+/// path resource has a parent of its own, so that a world can deny it by
+/// its parent without denying anything else.
 pub fn resource(family: Family, clause: &str, slot: u32) -> ResourceKey {
     // Lowercase letters, digits, and hyphens: valid in every family.
     let name = format!("{clause}-{slot}");
     match family {
-        Family::Directory => ResourceKey::Directory(path(&format!("/srv/{name}"))),
-        Family::File => ResourceKey::File(path(&format!("/srv/{name}.conf"))),
+        Family::Directory => ResourceKey::Directory(path(&format!("/srv/dir-{name}/d"))),
+        Family::File => ResourceKey::File(path(&format!("/srv/file-{name}/f.conf"))),
         Family::Service => ResourceKey::Service(path(&format!("/run/{name}"))),
         Family::Unit => ResourceKey::Unit(UnitName::new(&format!("{name}.service")).unwrap()),
         Family::Sysctl => ResourceKey::Sysctl(SysctlKey::new(&format!("net.{name}")).unwrap()),
@@ -128,26 +143,48 @@ fn wanted(owner: Option<&str>, group: Option<&str>, bits: Option<&str>) -> Metad
     }
 }
 
+/// The accounts a world must name for the suite: `root` (0) and `app`
+/// (1001) as users and groups, and `adm` (4) as a group. IDs 4242 and 4243
+/// have no name.
+pub const PASSWD: &str = "root:x:0:0:root:/root:/bin/sh\napp:x:1001:1001::/home/app:/bin/sh\n";
+/// The group database of [`PASSWD`].
+pub const GROUP: &str = "root:x:0:\nadm:x:4:\napp:x:1001:\n";
+
+fn root_owned(bits: &str) -> ObservedMetadata {
+    meta(
+        Account::Named(account("root")),
+        Account::Named(account("root")),
+        bits,
+    )
+}
+
 /// The starting points of a family: what a resource may be before an
-/// execution, `None` for absent or unknown.
-pub fn starts(family: Family) -> Vec<Option<Evidence>> {
+/// execution, `None` for absent or unknown. The Linux world drops root's
+/// capability to override permissions, so that a denied read is real; a
+/// resource owned by another account is therefore readable by others.
+pub fn starts(family: Family, c: &Contents) -> Vec<Option<Evidence>> {
+    let [(one, one_size), (two, two_size), _] = c.0;
     match family {
         Family::File => vec![
             None,
-            Some(Evidence::File(FileEvidence::present(d(1), 1))),
             Some(Evidence::File(FileEvidence::Present {
-                digest: d(2),
-                size: 3,
-                metadata: meta(Account::Named(account("app")), Account::Id(4), "0600"),
+                digest: one,
+                size: one_size,
+                metadata: root_owned("0644"),
+            })),
+            Some(Evidence::File(FileEvidence::Present {
+                digest: two,
+                size: two_size,
+                metadata: meta(Account::Named(account("app")), Account::Id(4242), "0604"),
             })),
         ],
         Family::Directory => vec![
             None,
             Some(Evidence::Directory(DirectoryEvidence::Present {
-                metadata: meta(Account::Id(0), Account::Id(0), "0755"),
+                metadata: root_owned("0755"),
             })),
             Some(Evidence::Directory(DirectoryEvidence::Present {
-                metadata: meta(Account::Named(account("app")), Account::Id(5), "0700"),
+                metadata: meta(Account::Named(account("app")), Account::Id(4243), "0705"),
             })),
         ],
         Family::Unit => {
@@ -205,15 +242,15 @@ pub fn starts(family: Family) -> Vec<Option<Evidence>> {
 }
 
 /// The requirements of a family, from its truth table.
-pub fn requirements(family: Family) -> Vec<Requirement> {
+pub fn requirements(family: Family, c: &Contents) -> Vec<Requirement> {
     match family {
         Family::File => vec![
             Requirement::File(FileCondition::Absent),
             Requirement::File(FileCondition::present(Content::Any)),
-            Requirement::File(FileCondition::present(Content::Exactly(d(1)))),
+            Requirement::File(FileCondition::present(Content::Exactly(c.digest(0)))),
             Requirement::File(FileCondition::Present {
-                content: Content::Exactly(d(3)),
-                metadata: wanted(Some("app"), None, Some("0640")),
+                content: Content::Exactly(c.digest(2)),
+                metadata: wanted(Some("app"), None, Some("0664")),
             }),
             Requirement::File(FileCondition::Present {
                 content: Content::Any,
@@ -336,7 +373,8 @@ fn observe_one(w: &mut impl World, key: &ResourceKey) -> Result<Collection, Stri
 /// S1: one Observation or more of each requested resource, of its family,
 /// and none of a resource not requested.
 pub fn s1_coverage(w: &mut impl World, family: Family) -> Result<(), String> {
-    let starts = starts(family);
+    let c = w.contents();
+    let starts = starts(family, &c);
     let asked: Vec<ResourceKey> = (0..3).map(|i| resource(family, "s1", i)).collect();
     w.arrange(&asked[0], starts.last().cloned().flatten());
     w.arrange(&asked[1], None);
@@ -363,6 +401,7 @@ pub fn s1_coverage(w: &mut impl World, family: Family) -> Result<(), String> {
 /// S2: absence only when the family's evidence says so; an unknown unit
 /// or parameter, and a denied read, are failed collections.
 pub fn s2_truthful_absence(w: &mut impl World, family: Family) -> Result<(), String> {
+    let c = w.contents();
     let none = resource(family, "s2", 0);
     w.arrange(&none, None);
     let got = observe_one(w, &none)?;
@@ -371,7 +410,7 @@ pub fn s2_truthful_absence(w: &mut impl World, family: Family) -> Result<(), Str
         format!("{none}, arranged absent, observed as {got:?}, not {want:?}")
     })?;
     let secret = resource(family, "s2", 1);
-    w.arrange(&secret, starts(family).last().cloned().flatten());
+    w.arrange(&secret, starts(family, &c).last().cloned().flatten());
     w.deny(&secret);
     let got = observe_one(w, &secret)?;
     check(
@@ -382,7 +421,8 @@ pub fn s2_truthful_absence(w: &mut impl World, family: Family) -> Result<(), Str
 
 /// S3: the evidence the family's table lists, as arranged.
 pub fn s3_evidence(w: &mut impl World, family: Family) -> Result<(), String> {
-    for (i, start) in starts(family).into_iter().enumerate() {
+    let c = w.contents();
+    for (i, start) in starts(family, &c).into_iter().enumerate() {
         let key = resource(family, "s3", i as u32);
         w.arrange(&key, start.clone());
         let got = observe_one(w, &key)?;
@@ -396,7 +436,8 @@ pub fn s3_evidence(w: &mut impl World, family: Family) -> Result<(), String> {
 
 /// S4: observing changes nothing, however often it is repeated.
 pub fn s4_observation_does_not_mutate(w: &mut impl World, family: Family) -> Result<(), String> {
-    let keys: Vec<ResourceKey> = starts(family)
+    let c = w.contents();
+    let keys: Vec<ResourceKey> = starts(family, &c)
         .into_iter()
         .enumerate()
         .map(|(i, start)| {
@@ -420,9 +461,10 @@ pub fn s4_observation_does_not_mutate(w: &mut impl World, family: Family) -> Res
 /// does not refuse completes, settles, reports `changed` exactly when the
 /// evidence changed, and is judged Satisfied by core on a new Observation.
 pub fn s5_postconditions_are_cores(w: &mut impl World, family: Family) -> Result<(), String> {
+    let c = w.contents();
     let mut n = 0u32;
-    for requirement in requirements(family) {
-        for start in starts(family) {
+    for requirement in requirements(family, &c) {
+        for start in starts(family, &c) {
             if refused(&start, &requirement) {
                 continue;
             }
@@ -456,11 +498,12 @@ pub fn s5_postconditions_are_cores(w: &mut impl World, family: Family) -> Result
 /// S6: a key seen before returns its receipts again and changes nothing,
 /// even after a foreign change undid the effect.
 pub fn s6_once_per_key(w: &mut impl World, family: Family) -> Result<(), String> {
+    let c = w.contents();
     let key = resource(family, "s6", 0);
-    let starts = starts(family);
+    let starts = starts(family, &c);
     let first_start = starts.first().cloned().flatten();
     w.arrange(&key, first_start.clone());
-    let requirement = requirements(family)
+    let requirement = requirements(family, &c)
         .into_iter()
         .find(|r| !refused(&first_start, r))
         .ok_or("no requirement")?;
@@ -507,8 +550,9 @@ pub fn s7_refusal_before_effect(w: &mut impl World, family: Family) -> Result<()
 
 /// S9: collection windows are on the adapter's clock.
 pub fn s9_one_clock(w: &mut impl World, family: Family) -> Result<(), String> {
+    let c = w.contents();
     let key = resource(family, "s9", 0);
-    w.arrange(&key, starts(family).last().cloned().flatten());
+    w.arrange(&key, starts(family, &c).last().cloned().flatten());
     let before = w.now();
     let observed = w.observe(std::slice::from_ref(&key));
     let after = w.now();
@@ -587,16 +631,20 @@ impl World for MockSubject {
     fn now(&mut self) -> Instant {
         super::Subject::now(self)
     }
+    fn contents(&mut self) -> Contents {
+        Contents([(d(1), 1), (d(2), 3), (d(3), 5)])
+    }
     fn refusals(&mut self, family: Family) -> Vec<Apply> {
+        let c = self.contents();
         let at = |i| resource(family, "s7", i);
         let mut requests = vec![wrong_family(&at(0), 70)];
         match family {
             Family::Directory => {
                 // A directory with an entry, asked to be absent.
                 let dir = at(1);
-                self.arrange(&dir, starts(family)[1].clone());
+                self.arrange(&dir, starts(family, &c)[1].clone());
                 let entry = ResourceKey::File(path(&format!("{}/entry", dir.name())));
-                self.arrange(&entry, starts(Family::File)[1].clone());
+                self.arrange(&entry, starts(Family::File, &c)[1].clone());
                 requests.push(converge(
                     &dir,
                     71,
@@ -604,27 +652,27 @@ impl World for MockSubject {
                 ));
                 // A directory asked for where a file is.
                 let file = ResourceKey::File(path("/srv/s7-file-here"));
-                self.arrange(&file, starts(Family::File)[1].clone());
+                self.arrange(&file, starts(Family::File, &c)[1].clone());
                 requests.push(converge(
                     &ResourceKey::Directory(path("/srv/s7-file-here")),
                     72,
-                    requirements(family)[1].clone(),
+                    requirements(family, &c)[1].clone(),
                 ));
             }
             Family::File => {
                 // A file asked for where a directory is, and a refresh.
                 let dir = ResourceKey::Directory(path("/srv/s7-dir-here"));
-                self.arrange(&dir, starts(Family::Directory)[1].clone());
+                self.arrange(&dir, starts(Family::Directory, &c)[1].clone());
                 requests.push(converge(
                     &ResourceKey::File(path("/srv/s7-dir-here")),
                     73,
-                    requirements(family)[1].clone(),
+                    requirements(family, &c)[1].clone(),
                 ));
                 let file = at(2);
-                self.arrange(&file, starts(family)[1].clone());
+                self.arrange(&file, starts(family, &c)[1].clone());
                 requests.push(Apply {
-                    operation: Operation::Refresh(requirements(family)[1].clone()),
-                    ..converge(&file, 74, requirements(family)[1].clone())
+                    operation: Operation::Refresh(requirements(family, &c)[1].clone()),
+                    ..converge(&file, 74, requirements(family, &c)[1].clone())
                 });
             }
             Family::Unit => {
@@ -632,7 +680,7 @@ impl World for MockSubject {
                 // be enabled.
                 let unknown = at(1);
                 self.arrange(&unknown, None);
-                requests.push(converge(&unknown, 75, requirements(family)[0].clone()));
+                requests.push(converge(&unknown, 75, requirements(family, &c)[0].clone()));
                 let fixed = at(2);
                 self.arrange(
                     &fixed,
@@ -641,30 +689,225 @@ impl World for MockSubject {
                         file_state: UnitFileState::Static,
                     })),
                 );
-                requests.push(converge(&fixed, 76, requirements(family)[0].clone()));
+                requests.push(converge(&fixed, 76, requirements(family, &c)[0].clone()));
             }
             Family::Sysctl => {
                 // A parameter the kernel does not have.
                 let unknown = at(1);
                 self.arrange(&unknown, None);
-                requests.push(converge(&unknown, 77, requirements(family)[0].clone()));
+                requests.push(converge(&unknown, 77, requirements(family, &c)[0].clone()));
             }
             Family::User => {
                 // A system account asked to be a regular one.
                 let user = at(1);
-                self.arrange(&user, starts(family)[1].clone());
-                requests.push(converge(&user, 78, requirements(family)[3].clone()));
+                self.arrange(&user, starts(family, &c)[1].clone());
+                requests.push(converge(&user, 78, requirements(family, &c)[3].clone()));
             }
             Family::Package => {
                 // A refresh, which a package does not have.
                 let pkg = at(1);
-                self.arrange(&pkg, starts(family)[1].clone());
+                self.arrange(&pkg, starts(family, &c)[1].clone());
                 requests.push(Apply {
-                    operation: Operation::Refresh(requirements(family)[1].clone()),
-                    ..converge(&pkg, 79, requirements(family)[1].clone())
+                    operation: Operation::Refresh(requirements(family, &c)[1].clone()),
+                    ..converge(&pkg, 79, requirements(family, &c)[1].clone())
                 });
             }
             Family::Service => {}
+        }
+        requests
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Linux as a world
+
+/// The numeric ID of an observed account, by the suite's databases.
+fn id_of(account: &Account, users: bool) -> u32 {
+    match account {
+        Account::Id(n) => *n,
+        Account::Named(n) => match (n.as_str(), users) {
+            ("root", _) => 0,
+            ("app", _) => 1001,
+            ("adm", false) => 4,
+            (other, _) => panic!("the suite's databases do not name {other}"),
+        },
+    }
+}
+
+/// An observed account from an ID, by the suite's databases.
+fn account_of(id: u32, users: bool) -> Account {
+    match (id, users) {
+        (0, _) => Account::Named(account("root")),
+        (1001, _) => Account::Named(account("app")),
+        (4, false) => Account::Named(account("adm")),
+        (n, _) => Account::Id(n),
+    }
+}
+
+impl LinuxSubject {
+    fn at(&self, key: &ResourceKey) -> std::path::PathBuf {
+        self.root.join(key.name().trim_start_matches('/'))
+    }
+
+    fn set_metadata(at: &std::path::Path, m: &ObservedMetadata) {
+        use std::os::unix::fs::PermissionsExt;
+        std::os::unix::fs::lchown(
+            at,
+            Some(id_of(&m.owner, true)),
+            Some(id_of(&m.group, false)),
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            at,
+            std::fs::Permissions::from_mode(u32::from(m.mode.bits())),
+        )
+        .unwrap();
+    }
+}
+
+impl World for LinuxSubject {
+    fn families(&self) -> Vec<Family> {
+        vec![Family::Directory, Family::File]
+    }
+    fn arrange(&mut self, key: &ResourceKey, evidence: Option<Evidence>) {
+        let at = self.at(key);
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        match std::fs::symlink_metadata(&at) {
+            Ok(m) if m.is_dir() => std::fs::remove_dir_all(&at).unwrap(),
+            Ok(_) => std::fs::remove_file(&at).unwrap(),
+            Err(_) => {}
+        }
+        match evidence {
+            Some(Evidence::File(FileEvidence::Present {
+                digest, metadata, ..
+            })) => {
+                std::fs::write(&at, &self.blobs[&digest]).unwrap();
+                Self::set_metadata(&at, &metadata);
+            }
+            Some(Evidence::Directory(DirectoryEvidence::Present { metadata })) => {
+                std::fs::create_dir(&at).unwrap();
+                Self::set_metadata(&at, &metadata);
+            }
+            _ => {}
+        }
+    }
+    fn deny(&mut self, key: &ResourceKey) {
+        use std::os::unix::fs::PermissionsExt;
+        // A file's own mode denies reading it; a directory is examined
+        // through its parent, so its parent is made unsearchable.
+        let at = match key {
+            ResourceKey::Directory(_) => self.at(key).parent().unwrap().to_path_buf(),
+            _ => self.at(key),
+        };
+        std::fs::set_permissions(at, std::fs::Permissions::from_mode(0o000)).unwrap();
+    }
+    fn truth(&self, key: &ResourceKey) -> Option<Evidence> {
+        use std::os::unix::fs::MetadataExt;
+        let at = self.at(key);
+        let m = std::fs::symlink_metadata(&at).ok()?;
+        let metadata = ObservedMetadata {
+            owner: account_of(m.uid(), true),
+            group: account_of(m.gid(), false),
+            mode: Mode::new(u16::try_from(m.mode() & 0o7777).unwrap()).unwrap(),
+        };
+        match key {
+            ResourceKey::File(_) if m.is_file() => {
+                let bytes = std::fs::read(&at).ok()?;
+                Some(Evidence::File(FileEvidence::Present {
+                    digest: super::sha(&bytes),
+                    size: bytes.len() as u64,
+                    metadata,
+                }))
+            }
+            ResourceKey::Directory(_) if m.is_dir() => {
+                Some(Evidence::Directory(DirectoryEvidence::Present { metadata }))
+            }
+            _ => None,
+        }
+    }
+    fn provide(&mut self, _key: &ResourceKey, _requirement: &Requirement) {}
+    fn executions(&self) -> usize {
+        self.host.executions()
+    }
+    fn now(&mut self) -> Instant {
+        super::Subject::now(self)
+    }
+    fn contents(&mut self) -> Contents {
+        let mut out = [(d(0), 0); 3];
+        for (i, bytes) in [&b"one"[..], b"two!", b"three"].into_iter().enumerate() {
+            let digest = self.host.add_content(bytes.to_vec());
+            self.blobs.insert(digest, bytes.to_vec());
+            out[i] = (digest, bytes.len() as u64);
+        }
+        Contents(out)
+    }
+    fn refusals(&mut self, family: Family) -> Vec<Apply> {
+        let c = self.contents();
+        let at = |i| resource(family, "s7", i);
+        let mut requests = vec![wrong_family(&at(0), 70)];
+        let other = |key: &ResourceKey| match key {
+            ResourceKey::File(p) => ResourceKey::Directory(p.clone()),
+            ResourceKey::Directory(p) => ResourceKey::File(p.clone()),
+            k => k.clone(),
+        };
+        // The other kind where this one is asked for.
+        let occupied = at(1);
+        let theirs = other(&occupied);
+        let their_family = theirs.family();
+        self.arrange(&theirs, starts(their_family, &c)[1].clone());
+        requests.push(converge(&occupied, 71, requirements(family, &c)[1].clone()));
+        // A missing parent.
+        let orphan = match family {
+            Family::File => ResourceKey::File(path("/srv/s7-none/under/f")),
+            _ => ResourceKey::Directory(path("/srv/s7-none/under/d")),
+        };
+        requests.push(converge(&orphan, 72, requirements(family, &c)[1].clone()));
+        // An account the databases do not name.
+        let unnamed = at(3);
+        self.arrange(&unnamed, None);
+        let stranger = Metadata {
+            owner: Some(account("nobody-here")),
+            group: None,
+            mode: None,
+        };
+        requests.push(converge(
+            &unnamed,
+            73,
+            match family {
+                Family::File => Requirement::File(FileCondition::Present {
+                    content: Content::Any,
+                    metadata: stranger,
+                }),
+                _ => Requirement::Directory(DirectoryCondition::Present { metadata: stranger }),
+            },
+        ));
+        match family {
+            Family::File => {
+                // A refresh, and content the source does not have.
+                let file = at(4);
+                self.arrange(&file, starts(family, &c)[1].clone());
+                requests.push(Apply {
+                    operation: Operation::Refresh(requirements(family, &c)[1].clone()),
+                    ..converge(&file, 74, requirements(family, &c)[1].clone())
+                });
+                requests.push(converge(
+                    &file,
+                    75,
+                    Requirement::File(FileCondition::present(Content::Exactly(d(9)))),
+                ));
+            }
+            _ => {
+                // A directory with an entry, asked to be absent.
+                let dir = at(4);
+                self.arrange(&dir, starts(family, &c)[1].clone());
+                let entry = ResourceKey::File(path(&format!("{}/entry", dir.name())));
+                self.arrange(&entry, starts(Family::File, &c)[1].clone());
+                requests.push(converge(
+                    &dir,
+                    76,
+                    Requirement::Directory(DirectoryCondition::Absent),
+                ));
+            }
         }
         requests
     }

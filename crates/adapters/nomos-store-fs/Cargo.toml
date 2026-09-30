@@ -1,0 +1,18 @@
+[package]
+name = "nomos-store-fs"
+description = "Store adapter on the Cell's local disk: the content store and, from 10-durable-cell, the Event Log."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nomos-core.workspace = true
+nomos-canon.workspace = true
+nomos-store.workspace = true
+rustix.workspace = true

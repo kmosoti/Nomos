@@ -431,6 +431,7 @@ dependencies = [
  "nomos-core",
  "nomos-mesh-headscale",
  "nomos-store",
+ "nomos-store-fs",
  "nomos-substrate",
  "nomos-substrate-linux",
  "nomos-substrate-mock",
@@ -500,6 +501,16 @@ name = "nomos-store"
 version = "0.0.0"
 dependencies = [
  "nomos-core",
+]
+
+[[package]]
+name = "nomos-store-fs"
+version = "0.0.0"
+dependencies = [
+ "nomos-canon",
+ "nomos-core",
+ "nomos-store",
+ "rustix",
 ]
 
 [[package]]

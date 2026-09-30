@@ -55,6 +55,19 @@ fn the_mock_passes_the_suite_for_every_family() {
     }
 }
 
+/// Milestone `09-file-and-directory`: the Linux adapter passes every
+/// clause for files and directories, with owners, groups, and modes, on the
+/// host that runs the tests.
+#[test]
+fn the_linux_adapter_passes_the_suite_for_files_and_directories() {
+    let mut s = LinuxSubject::new("families");
+    for family in families::World::families(&s) {
+        let results = families::all(&mut s, family);
+        println!("{family:?}: {:?}", report(&results));
+        passes(results);
+    }
+}
+
 /// A family the Linux adapter does not serve yet is a failed collection
 /// when observed, never absence, and refused when changed (S7).
 #[test]
@@ -62,7 +75,7 @@ fn the_linux_adapter_refuses_the_families_it_does_not_serve() {
     use nomos_core::resource::Family;
     let mut s = LinuxSubject::new("unserved");
     for family in families::PHASE_1 {
-        if family == Family::File {
+        if matches!(family, Family::File | Family::Directory) {
             continue;
         }
         let key = families::resource(family, "unserved", 0);
@@ -75,7 +88,10 @@ fn the_linux_adapter_refuses_the_families_it_does_not_serve() {
             vec![Collection::Failed(CollectionFailure::Unsupported)],
             "{key}"
         );
-        for (i, requirement) in families::requirements(family).into_iter().enumerate() {
+        for (i, requirement) in families::requirements(family, &families::World::contents(&mut s))
+            .into_iter()
+            .enumerate()
+        {
             let receipts = s.apply(&families::converge(&key, i as u32, requirement));
             assert_eq!(receipts, vec![Receipt::Refused], "{key}");
         }
@@ -346,14 +362,14 @@ fn verification_sees_a_foreign_write() {
 #[test]
 fn replacement_leaves_no_temporary_file() {
     let mut s = LinuxSubject::new("temporary");
-    s.put(&p("/etc/x"), b"old");
+    s.put(&p("/srv/x"), b"old");
     let wanted = s.content(b"new");
     s.apply(&replace(
-        "/etc/x",
+        "/srv/x",
         0,
         FileCondition::present(Content::Exactly(wanted)),
     ));
-    let names: Vec<String> = std::fs::read_dir(s.host_path(&p("/etc")))
+    let names: Vec<String> = std::fs::read_dir(s.host_path(&p("/srv")))
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
@@ -445,4 +461,211 @@ fn the_denial_is_real() {
         std::fs::read(s.host_path(&p("/etc/secret"))).map_err(|e| e.kind()),
         Err(std::io::ErrorKind::PermissionDenied)
     );
+}
+
+// ---------------------------------------------------------------------------
+// Failure injection for files and directories (`09-file-and-directory`)
+
+fn dir_key(path: &str) -> nomos_core::resource::ResourceKey {
+    nomos_core::resource::ResourceKey::Directory(p(path))
+}
+
+fn mode(bits: &str) -> nomos_core::resource::Mode {
+    nomos_core::resource::Mode::from_octal(bits).unwrap()
+}
+
+fn directory(bits: &str) -> nomos_core::condition::Requirement {
+    nomos_core::condition::Requirement::Directory(
+        nomos_core::condition::DirectoryCondition::Present {
+            metadata: nomos_core::condition::Metadata {
+                owner: None,
+                group: None,
+                mode: Some(mode(bits)),
+            },
+        },
+    )
+}
+
+fn collected_once(s: &mut LinuxSubject, key: nomos_core::resource::ResourceKey) -> Collection {
+    s.observe(&[key])[0].collection().clone()
+}
+
+/// A directory replaced by a file between runs: the directory is observed
+/// as unsupported, never absent, and neither creating nor removing it
+/// touches the file.
+#[test]
+fn a_directory_replaced_by_a_file_is_not_touched() {
+    let mut s = LinuxSubject::new("dir-to-file");
+    std::fs::create_dir_all(s.host_path(&p("/srv"))).unwrap();
+    let key = dir_key("/srv/data");
+    let made = s.apply(&families::converge(&key, 0, directory("0750")));
+    assert_eq!(made.last(), Some(&Receipt::Completed { changed: true }));
+    std::fs::remove_dir(s.host_path(&p("/srv/data"))).unwrap();
+    s.put(&p("/srv/data"), b"a file now");
+    assert_eq!(
+        collected_once(&mut s, key.clone()),
+        Collection::Failed(CollectionFailure::Unsupported)
+    );
+    for (i, requirement) in [
+        directory("0750"),
+        nomos_core::condition::Requirement::Directory(
+            nomos_core::condition::DirectoryCondition::Absent,
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let receipts = s.apply(&families::converge(&key, 1 + i as u32, requirement));
+        assert_eq!(receipts, vec![Receipt::Refused]);
+    }
+    assert_eq!(s.truth(&p("/srv/data")), Truth::File(sha(b"a file now")));
+}
+
+/// A symbolic link in place of a directory is not followed: it is observed
+/// as unsupported, and no operation reaches the directory it points to.
+#[test]
+fn a_symbolic_link_in_place_of_a_directory_is_not_followed() {
+    use std::os::unix::fs::PermissionsExt;
+    let mut s = LinuxSubject::new("dir-link");
+    let real = s.host_path(&p("/srv/real"));
+    std::fs::create_dir_all(&real).unwrap();
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::os::unix::fs::symlink(&real, s.host_path(&p("/srv/link"))).unwrap();
+    let key = dir_key("/srv/link");
+    assert_eq!(
+        collected_once(&mut s, key.clone()),
+        Collection::Failed(CollectionFailure::Unsupported)
+    );
+    let receipts = s.apply(&families::converge(&key, 0, directory("0700")));
+    assert_eq!(receipts, vec![Receipt::Refused]);
+    let receipts = s.apply(&families::converge(
+        &key,
+        1,
+        nomos_core::condition::Requirement::Directory(
+            nomos_core::condition::DirectoryCondition::Absent,
+        ),
+    ));
+    assert_eq!(receipts, vec![Receipt::Refused]);
+    let bits = std::fs::metadata(&real).unwrap().permissions().mode() & 0o7777;
+    assert_eq!(bits, 0o755, "the linked directory was changed");
+    assert!(
+        std::fs::symlink_metadata(s.host_path(&p("/srv/link")))
+            .unwrap()
+            .is_symlink()
+    );
+}
+
+/// An adapter that changes a file's mode behind Nomos right after each
+/// execution, before anything verifies it.
+struct ForeignMode(LinuxSubject);
+
+impl Observe for ForeignMode {
+    fn observe(
+        &mut self,
+        resources: &[nomos_core::resource::ResourceKey],
+    ) -> Vec<nomos_core::observation::Observation> {
+        self.0.observe(resources)
+    }
+}
+
+impl Mutate for ForeignMode {
+    fn apply(&mut self, request: &nomos_core::effect::Apply) -> Vec<Receipt> {
+        use std::os::unix::fs::PermissionsExt;
+        let receipts = self.0.apply(request);
+        if let Some(path) = request.key.resource().path() {
+            let at = self.0.host_path(path);
+            let _ = std::fs::set_permissions(at, std::fs::Permissions::from_mode(0o666));
+        }
+        receipts
+    }
+}
+
+/// A foreign change of mode between execution and verification: the
+/// Action is judged on the file as it is, so the run does not end
+/// Converged on the receipt's word, and a later run repairs the mode.
+#[test]
+fn a_foreign_mode_change_before_verification_is_seen() {
+    let mut s = ForeignMode(LinuxSubject::new("foreign-mode"));
+    s.0.put(&p("/srv/app.conf"), b"old");
+    let wanted = s.0.content(b"new");
+    let requirement = FileCondition::Present {
+        content: Content::Exactly(wanted),
+        metadata: nomos_core::condition::Metadata {
+            owner: None,
+            group: None,
+            mode: Some(mode("0600")),
+        },
+    };
+    let canon = Canon::new(
+        vec![Managed {
+            condition: Condition::file(p("/srv/app.conf"), requirement.clone()),
+            keys: BTreeSet::new(),
+            disrupts: BTreeSet::new(),
+        }],
+        vec![],
+    );
+    let mut cell = Cell::open(support::MemLog::default());
+    cell.settle(
+        Input::Enforce(support::plan("p1", 1, canon.clone(), 2)),
+        &mut s,
+    )
+    .unwrap();
+    assert_ne!(
+        cell.snapshot().outcome(),
+        Some(&RunOutcome::Converged),
+        "converged on a mode that a foreign writer changed"
+    );
+    // Without the foreign writer, the next run repairs the mode alone.
+    let mut plain = s.0;
+    cell.settle(Input::Enforce(support::plan("p2", 2, canon, 2)), &mut plain)
+        .unwrap();
+    assert_eq!(cell.snapshot().outcome(), Some(&RunOutcome::Converged));
+    let assessed = assess(
+        &Condition::file(p("/srv/app.conf"), requirement),
+        &plain.observe(&[f("/srv/app.conf")]),
+    );
+    assert_eq!(assessed, Assessment::Satisfied);
+}
+
+/// ADR 0017 acceptance on Linux: content reaches a file from the Cell's
+/// store through the composition root, and a blob whose bytes changed on
+/// disk is refused, not written.
+#[test]
+fn content_comes_from_the_store_and_a_changed_blob_is_refused() {
+    use nomos_cell::StoreSource;
+    use nomos_store::ContentStore;
+    use nomos_store_fs::FsContentStore;
+    let scratch = std::env::temp_dir().join(format!("nomos-store-e2e-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    let mut store = FsContentStore::open(&scratch.join("store")).unwrap();
+    let wanted = store.put(b"from the store").unwrap();
+    let tampered = store.put(b"will be changed").unwrap();
+    let blob = |d: &nomos_core::resource::Digest| {
+        let h: String = d.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
+        scratch.join(format!("store/content/sha256/{}/{h}", &h[..2]))
+    };
+    std::fs::write(blob(&tampered), b"changed on disk").unwrap();
+    let mut s = LinuxSubject::new("store-source");
+    s.host = nomos_substrate_linux::LinuxHost::open(&s.root)
+        .unwrap()
+        .with_source(Box::new(StoreSource(store)));
+    s.put(&p("/srv/keep"), b"");
+    let done = s.apply(&replace(
+        "/srv/a.conf",
+        0,
+        FileCondition::present(Content::Exactly(wanted)),
+    ));
+    assert_eq!(done.last(), Some(&Receipt::Completed { changed: true }));
+    assert_eq!(
+        s.truth(&p("/srv/a.conf")),
+        Truth::File(sha(b"from the store"))
+    );
+    let refused = s.apply(&replace(
+        "/srv/b.conf",
+        1,
+        FileCondition::present(Content::Exactly(tampered)),
+    ));
+    assert_eq!(refused, vec![Receipt::Refused]);
+    assert_eq!(s.truth(&p("/srv/b.conf")), Truth::Absent);
+    let _ = std::fs::remove_dir_all(&scratch);
 }

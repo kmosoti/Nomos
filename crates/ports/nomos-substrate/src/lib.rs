@@ -16,7 +16,7 @@
 
 use nomos_core::effect::{Apply, Receipt};
 use nomos_core::observation::Observation;
-use nomos_core::resource::ResourceKey;
+use nomos_core::resource::{Digest, ResourceKey};
 
 /// The observe capability: evidence about resources, never a verdict.
 pub trait Observe {
@@ -36,4 +36,13 @@ pub trait Mutate {
     /// and changes nothing (fencing-and-idempotency.md). The effect can
     /// cause no change after `request.settle_by`.
     fn apply(&mut self, request: &Apply) -> Vec<Receipt>;
+}
+
+/// Where an adapter gets the bytes an exact file requirement names by
+/// digest ([ADR 0017](../../../../docs/adr/0017-local-store.md)). The
+/// composition root backs it with the Cell's content store. An adapter
+/// checks the digest of what it is given and treats a mismatch as absence.
+pub trait ContentSource {
+    /// The bytes whose SHA-256 digest is `digest`, if the source has them.
+    fn bytes(&self, digest: &Digest) -> Option<Vec<u8>>;
 }
