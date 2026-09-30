@@ -101,7 +101,7 @@ Each ends in a result record under `results/`, with receipts, in the form the gr
 
 - **Procedural macros in the Canon build.** The hermeticity check cannot see one ([build-hermeticity](../research/2026-09-28-typed-core/results/build-hermeticity.md)). A static check over `cargo metadata` that refuses a procedural-macro crate in a Canon crate's graph, with a negative-control fixture, fits before `13-cell-commands` makes artifacts an operator path.
 - **ADR 0008 and ADR 0013.** `08-resource-families` puts the ownership check on the admission path and `09` to `12` run it on a host, which is the evidence §1 and §2 of each still lack. Identity (ADR 0008 §3 and §4) and secrets (ADR 0013 §3) stay with Phases 3, 4, and 6.
-- **Mutation calibration.** Mutating `nomos-xtask` now runs its whole test suite per mutant, about three minutes each, and the scheduled whole-crate job cannot finish within a CI job's time limit ([mutation-calibration](../research/2026-09-28-typed-core/results/mutation-calibration.md)). A targeted test selection per mutated module, or a sharded job, comes before mutation widens to the new adapter code.
+- **Mutation cost.** Settled 2026-09-30 ([mutation-calibration](../research/2026-09-28-typed-core/results/mutation-calibration.md)): the weekly run mutates only the week's changes, and mutation runs leave out the repository-corpus test, so mutating the new adapter code costs seconds a mutant.
 
 ## Exit Criteria
 

@@ -82,7 +82,7 @@ The `generator-variance` harness asks the same kernel property of several indepe
 
 ### Mutation Testing
 
-`cargo-mutants` is configured in `.cargo/mutants.toml` and runs on a schedule and by hand. Every survivor is classified:
+`cargo-mutants` is configured in `.cargo/mutants.toml` and runs on a schedule and by hand. The weekly run mutates only the Rust lines changed in the last eight days; a run by hand mutates the whole workspace in four shards. Mutation runs leave out the repository-corpus test, which repeats `cargo xtask mutants semantic` and would make every mutant pay for every semantic mutant; the [mutation-calibration record](../research/2026-09-28-typed-core/results/mutation-calibration.md) shows the exclusion lost no catch. Every survivor is classified:
 
 | Class | Meaning | Action |
 | --- | --- | --- |

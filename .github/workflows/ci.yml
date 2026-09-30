@@ -23,7 +23,11 @@ jobs:
       # The cargo xtask alias passes --locked too (.cargo/config.toml).
       - run: cargo check --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+      # The repository-corpus test calls the same function as the
+      # `cargo xtask mutants semantic` step below and takes as long, about
+      # 150 seconds; it runs there once instead of twice. Locally,
+      # `cargo test --workspace` still runs it.
+      - run: cargo test --workspace --locked -- --skip the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught
       # Integrity gate: every accepted research snapshot through the same
       # verify_snapshot the tests call (manifest, coverage, strict NDJSON,
       # schema, references, negative controls). Failures print a stable code.
@@ -82,25 +86,55 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
         run: cargo xtask research frozen --base "$BASE"
 
-  # Exploratory: cargo-mutants over the tooling crate, on a schedule or by
-  # hand, never on push or pull request. It uploads its outcomes and does not
-  # gate anything; a surviving mutant is classified by a person (ADR 0015).
+  # Exploratory: cargo-mutants on a schedule or by hand, never on push or
+  # pull request. It uploads its outcomes and gates nothing; a surviving
+  # mutant is classified by a person (ADR 0015). The weekly run mutates only
+  # the Rust lines changed in the last eight days, and nothing when none
+  # changed; a run by hand mutates the whole workspace in four shards
+  # (mutation-calibration record, 2026-09-30).
   mutation:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ github.event_name == 'schedule' && fromJSON('[0]') || fromJSON('[0, 1, 2, 3]') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Choose what to mutate
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = schedule ]; then
+            base=$(git rev-list -n 1 --before="8 days ago" HEAD)
+            [ -n "$base" ] || base=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+            git diff "$base" HEAD -- '*.rs' > "$RUNNER_TEMP/changed.diff"
+            if [ -s "$RUNNER_TEMP/changed.diff" ]; then
+              echo "args=--in-diff $RUNNER_TEMP/changed.diff" >> "$GITHUB_OUTPUT"
+            else
+              echo "No Rust line changed since $base; nothing to mutate."
+              echo "args=" >> "$GITHUB_OUTPUT"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "args=--shard ${{ matrix.shard }}/4" >> "$GITHUB_OUTPUT"
+          fi
       - uses: dtolnay/rust-toolchain@master
+        if: steps.scope.outputs.skip != 'true'
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
       - name: Install cargo-mutants
+        if: steps.scope.outputs.skip != 'true'
         run: cargo install cargo-mutants --version 27.1.0 --locked
-      - name: Mutate nomos-xtask
-        run: cargo mutants -p nomos-xtask --no-shuffle --output target/mutants
+      - name: Mutate
+        if: steps.scope.outputs.skip != 'true'
+        run: cargo mutants --workspace --no-shuffle -j 2 ${{ steps.scope.outputs.args }} --output target/mutants
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.scope.outputs.skip != 'true'
         with:
-          name: mutants-out
+          name: mutants-out-${{ matrix.shard }}
           path: target/mutants/mutants.out
 
   # Advisory: reports prose and Markdown findings as warnings. Never fails the build.

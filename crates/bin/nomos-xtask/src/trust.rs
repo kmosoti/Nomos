@@ -657,6 +657,23 @@ mod tests {
     }
 
     #[test]
+    fn a_test_skipped_in_ci_is_an_undeclared_escape_hatch() {
+        assert_case(
+            "skipped-test-in-ci",
+            &[TrustCode::EscapeHatchAdded],
+            Some(Class::Verifier),
+            Some(".github/workflows/ci.yml"),
+        );
+    }
+
+    /// A receipt records the command a check ran; a skipped test named in it
+    /// configures nothing and is not an escape hatch.
+    #[test]
+    fn a_skip_recorded_in_a_receipt_is_not_an_escape_hatch() {
+        assert_passes("skip-recorded-in-receipt");
+    }
+
+    #[test]
     fn a_declaration_without_a_matching_change_is_rejected() {
         assert_case(
             "trailer-without-change",
@@ -763,6 +780,6 @@ mod tests {
                 "fixture case {case} has no test"
             );
         }
-        assert_eq!(cases.len(), 14);
+        assert_eq!(cases.len(), 16);
     }
 }

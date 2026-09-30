@@ -35,11 +35,13 @@ paths = [
 ]
 
 # The escape-hatch scan skips these: the policy itself, which lists the
-# patterns, and fixture trees that exist to contain them. They remain
+# patterns; fixture trees that exist to contain them; and receipts, which
+# record the command a check ran and configure nothing. They remain
 # verifier paths, so a change to them is still declared.
 [scan]
 exempt = [
     "verification/trust-boundary.toml",
+    "verification/receipts/",
     "tests/fixtures/agent-proof/",
     "tests/fixtures/semantic-mutants/patches/",
     "tests/semantic-mutants/patches/",
@@ -55,6 +57,10 @@ reason = "an ignored test proves nothing"
 [[escape_hatch]]
 pattern = "#[mutants::skip"
 reason = "a function skipped by mutation testing is unmeasured"
+
+[[escape_hatch]]
+pattern = "--skip"
+reason = "a test left out of a run proves nothing in that run"
 
 [[escape_hatch]]
 pattern = "allow(clippy::unwrap_used"

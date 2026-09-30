@@ -178,6 +178,15 @@ mod tests {
 
     use super::{Code, VerificationError, expect_rejection};
 
+    /// A failure prints its stable code in brackets, then its message:
+    /// `[checksum-mismatch] ...`, the form AGENTS.md documents.
+    #[test]
+    fn a_failure_prints_its_code_in_brackets_then_its_message() {
+        let error = VerificationError::new(Code::ChecksumMismatch, "a.json changed");
+        assert_eq!(error.to_string(), "[checksum-mismatch] a.json changed");
+        assert_eq!(String::from(error), "[checksum-mismatch] a.json changed");
+    }
+
     #[test]
     fn every_code_has_a_distinct_identifier() {
         let names: BTreeSet<&str> = Code::ALL.iter().map(|c| c.as_str()).collect();

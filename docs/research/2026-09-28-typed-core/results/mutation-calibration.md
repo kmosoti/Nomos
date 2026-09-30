@@ -117,6 +117,37 @@ The three unviable mutants are the ones run 2 recorded: a deleted `!` in `manife
 - **Mutation now costs minutes per mutant.** The tooling crate's own suite includes the semantic-mutant runner's self-test, so every syntactic mutant of `nomos-xtask` pays for 29 semantic mutants. A targeted test selection per mutated module would restore seconds per mutant; it is a verifier change and is not made here.
 - **The scheduled job cannot finish.** CI's `mutation` job runs `cargo mutants -p nomos-xtask --no-shuffle` over the whole crate: 716 mutants today, at about three minutes each on one job, roughly 36 hours, against GitHub's six-hour job limit. It has never run on its schedule. Sharding it across a job matrix, or selecting tests per module, would bring it back within the limit; the choice is the owner's, since the workflow is protected.
 
+## Cost, 2026-09-30
+
+The re-run above found mutation of `nomos-xtask` at about three minutes a mutant and a scheduled job that could not finish. One test caused most of it: `the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught` runs every semantic mutant through a workspace build and calls the same function as `cargo xtask mutants semantic`. The whole suite takes 163 seconds with it and 4 without it, on eight test threads.
+
+### Does Leaving It Out Lose a Catch?
+
+| Run | Mutants | With the test | Without it |
+| --- | --- | --- | --- |
+| The calibration modules | 41 | 34 caught, 3 unviable, 4 missed, 78 minutes in four shards | the same 34, 3, and 4, in 204 seconds |
+| `semantic.rs`, the code the test exercises | 33 | the 5 survivors of the run without it, re-run with it: all 5 missed again | 19 caught, 9 unviable, 5 missed |
+
+No mutant of the 74 is caught only by the corpus test. The receipts are in `verification/receipts/2026-09-30-mutation-cost.ndjson`.
+
+### Gaps It Surfaced
+
+The runs without the corpus test, at seconds a mutant, left survivors that were test gaps, now closed:
+
+- `semantic.rs`: nothing asserted an outcome's printed identifier, the printed report line, or that the scratch copy leaves out `target/` and `.git/`. Three tests; the run after them: 23 caught, 9 unviable, 1 missed. The survivor, `||` to `&&` in `run_one`'s compile-error check, is equivalent in practice: cargo prints both markers together.
+- `error.rs`: nothing asserted the printed form of a snapshot-verifier failure, `[checksum-mismatch] ...`, which AGENTS.md documents. One test; the run after it: 7 caught, 1 unviable, none missed.
+
+### What Changed
+
+| Change | Cost before | Cost after |
+| --- | --- | --- |
+| Mutation runs skip the corpus test (`.cargo/mutants.toml`) | about 3 minutes a mutant in `nomos-xtask` | seconds a mutant plus its build |
+| CI's `cargo test` skips it; the `mutants semantic` step runs the same function | the corpus ran twice per push; the test step took 136 to 162 seconds | once per push; the test step took 53 seconds |
+| The weekly job mutates the Rust lines changed in the last eight days | 716 mutants of `nomos-xtask` a week, about 36 hours on one job, over GitHub's six-hour limit | the week's changes, or nothing |
+| A run by hand mutates the whole workspace in four shards | not available | 1,769 mutants, split four ways |
+
+The trust-boundary gate now counts `--skip` as an escape hatch, so the next test left out of a run is declared, as this one was. Receipts are exempt from that scan: they record the commands that ran and configure nothing.
+
 ## Decision
 
-`cargo-mutants` is adopted as configured in `.cargo/mutants.toml`, on a weekly schedule and by hand ([CI](../../../../.github/workflows/ci.yml), job `mutation`), never on the required path. Every survivor is classified with the table above's classes. The calibration is rerun on the Assessment Kernel when it exists. The re-run of 2026-09-29 reproduces run 2 under receipts; the scheduled job's cost is an open question for the owner (see its Findings). Semantic mutants, chosen from the invariants, are the other half and are on the required path ([corpus](../../../../tests/semantic-mutants/README.md)).
+`cargo-mutants` is adopted as configured in `.cargo/mutants.toml`, on a schedule and by hand ([CI](../../../../.github/workflows/ci.yml), job `mutation`), never on the required path. Every survivor is classified with the table above's classes. The calibration is rerun on the Assessment Kernel when it exists. The re-run of 2026-09-29 reproduces run 2 under receipts. Since 2026-09-30 the weekly run mutates only the week's changes, a run by hand mutates the whole workspace in shards, and mutation runs leave out the repository-corpus test (Cost, above). Semantic mutants, chosen from the invariants, are the other half and are on the required path ([corpus](../../../../tests/semantic-mutants/README.md)).
