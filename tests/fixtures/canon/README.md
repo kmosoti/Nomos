@@ -11,7 +11,8 @@ Evidence for milestones `06-canon-artifact` and `08-resource-families`. The IR i
 | `golden/ids.v3.txt` | Each golden Canon's schema-3 `CanonID` per profile | The same |
 | `compat/*.cbor`, `compat/*.json` | Artifacts a newer or broken writer could produce: in schema 2, an unknown kind, an unknown field, and an unknown state; schema 3 by number with a schema-2 body; schema 4; in schema 3, an unknown kind, an undefined `spec` field, and a `spec` value that is not text; and schema 1 with a schema-2 field | `crates/core/nomos-canon/tests/compatibility.rs`, from the values stated there |
 | `authoring/` | A Canon authoring crate with its own lockfile: the generator under test, `telemetry`, and the negative control, `leaky` | By hand; built by `cargo xtask hermeticity` |
-| `authoring-build-script/` | A crate with its own lockfile and a build script that does nothing: the negative control for `build-executes-only-the-toolchain` | By hand; built by `cargo xtask hermeticity --control build-script` |
+| `authoring-build-script/` | A crate with its own lockfile and a build script that does nothing: the negative control for `build-executes-only-the-toolchain` | By hand; built by `cargo xtask hermeticity --control build-script`; also a negative control for `cargo xtask check-canon-build`, which refuses it as `canon-build-script` |
+| `authoring-proc-macro/` | A crate with its own lockfile that depends on a procedural macro defining nothing: the negative control `cargo xtask check-canon-build` must refuse as `canon-build-proc-macro` | By hand; never built |
 
 The golden files are regenerated with `NOMOS_CANON_BLESS=1 cargo test -p nomos-canon --test encoding golden`, the compatibility files with `NOMOS_CANON_BLESS=1 cargo test -p nomos-canon --test compatibility compat_fixtures`. Without the variable the tests compare, and a difference fails. A regenerated fixture is a verifier change and is declared as one.
 

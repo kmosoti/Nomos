@@ -26,6 +26,11 @@
 //!   policy of `crates/core/PURITY.toml` (ADR 0016) over the declared and
 //!   resolved graphs and the crate roots. Prints the report as JSON and one
 //!   `IMPURE` line per violation, with its stable code.
+//! - `check-canon-build [--manifest-path <Cargo.toml>]`: a Canon crate's
+//!   build runs no procedural macro and no build script (canon-ir.md,
+//!   Provenance), over its resolved graph; the authoring kit unless a
+//!   manifest is named. Prints one `REFUSED` line per package, with its
+//!   stable code.
 //! - `check-trust-boundary --base <ref>`: every non-merge commit since the
 //!   merge base with `<ref>` declares the oracle it changes (ADR 0015), in a
 //!   `Trust-Boundary:` line, and adds no undeclared escape hatch. Prints one
@@ -78,6 +83,7 @@
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
 
+mod canon_build;
 mod counterexamples;
 mod debian;
 mod error;
@@ -106,6 +112,7 @@ const USAGE: &str = "usage:
   cargo xtask research frozen     --base <ref>
   cargo xtask check-layers        [--manifest-path <Cargo.toml>]
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
+  cargo xtask check-canon-build   [--manifest-path <Cargo.toml>]
   cargo xtask check-trust-boundary --base <ref>
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
@@ -124,6 +131,7 @@ fn main() -> ExitCode {
         ["research", "frozen", rest @ ..] => frozen(rest),
         ["check-layers", rest @ ..] => check_layers(rest),
         ["check-core-purity", rest @ ..] => check_core_purity(rest),
+        ["check-canon-build", rest @ ..] => check_canon_build(rest),
         ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
         ["receipts", "validate", rest @ ..] => receipts_validate(rest),
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
@@ -367,6 +375,28 @@ fn check_core_purity(rest: &[&str]) -> Result<(), String> {
             "{} core purity violation(s); see {}",
             report.violations().len(),
             purity::POLICY_PATH
+        ))
+    }
+}
+
+fn check_canon_build(rest: &[&str]) -> Result<(), String> {
+    let manifest_path = option(rest, "--manifest-path")?
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("kit/canon/Cargo.toml"));
+    let violations = canon_build::check(&manifest_path)?;
+    for violation in &violations {
+        eprintln!("REFUSED {violation}");
+    }
+    if violations.is_empty() {
+        println!(
+            "{}: the build runs no procedural macro and no build script",
+            manifest_path.display()
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "{} package(s) run code at build time; see docs/formal/canon-ir.md, Provenance",
+            violations.len()
         ))
     }
 }

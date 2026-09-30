@@ -1,0 +1,15 @@
+# Negative control for `check-canon-build`: an authoring crate that
+# depends on a procedural macro, the build-time code `build-hermeticity`
+# cannot see, since rustc loads it as a library rather than running it.
+# Its own workspace and lockfile, and nothing from a registry. Never built:
+# the check reads its graph, and must refuse `canon-authoring-macro`.
+[package]
+name = "canon-authoring-proc-macro"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+canon-authoring-macro = { path = "macro" }
