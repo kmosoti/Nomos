@@ -6,6 +6,7 @@
 | [architecture/](architecture/) | System components, hexagonal layout, and runtime flows |
 | [formal/](formal/) | Algorithms, invariants, and proof sketches |
 | [adr/](adr/) | Architecture decision records |
+| [plans/](plans/) | Plans for the phases of spec §55 after the grounding plan: milestones, experiments, and exit criteria |
 | [research/](research/) | Dated research snapshots, their evaluation against the repository, and the experiments they propose |
 | [style/](style/) | Prose style specification and linting |
 | [CANON.md](CANON.md) | Canon: what is decided, the compilation pipeline, and the open questions |
