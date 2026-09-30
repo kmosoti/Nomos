@@ -2,7 +2,8 @@
 //! package installs, runs the demonstration Canon of `15` through its
 //! service, upgrades, and is removed and purged cleanly.
 //!
-//! The package is built by `cargo xtask package`, twice, at the
+//! The package is installed, upgraded, removed, and purged with the
+//! commands the operator guide gives. It is built by `cargo xtask package`, twice, at the
 //! workspace's version and at a later one, and `cargo xtask debian` puts
 //! both in the container at `/root/debs/base.deb` and
 //! `/root/debs/upgrade.deb` before it runs this binary. Every test here
@@ -89,7 +90,7 @@ fn the_package_installs_converges_upgrades_and_purges() {
     prepare();
 
     // Install: the binary, the state directory, and the timer enabled.
-    must("dpkg", &["--install", "/root/debs/base.deb"]);
+    must("apt-get", &["install", "--yes", "/root/debs/base.deb"]);
     assert!(Path::new("/usr/bin/nomos-cell").exists());
     assert_eq!(
         must("systemctl", &["is-enabled", "nomos-cell.timer"]).trim(),
@@ -138,7 +139,7 @@ fn the_package_installs_converges_upgrades_and_purges() {
     trace_is_satisfied("after a foreign change");
 
     // Upgrade: the timer stays, and so does the Cell's journal.
-    must("dpkg", &["--install", "/root/debs/upgrade.deb"]);
+    must("apt-get", &["install", "--yes", "/root/debs/upgrade.deb"]);
     let version = must("dpkg-query", &["-W", "-f=${Version}", "nomos-cell"]);
     assert!(version.contains("+upgrade"), "{version}");
     assert_eq!(
@@ -156,7 +157,7 @@ fn the_package_installs_converges_upgrades_and_purges() {
     trace_is_satisfied("after the upgrade");
 
     // Remove: the binary and the timer go; the state and the Canon stay.
-    must("dpkg", &["--remove", "nomos-cell"]);
+    must("apt-get", &["remove", "--yes", "nomos-cell"]);
     assert!(!Path::new("/usr/bin/nomos-cell").exists());
     let (enabled, _) = run("systemctl", &["is-enabled", "nomos-cell.timer"]);
     assert!(!enabled, "the timer is still enabled after removal");
@@ -164,9 +165,11 @@ fn the_package_installs_converges_upgrades_and_purges() {
     assert!(Path::new("/etc/nomos/canon.cbor").exists());
 
     // Purge: the Cell's state goes; the operator's Canon stays.
-    must("dpkg", &["--purge", "nomos-cell"]);
+    must("apt-get", &["purge", "--yes", "nomos-cell"]);
     assert!(!Path::new("/var/lib/nomos").exists());
     assert!(Path::new("/etc/nomos/canon.cbor").exists());
     let (installed, _) = run("dpkg", &["--status", "nomos-cell"]);
     assert!(!installed, "the package is still known after purge");
+    // What the Cell enforced is not undone by removing it.
+    assert_eq!(std::fs::read(LOADED).unwrap_or_default(), CONFIG);
 }
