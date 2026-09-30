@@ -193,9 +193,7 @@ mod tests {
 
     /// A repository with one accepted snapshot on `main` and a working branch.
     fn repo(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("nomos-freeze-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        let root = crate::scratch::dir("freeze", name);
         sh(&root, &["init", "-q", "-b", "main"]);
         write(
             &root,

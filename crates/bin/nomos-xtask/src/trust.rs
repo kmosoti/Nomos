@@ -519,9 +519,7 @@ mod tests {
     /// branch carrying one commit per case, in order, each made of the case's
     /// `tree/` overlay and its `message`.
     fn repo(label: &str, cases: &[&str]) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("nomos-trust-{}-{label}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        let root = crate::scratch::dir("trust", label);
         git_out(&root, &["init", "-q", "-b", "main"]);
         copy_tree(&fixtures().join("base"), &root);
         git_out(&root, &["add", "."]);

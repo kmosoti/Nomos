@@ -10,6 +10,7 @@
 //! scratch root; the record names the host.
 
 mod conformance;
+mod scratch;
 mod support;
 
 use conformance::*;
@@ -335,7 +336,7 @@ fn a_symbolic_link_in_a_parent_is_not_followed() {
 #[test]
 fn nothing_outside_the_root_is_reached() {
     let mut s = LinuxSubject::new("escape");
-    let outside = std::env::temp_dir().join(format!("nomos-outside-{}", std::process::id()));
+    let outside = scratch::path("outside", "file");
     std::fs::write(&outside, b"outside").unwrap();
     std::fs::create_dir_all(s.host_path(&p("/etc"))).unwrap();
     std::os::unix::fs::symlink(&outside, s.host_path(&p("/etc/out"))).unwrap();
@@ -668,8 +669,7 @@ fn content_comes_from_the_store_and_a_changed_blob_is_refused() {
     use nomos_cell::StoreSource;
     use nomos_store::ContentStore;
     use nomos_store_fs::FsContentStore;
-    let scratch = std::env::temp_dir().join(format!("nomos-store-e2e-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&scratch);
+    let scratch = scratch::dir("store-e2e", "store");
     let mut store = FsContentStore::open(&scratch.join("store")).unwrap();
     let wanted = store.put(b"from the store").unwrap();
     let tampered = store.put(b"will be changed").unwrap();

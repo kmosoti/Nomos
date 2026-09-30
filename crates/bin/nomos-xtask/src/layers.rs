@@ -542,9 +542,7 @@ mod tests {
     /// The base workspace, optionally with one case's manifests laid over it,
     /// in a scratch directory so Cargo writes nothing into the repository.
     fn workspace(label: &str, case: Option<&str>) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nomos-layers-{}-{label}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::scratch::dir("layers", label);
         copy_tree(&fixtures().join("base"), &dir);
         if let Some(case) = case {
             copy_tree(&fixtures().join("cases").join(case), &dir);

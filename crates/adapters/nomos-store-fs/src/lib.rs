@@ -18,6 +18,8 @@
 //! else malformed refused (ADR 0017 §3).
 
 mod log;
+#[cfg(test)]
+mod scratch;
 
 pub use log::{FileLog, LogError, Recovery};
 
@@ -216,10 +218,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> std::path::PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("nomos-store-fs-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+        crate::scratch::path("store-fs", name)
     }
 
     /// A blob put is got back by its digest, and putting it again changes

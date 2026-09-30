@@ -12,6 +12,7 @@
 
 mod conformance;
 mod debian;
+mod scratch;
 mod support;
 
 use std::path::Path;

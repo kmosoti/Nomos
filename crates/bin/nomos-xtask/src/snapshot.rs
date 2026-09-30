@@ -197,9 +197,7 @@ mod tests {
 
     /// A private copy of the shipped snapshot to corrupt.
     fn scratch_copy(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nomos-xtask-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::scratch::dir("xtask", name);
         for entry in std::fs::read_dir(shipped()).unwrap() {
             let entry = entry.unwrap();
             std::fs::copy(entry.path(), dir.join(entry.file_name())).unwrap();
@@ -442,10 +440,7 @@ mod tests {
     fn a_symlinked_manifest_fails_inventory() {
         let dir = scratch_copy("symlinked-manifest");
         let manifest = dir.join("MANIFEST.sha256");
-        let elsewhere = std::env::temp_dir().join(format!(
-            "nomos-xtask-{}-manifest-elsewhere",
-            std::process::id()
-        ));
+        let elsewhere = crate::scratch::path("xtask", "manifest-elsewhere");
         std::fs::rename(&manifest, &elsewhere).unwrap();
         std::os::unix::fs::symlink(&elsewhere, &manifest).unwrap();
         assert_eq!(failure(&dir), Code::SnapshotSymlink);
@@ -454,8 +449,7 @@ mod tests {
     #[test]
     fn a_symlinked_snapshot_directory_fails_inventory() {
         let dir = scratch_copy("real-dir");
-        let link =
-            std::env::temp_dir().join(format!("nomos-xtask-{}-linked-dir", std::process::id()));
+        let link = crate::scratch::path("xtask", "linked-dir");
         let _ = std::fs::remove_file(&link);
         std::os::unix::fs::symlink(&dir, &link).unwrap();
         assert_eq!(failure(&link), Code::SnapshotSymlink);

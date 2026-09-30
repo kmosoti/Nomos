@@ -2,6 +2,8 @@
 //! built and run as the operator guide says, here, where the repository
 //! and Cargo are.
 
+mod scratch;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -17,10 +19,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
 }
 
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nomos-kit-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+    scratch::dir("kit", name)
 }
 
 fn hex(bytes: &[u8]) -> String {

@@ -430,9 +430,7 @@ pub struct LinuxSubject {
 impl LinuxSubject {
     pub fn new(name: &str) -> Self {
         drop_permission_override();
-        let root =
-            std::env::temp_dir().join(format!("nomos-conformance-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
+        let root = crate::scratch::dir("conformance", name);
         std::fs::create_dir_all(root.join("etc")).unwrap();
         std::fs::write(root.join("etc/passwd"), families::PASSWD).unwrap();
         std::fs::write(root.join("etc/group"), families::GROUP).unwrap();

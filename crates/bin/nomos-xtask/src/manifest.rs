@@ -109,10 +109,7 @@ mod tests {
 
     /// The manifest of a snapshot directory holding one file, with the given text.
     fn snapshot(label: &str, manifest: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("nomos-manifest-{}-{label}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = crate::scratch::dir("manifest", label);
         std::fs::write(dir.join("a.txt"), b"").unwrap();
         std::fs::write(dir.join("MANIFEST.sha256"), manifest).unwrap();
         dir.join("MANIFEST.sha256")
