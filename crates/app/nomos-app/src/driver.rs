@@ -83,3 +83,92 @@ impl<L: EventLog<Event>> Cell<L> {
         Ok(())
     }
 }
+
+/// The production driver over a durable journal of inputs (ADR 0017 §3).
+///
+/// It is [`Cell`] with one difference: the journal holds each input, and
+/// the snapshot is recomputed by stepping the journaled inputs from the
+/// initial snapshot when the driver opens. The input is appended before
+/// any effect of its Decision is issued, so the order of ADR 0012 §1 holds;
+/// if the append fails, the Decision is dropped whole.
+#[derive(Debug)]
+pub struct JournaledCell<J> {
+    snapshot: KernelSnapshot,
+    journal: J,
+}
+
+impl<J: EventLog<Input>> JournaledCell<J> {
+    /// A Cell over `journal`, its snapshot recomputed from every input the
+    /// journal holds. A Cell that restarts is built this way and then
+    /// handles [`Input::Recovered`].
+    pub fn open(journal: J) -> Self {
+        let mut snapshot = KernelSnapshot::new();
+        for input in journal.events() {
+            snapshot = step(&snapshot, input).snapshot;
+        }
+        JournaledCell { snapshot, journal }
+    }
+
+    /// The current snapshot.
+    pub fn snapshot(&self) -> &KernelSnapshot {
+        &self.snapshot
+    }
+
+    /// The journal.
+    pub fn journal(&self) -> &J {
+        &self.journal
+    }
+
+    /// Every Event the journaled inputs produce, in order: the Event Log
+    /// the journal stands for.
+    pub fn events(&self) -> Vec<Event> {
+        let mut snapshot = KernelSnapshot::new();
+        let mut events = Vec::new();
+        for input in self.journal.events() {
+            let decision = step(&snapshot, input);
+            events.extend(decision.events);
+            snapshot = decision.snapshot;
+        }
+        events
+    }
+
+    /// Steps one input, journals it, then performs its effects, and returns
+    /// the inputs they produced.
+    pub fn handle<S: Observe + Mutate>(
+        &mut self,
+        input: Input,
+        substrate: &mut S,
+    ) -> Result<Vec<Input>, Full> {
+        let decision = step(&self.snapshot, input.clone());
+        self.journal.append(&[input])?;
+        self.snapshot = decision.snapshot;
+        let mut next = Vec::new();
+        for effect in decision.effects {
+            match effect {
+                EffectRequest::Observe(keys) => {
+                    next.push(Input::Observed(substrate.observe(&keys)));
+                }
+                EffectRequest::Apply(request) => {
+                    for receipt in substrate.apply(&request) {
+                        next.push(Input::Receipt(request.key.clone(), receipt));
+                    }
+                }
+            }
+        }
+        Ok(next)
+    }
+
+    /// Handles `input` and everything it leads to, in order, until nothing
+    /// is left to handle.
+    pub fn settle<S: Observe + Mutate>(
+        &mut self,
+        input: Input,
+        substrate: &mut S,
+    ) -> Result<(), Full> {
+        let mut queue = VecDeque::from([input]);
+        while let Some(input) = queue.pop_front() {
+            queue.extend(self.handle(input, substrate)?);
+        }
+        Ok(())
+    }
+}

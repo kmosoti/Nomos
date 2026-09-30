@@ -12,6 +12,14 @@
 //! a directory of files named by their digests, is imported whole or not at
 //! all. Paths beneath the store are opened relative to its directory
 //! without following a symbolic link (ADR 0013 §2).
+//!
+//! [`FileLog`] is the Cell's durable log: one append-only file of
+//! checksummed records, a torn final record truncated on open and anything
+//! else malformed refused (ADR 0017 §3).
+
+mod log;
+
+pub use log::{FileLog, LogError, Recovery};
 
 use std::fs::File;
 use std::io::{Read, Write};
