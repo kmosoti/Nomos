@@ -28,11 +28,17 @@ The Linux Substrate may depend only on core and its own port (ADR 0000), so `nom
 
 **Bundles.** Content reaches the store as a bundle beside the Canon artifact: a directory of files named by their digests, imported by `nomos-cell` before the artifact is enforced. Importing verifies each file's digest against its name and refuses the bundle on the first mismatch. In Phase 3, Loom serves the same store; the port does not change.
 
-### 3. The Durable Event Log Is the Same Crate
+### 3. The Durable Log Is the Same Crate, and It Journals Inputs
 
-`nomos-store-fs` implements `EventLog` over one append-only file, `events.log`, of records. A record is a length, the Event's encoding, and the SHA-256 digest of both, and a batch is written with one `write` and one `fdatasync` before `append` returns (ADR 0012 §1: the log holds a Decision's Events before its effects are issued). The Event type is the application's, so `nomos-store` gains a `Record` trait, to bytes and back, which the application implements for its Event: deterministic CBOR in the Canon IR's profile, with a version field, so a later Cell can read an earlier log. The adapter stores bytes it does not interpret.
+`nomos-store-fs` implements `EventLog` over one append-only file of records. A record is one batch: a length, the batch's encoding, and the SHA-256 digest of both, written with one `write` and one `fdatasync` before `append` returns. A batch is therefore whole or absent after a crash.
 
-**Recovery.** Opening the log reads every record. A final record cut short, which a crash during a write leaves behind, is truncated away and reported: the batch it belonged to was never acknowledged. Any other malformed record, a digest mismatch or a length past the end in the middle of the file, fails the open loudly, and the Cell does not start: silently skipping a record would forget an Obligation.
+**What is journaled.** The Cell's durable log holds the kernel's inputs, not its Events. `step` is a pure function (ADR 0006), so the Events of every Decision, and the snapshot they fold into, are recomputed by stepping the journaled inputs from the initial snapshot. Storing the Events themselves would mean decoding them, and an Event can carry a `Verified`, the proof that a postcondition held, which only core's `verify` may produce (`05-transition-kernel`'s compile-fail tests forbid building one anywhere else). A decoder outside core would have to forge it. A journaled Observation is instead verified again when it is replayed. The in-memory Event Log of the tests is unchanged, and the order of ADR 0012 §1 holds: the input is on disk before any effect of its Decision is issued.
+
+**Encoding.** The input type is the application's, so `nomos-store` gains a `Record` trait, to bytes and back, which the application implements: deterministic CBOR in the Canon IR's profile, with a version field. The adapter stores bytes it does not interpret.
+
+**Recovery.** Opening the log reads every record. A final record cut short, which a crash during a write leaves behind, is truncated away and reported: its batch was never acknowledged. Any other malformed record, a digest mismatch or a length past the end in the middle of the file, fails the open loudly, and the Cell does not start: silently skipping a record would forget an Obligation. A record the application cannot decode fails the open the same way.
+
+**Upgrades.** Recomputation uses the running kernel. A later Cell replays an earlier Cell's inputs under its own rules, so its snapshot is what it would have concluded from the same facts; an effect the earlier Cell issued under a key the later one would not produce is reported by its receipt as unknown, and `Recovered` treats every unsettled effect as unknown (ADR 0010).
 
 **Full.** An append that cannot be written or synced returns `Full`, so the kernel drops the Decision whole and issues no effect (ADR 0012 §5).
 
@@ -49,7 +55,7 @@ The storage engine for Loom's materialized state (the persistence ablation of `n
 ## Acceptance Criteria
 
 - `09-file-and-directory`: the Linux adapter's file suite passes with content from the store; a blob whose bytes were changed on disk is refused, not written; a bundle with a misnamed file is refused whole.
-- `10-durable-cell`, experiment `durable-log`: a Cell killed at every step of a batch's write recovers every acknowledged Event and Obligation; a torn final record is truncated and reported; a corrupted middle record fails the open.
+- `10-durable-cell`, experiment `durable-log`: a Cell killed at every step recovers the snapshot, every acknowledged Event and Obligation included, by replaying its journal; a torn final record is truncated and reported; a corrupted middle record fails the open.
 
 ## Note, 2026-09-30: The First Criterion
 
