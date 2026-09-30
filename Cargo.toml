@@ -77,6 +77,10 @@ trybuild = "1"
 # resolve flags, and the monotonic clock, through safe wrappers, because the
 # workspace forbids `unsafe`. Adapters only; the core purity policy denies it.
 rustix = { version = "1", default-features = false, features = ["std", "fs", "time"] }
+# systemd's D-Bus API for the Linux Substrate's units (milestone 11): a
+# pure-Rust client, through its blocking API, since the port is synchronous
+# (Phase 1 plan, decision 2). Adapters only.
+zbus = { version = "5.19", default-features = false, features = ["async-io", "blocking-api"] }
 # Independent references for the Canon IR (milestone 06). Dev-dependencies
 # only: the encoders and the hash under test are written without them.
 ciborium = "0.2"
