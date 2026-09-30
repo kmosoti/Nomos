@@ -27,6 +27,7 @@
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
 pub mod accounts;
+pub mod host_traits;
 pub mod packages;
 pub mod units;
 pub mod users;
@@ -162,6 +163,12 @@ impl LinuxHost {
         let digest = digest_of(&bytes);
         self.content.insert(digest, bytes);
         digest
+    }
+
+    /// The host's Traits, and the keys whose source could not be read
+    /// ([`host_traits`]).
+    pub fn traits(&self) -> (Vec<nomos_core::traits::Trait>, Vec<&'static str>) {
+        host_traits::traits(self.root.as_fd(), now())
     }
 
     /// How many executions the host has started: requests neither refused
@@ -728,7 +735,10 @@ fn relative(path: &ResourcePath) -> &str {
     path.as_str().trim_start_matches('/')
 }
 
-fn now() -> Instant {
+/// The host's monotonic clock, the clock every Observation window and
+/// settle-by instant of this adapter is on (S9); a driver ticks the kernel
+/// with it.
+pub fn now() -> Instant {
     let t = clock_gettime(ClockId::Monotonic);
     let nanos = u64::try_from(t.tv_sec).unwrap_or(0) * 1_000_000_000
         + u64::try_from(t.tv_nsec).unwrap_or(0);

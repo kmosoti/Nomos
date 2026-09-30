@@ -21,9 +21,12 @@
 //! - [`footprint`]   — what a controller writes and relies on, and the
 //!   composition check over footprints
 //!
+//! Implemented, milestone `14-cell-commands`:
+//! - [`traits`]      — Traits: facts a host reports, with provenance,
+//!   observation time, and stability (spec §4)
+//!
 //! Planned modules (none implemented yet):
 //! - `canon`       — Canon (compiled desired intent) domain types
-//! - `trait_`      — Trait (value, provenance, observation time, stability)
 //! - `id`          — NodeID, CanonID, PlanID, ActionID, EventID
 //! - `event`       — Event and Event Log semantics
 #![no_std]
@@ -49,6 +52,7 @@ pub mod footprint;
 pub mod observation;
 pub mod plan;
 pub mod resource;
+pub mod traits;
 
 #[cfg(kani)]
 mod verification;

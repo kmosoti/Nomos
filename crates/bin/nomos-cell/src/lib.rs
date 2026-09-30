@@ -1,5 +1,9 @@
 //! The Cell's composition: the adapters wired to the ports the application
-//! and the Substrate read through.
+//! and the Substrate read through, and the commands an operator runs
+//! ([`cli`], [`render`]).
+
+pub mod cli;
+pub mod render;
 
 use nomos_core::resource::Digest;
 use nomos_store::ContentStore;
