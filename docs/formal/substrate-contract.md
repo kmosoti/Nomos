@@ -31,7 +31,7 @@ The clauses name files, as the first operation did; from milestone `08-resource-
 - **S2.** Absence is family-specific evidence: no file or directory at the path, no account of the name, a package dpkg records as not installed. A unit systemd does not know and a sysctl the kernel does not have are failed collections, `unavailable`, never absence.
 - **S3.** A family reports the evidence its table lists, and nothing that judges it.
 - **S5.** `changed` is true exactly when the family's evidence would differ from before: a unit started, a value written that was not there, a package installed.
-- **S7.** Each family's refusals are part of its contract: removing a directory with entries; a file where a directory is, or a directory where a file is; changing a user's class; changing or deleting an account whose numeric ID another account also holds; enabling or disabling a unit whose unit-file state is fixed; an operation on a unit or a kernel parameter the host does not know; a requirement of another family than the resource's; a refresh of anything but a unit or the legacy service; and any operation on a family the adapter does not serve.
+- **S7.** Each family's refusals are part of its contract: removing a directory with entries; a file where a directory is, or a directory where a file is; changing a user's class; changing or deleting an account whose numeric ID another account also holds; enabling or disabling a unit whose unit-file state is fixed; an operation on a unit or a kernel parameter the host does not know; a package operation whose simulation fails or would remove a package the requirement does not name; a requirement of another family than the resource's; a refresh of anything but a unit or the legacy service; and any operation on a family the adapter does not serve.
 
 The conformance suite runs every clause for every family an adapter serves, from a list of requirements and starting points per family taken from its truth table; S8 is checked on every execution S5 and S7 perform. The mock serves all seven; the suite runs for the six Phase 1 families, and the legacy service keeps the file suite's and the transition kernel's checks. The Linux adapter serves a family from the milestone that implements it; until then, a key of the family is observed as a failed collection, `unsupported`, and every operation on it is refused.
 
@@ -180,13 +180,43 @@ The tools own the locking of the databases and the consistency of the shadow fil
 
 **Testing.** The user suite runs here and on Debian against a scratch root, with `--prefix`, so it changes no account of the host. The kernel-parameter suite runs against a scratch root whose `proc/sys` is a tree of regular files, which is how the adapter reads it; a test in the Debian container reads and writes the running kernel's own `kernel.domainname`, which is private to the container's own namespace for host and domain names, and observes a parameter the kernel does not have.
 
+## Packages on Linux
+
+From `13-package` the adapter serves the `package` family, as [resource-families.md](resource-families.md) states it.
+
+**Observation.** dpkg's status database, `/var/lib/dpkg/status` beneath the root, read directly and never through a program. dpkg replaces the file whole by a rename, so a read sees one state of it. A package's entry is the one whose `Architecture` is the host's own or `all`, preferring the host's own; a package with no such entry is not installed.
+
+| `Status` of the entry | Evidence |
+| --- | --- |
+| `installed`, `triggers-awaited`, or `triggers-pending`, with no error flag | `installed`, at its `Version` |
+| `not-installed` or `config-files`, or no entry | `not-installed` |
+| `half-installed`, `unpacked`, or `half-configured`, or an error flag such as `reinstreq` | `broken` |
+| The database cannot be read | Failed, as the error maps |
+
+**The lock.** While another package manager holds dpkg's lock, the database may be between two states of one transaction, and what it says of a package is not evidence. Before reading, the adapter looks for a lock on `/var/lib/dpkg/lock-frontend` or `/var/lib/dpkg/lock` in the kernel's table of file locks, `/proc/locks` beneath the root, which it reads and never takes, so it never makes another package manager fail. It looks again every 100 milliseconds for at most 5 seconds; a lock still held then makes the collection Failed, timed out, and the package Indeterminate: never a false Variance.
+
+**Mutation.** Through `apt-get`, run by a direct `execve` of `/usr/bin/apt-get` (ADR 0013 §4) with an environment of only `PATH=/usr/sbin:/usr/bin:/sbin:/bin`, `LC_ALL=C`, and `DEBIAN_FRONTEND=noninteractive`, standard input from `/dev/null`, and no shell. Packages are managed only on the host itself: a host whose root is not `/` refuses every package operation.
+
+| Requirement | Command |
+| --- | --- |
+| `installed`, no version | `apt-get install --yes --no-install-recommends` with the name, when the package is not installed or is broken |
+| `installed` at a version | `apt-get install --yes --no-install-recommends --allow-downgrades` with `name=version`, when another version or none is installed, or the package is broken |
+| `absent` | `apt-get remove --yes` with the name, when the package is installed or broken; its configuration files stay, as the family's `not-installed` allows |
+
+Every mutating command also carries `-o DPkg::Lock::Timeout=60`, so it waits for another package manager rather than failing at once, and `-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold`, so a changed configuration file is kept without a question. Nomos does not refresh the package index; the distribution's own timer does, and a version the index does not offer is refused.
+
+**Refusal before effect.** Each command is first run with `--simulate`, which takes no lock and changes nothing. The adapter refuses (S7) when the simulation fails, as it does for a package or version the index does not offer, or when it would remove any package the requirement does not name: installing a package that conflicts with another, or removing one that others depend on, would delete what the Canon did not describe. A package whose collection failed is refused too.
+
+**Settlement.** `apt-get` returns when dpkg has finished. The receipt is `Completed`, `changed` when the package's evidence after differs from before, when `apt-get` exits with status 0; `Failed` otherwise, whatever it did, and the package is read again from a new Observation.
+
+**Testing.** Observation and the lock run here against a scratch root holding a status database and a table of locks. The package suite changes the host's packages, so it runs only in the Debian container, against a local repository the test builds: dummy packages at versions `1.0-1` and `2.0-1`, built with `dpkg-deb`, with a hand-written index, trusted as a `file:` source. The lock is held there by the test itself, with a POSIX record lock on `lock-frontend`, the kind dpkg takes.
+
 ## Failure Injection on Linux
 
 Beyond the suite, the Linux adapter is tested against what a real file system can do to it: a symbolic link at the resource and one in a parent directory, a directory where a file is expected, a foreign writer that changes the file between an execution and its verification, and a read denied by file permissions. A test that must deny a read to a process with the capability to override file permissions drops that capability for its own thread first.
 
 ## Known Gaps
 
-- **Packages.** They arrive with their resource family in `13-package`.
 - **Supplementary groups, access control lists, and extended attributes.** Not managed or compared.
 - **Privilege separation.** The mutation helper of spec §55 is Phase 5; the adapter here runs with the test's privileges.
 - **Crash consistency of the rename.** The sequence follows spec §11, and a crash between its steps is not tested.
