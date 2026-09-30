@@ -85,6 +85,14 @@ The TLA+ model `RefreshRecovery` checks the four properties the grounding plan n
 
 The project owner accepted this ADR on 2026-09-28. Both acceptance criteria are met by records: the truth tables of [warp-truth-table](../research/2026-09-28-typed-core/results/warp-truth-table.md), and [refresh-recovery](../research/2026-09-28-typed-core/results/refresh-recovery.md) with [scheduler-admission](../research/2026-09-28-typed-core/results/scheduler-admission.md). The decision accepted is §1 to §5 as amended by the notes above: a source is met when it Succeeded or was Skipped; an `on_change` group whose source is not met is Blocked; an `after` edge has no Blocked state; a refresh that no Condition can observe is an Obligation, recorded before the change, discharged only by a verified refresh, and planned as an owed vertex until then; a refresh holds the keys of the files it reads; and reservations last until settlement. The working definitions in the notes are no longer working definitions.
 
+## Note, 2026-09-30: A Variance Is a Reason to Run
+
+Milestone `08-resource-families` found a gap in §1 as accepted. A vertex whose `on_change` group is Disabled is Skipped unless it is owed, and a resource with a Variance of its own was planned as a plain Action vertex. So a resource that differs from its requirement, and whose `on_change` sources all succeeded without change, was Skipped: a unit that must run and is stopped, with its configuration file Satisfied, would never be started, and the run would end Indeterminate with nothing Indeterminate. The legacy service of `05-transition-kernel` had the same gap, which no scenario exercised.
+
+**Amendment.** A resource with a Variance of its own gets an Action vertex marked *varying*, and a varying vertex resolves as an owed one does: its Variance is its reason to run, so a Disabled group makes it Ready, while Blocked and Waiting still apply and it never runs with an input whose write failed or is unknown. A resource that acts only because an `on_change` source acts keeps the unmarked Action vertex, and is Skipped when the source changes nothing. [warp.md](../formal/warp.md) states the rule; `frontier::tests::a_varying_vertex_runs_when_its_group_is_disabled` and the kernel test `a_unit_refreshes_exactly_when_its_source_acts` check it, and semantic mutant `SM-WARP-007` removes it. The truth tables of `04` are unchanged, and the tests behind the recorded experiments of `05` to `07` pass with the amendment.
+
+The amendment narrows what Skipped means to what the ADR already said it meant, "had no reason to run". It is made under the owner's standing instruction to take Phase 1 to an alpha, and is flagged for the owner's review in the milestone's pull request.
+
 ## Consequences
 
 - Spec §62's edge-semantics question is closed by this ADR's acceptance.

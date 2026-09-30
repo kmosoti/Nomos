@@ -31,9 +31,9 @@ The clauses name files, as the first operation did; from milestone `08-resource-
 - **S2.** Absence is family-specific evidence: no file or directory at the path, no account of the name, a package dpkg records as not installed. A unit systemd does not know and a sysctl the kernel does not have are failed collections, `unavailable`, never absence.
 - **S3.** A family reports the evidence its table lists, and nothing that judges it.
 - **S5.** `changed` is true exactly when the family's evidence would differ from before: a unit started, a value written that was not there, a package installed.
-- **S7.** Each family's refusals are part of its contract: removing a directory with entries, changing a user's class, and any operation on a family the adapter does not serve.
+- **S7.** Each family's refusals are part of its contract: removing a directory with entries; a file where a directory is, or a directory where a file is; changing a user's class; enabling or disabling a unit whose unit-file state is fixed; an operation on a unit or a kernel parameter the host does not know; a requirement of another family than the resource's; a refresh of anything but a unit or the legacy service; and any operation on a family the adapter does not serve.
 
-The conformance suite runs every clause for every family an adapter serves. The mock serves all seven; the Linux adapter serves a family from the milestone that implements it.
+The conformance suite runs every clause for every family an adapter serves, from a list of requirements and starting points per family taken from its truth table; S8 is checked on every execution S5 and S7 perform. The mock serves all seven; the suite runs for the six Phase 1 families, and the legacy service keeps the file suite's and the transition kernel's checks. The Linux adapter serves a family from the milestone that implements it; until then, a key of the family is observed as a failed collection, `unsupported`, and every operation on it is refused.
 
 ## The Conformance Suite
 
@@ -56,7 +56,7 @@ The adapter manages regular files beneath one root directory. The root is `/` in
 
 | Result | Collection |
 | --- | --- |
-| The file is regular and its bytes were read | Collected, present, with the Secure Hash Algorithm (SHA) 256 digest of the bytes and their count |
+| The file is regular and its bytes were read | Collected, present, with the Secure Hash Algorithm (SHA) 256 digest of the bytes, their count, and the owner and group by number and the mode, as `fstat` reports them |
 | No file at the path (`ENOENT`), or a parent that is not a directory (`ENOTDIR`) | Collected, absent |
 | Permission denied (`EACCES`, `EPERM`) | Failed, permission denied |
 | A symbolic link on the path (`ELOOP`), a path that would leave the root (`EXDEV`), or something other than a regular file | Failed, unsupported |
@@ -64,7 +64,7 @@ The adapter manages regular files beneath one root directory. The root is `/` in
 
 The collection window is the monotonic clock's reading before the open and after the read.
 
-**Mutation.** `Replace` makes the file satisfy its requirement, and nothing else is supported:
+**Mutation.** `Converge` with a file requirement makes the file satisfy it, and nothing else is supported:
 
 | Requirement | Effect |
 | --- | --- |
@@ -72,7 +72,7 @@ The collection window is the monotonic clock's reading before the open and after
 | Present, any content | Create an empty file if none exists. Completed, changed exactly when one was created |
 | Present, exact content | Write the content whose digest the requirement names, atomically: a temporary file in the same directory, written and synced, given mode `0644`, renamed over the target, and the directory synced (spec §11). Completed, changed exactly when the content differs from before |
 
-The adapter refuses (S7), changing nothing, when: the operation is a service refresh, which waits for the systemd resource; the content of an exact requirement is not in the adapter's content store; the parent directory does not exist, since directories are a separate resource; or something other than a regular file is at the path. If the rename fails after the temporary file was written, the temporary file is removed and the receipt is `Failed`.
+The adapter refuses (S7), changing nothing, when: the operation is a refresh, which waits for the systemd resource; the resource is not a file; the requirement states owner, group, or mode, which `09-file-and-directory` manages; the content of an exact requirement is not in the adapter's content store; the parent directory does not exist, since directories are a separate resource; or something other than a regular file is at the path. If the rename fails after the temporary file was written, the temporary file is removed and the receipt is `Failed`.
 
 **Content.** An exact requirement carries a digest, not bytes. The adapter holds a content store, a map from digest to bytes, filled by whoever constructs it; the store is how content reaches a Cell until artifact content delivery is specified.
 
@@ -84,7 +84,7 @@ Beyond the suite, the Linux adapter is tested against what a real file system ca
 
 ## Known Gaps
 
-- **File metadata.** Owner, group, and mode other than `0644` are not managed or compared.
+- **File metadata.** Owner, group, and mode are observed, by number, but not managed: a requirement that states one is refused until `09-file-and-directory`.
 - **Directories, and every resource but regular files.** They arrive with their resource families; `systemd_unit` brings the refresh.
 - **Content delivery.** How content reaches a Cell with its Canon is open; the content store stands in for it.
 - **Privilege separation.** The mutation helper of spec §55 is Phase 5; the adapter here runs with the test's privileges.

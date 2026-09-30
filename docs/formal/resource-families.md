@@ -7,7 +7,7 @@ A family fixes four things: how a resource is named, what may be required of it,
 
 ## Resource Keys
 
-A resource key is a family and a name. Two keys are equal only when both are; ordering is by family, then name, so every map and report is deterministic. The text form is `<family>:<name>`, for example `unit:nginx.service`.
+A resource key is a family and a name. Two keys are equal only when both are. Keys order by name, then family, so every map and report is deterministic: a path begins with `/` and sorts before every other name, so the resources a path names keep the order of their paths, whatever their family, as schema 2 and the transition kernel's scenarios ordered them; one name in two families, a package and a user both called `nginx`, orders by the family's name. The text form is `<family>:<name>`, for example `unit:nginx.service`.
 
 | Family | Name | Valid when |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ Content is judged before metadata, so a file with wrong bytes reports `content-d
 
 - **Requirement.** An activity, `active`, `inactive`, or —, and an enablement, `enabled`, `disabled`, or —.
 - **Evidence.** The unit's active state (`active`, `inactive`, `failed`, `activating`, `deactivating`, `reloading`) and its unit-file state (`enabled`, `disabled`, `static`, `masked`, or another). A unit systemd does not know or cannot load is a failed collection, `unavailable`, and so Indeterminate: its unit file may be written by an earlier Action of the same run.
-- **Operation.** Start or stop the unit and enable or disable it, as the requirement states; or refresh it, a restart, when an `on_change` relation asks.
+- **Operation.** Start or stop the unit and enable or disable it, as the requirement states; or refresh it, when an `on_change` source of it acts in the round or it owes an Obligation: set its enablement as required and restart it, or stop it if the requirement says `inactive`. Enabling or disabling a unit whose unit-file state is `static`, `masked`, or another state the adapter cannot change is refused before any effect (clause S7).
 
 | Requirement | Evidence |
 | --- | --- |
@@ -115,6 +115,10 @@ A Canon is admitted only when no two of its resources write one property, the ch
 | `package` | `package:<name>` |
 
 A file and a directory at one path therefore collide, as do a service and a file, and the validator rejects the Canon with the colliding property named. Distinct keys of one family never collide, since the map of resources has one entry per key.
+
+## Planning
+
+The kernel plans every family alike (ADR 0009, [warp.md](warp.md)): a resource with a Variance or an Obligation gets an Action, and a resource that is the `on_change` target of an Action gets one too. A Variance of the resource's own is a reason to run, as an Obligation is, so an unchanged `on_change` source never makes a resource that differs from its requirement Skip: a unit that is stopped when it must run is started though its configuration file is Satisfied. The Action's operation is a refresh for a unit asked to refresh and for the legacy service, and converges the resource otherwise.
 
 ## What This Leaves Open
 
