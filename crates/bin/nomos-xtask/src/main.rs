@@ -68,6 +68,12 @@
 //!   each in the container as root, and prints the record as JSON; fails
 //!   when the harness cannot run or any test fails. Needs Docker and the
 //!   `x86_64-unknown-linux-musl` target.
+//! - `package [--version <v>] [--out <dir>]`: the Cell as a Debian package
+//!   (`16-alpha-release`). Builds `nomos-cell` as a static release binary
+//!   and assembles `nomos-cell_<version>_amd64.deb` with its service, timer,
+//!   and maintainer scripts, at the workspace's version in Debian form
+//!   unless one is named. Prints the package's path and SHA-256. Needs the
+//!   `x86_64-unknown-linux-musl` target and `dpkg-deb`.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
@@ -81,6 +87,7 @@ mod graph;
 mod hermeticity;
 mod layers;
 mod manifest;
+mod package;
 mod purity;
 mod receipt;
 mod semantic;
@@ -105,7 +112,8 @@ const USAGE: &str = "usage:
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
   cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]
   cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]
-  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]";
+  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]
+  cargo xtask package             [--version <debian-version>] [--out <dir>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -123,6 +131,7 @@ fn main() -> ExitCode {
         ["hermeticity", rest @ ..] => hermeticity(rest),
         ["generator-variance", rest @ ..] => generator_variance(rest),
         ["debian", rest @ ..] => debian(rest),
+        ["package", rest @ ..] => package(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -229,6 +238,31 @@ fn debian(rest: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("the suites failed on {}", record.os_release))
     }
+}
+
+/// The workspace's version, from `[workspace.package]` in the root
+/// manifest.
+fn workspace_version(root: &Path) -> Result<String, String> {
+    let text = std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| e.to_string())?;
+    let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
+    manifest["workspace"]["package"]["version"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "Cargo.toml has no workspace.package.version".into())
+}
+
+fn package(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let version = match option(rest, "--version")? {
+        Some(v) => v.to_string(),
+        None => package::debian_version(&workspace_version(&root)?),
+    };
+    let out = root.join(option(rest, "--out")?.unwrap_or("target/deb"));
+    std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let binary = package::binary(&root)?;
+    let deb = package::assemble(&root, &binary, &out, &version)?;
+    println!("{} {}", deb.display(), package::sha256(&deb)?);
+    Ok(())
 }
 
 fn hermeticity(rest: &[&str]) -> Result<(), String> {
