@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/model.rs b/crates/core/nomos-canon/src/model.rs
+--- a/crates/core/nomos-canon/src/model.rs
++++ b/crates/core/nomos-canon/src/model.rs
+@@ -690,7 +690,7 @@ fn assemble(
+         if resources.contains_key(&item.key) {
+             return Err(CanonError::DuplicatePath { resource: i });
+         }
+-        if !written.insert(Property::written(&item.key)) {
++        if !written.insert(Property::written(&item.key)) && false {
+             return Err(CanonError::Conflict { resource: i });
+         }
+         resources.insert(item.key, resource);

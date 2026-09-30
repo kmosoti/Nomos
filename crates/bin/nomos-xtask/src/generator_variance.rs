@@ -34,6 +34,13 @@
 //! the run ends, whether it succeeded or not. Every build shares one target
 //! directory with the semantic-mutant runner.
 //!
+//! The scratch copy is the workspace at [`PINNED`], the commit the recorded
+//! run used, checked out as a detached Git worktree: the candidates were
+//! written against that file-only core, and from `08-resource-families` the
+//! working tree's core is generic over families, so splicing them into it
+//! would measure nothing. The reference, its tests, and the semantic
+//! mutants are all read at that commit.
+//!
 //! The result is exploratory. A candidate's outcome never fails the command.
 //! The command fails when the negative control is not reported as
 //! own-tests-accepted and oracle-rejected, because then the harness is not
@@ -48,10 +55,18 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::receipt::test_counts;
-use crate::semantic::copy_tree;
 
 /// The reference implementation, relative to the workspace root.
 pub(crate) const REFERENCE_PATH: &str = "crates/core/nomos-core/src/assessment.rs";
+
+/// The commit the experiment ran at, and runs at again.
+pub(crate) const PINNED: &str = "576d50f2a32cea48cab2bcf1f6066f89f44bd40e";
+
+/// The reference at [`PINNED`], committed so that the harness's own tests
+/// need no history.
+#[cfg(test)]
+pub(crate) const REFERENCE_FIXTURE: &str =
+    "tests/fixtures/generator-variance/reference-assessment.rs";
 
 /// The package the reference belongs to.
 const PACKAGE: &str = "nomos-core";
@@ -867,9 +882,6 @@ fn mutants(root: &Path) -> Result<Vec<Mutant>, String> {
 
 /// Runs the experiment over every `*/candidate.rs` under `opts.candidates`.
 pub(crate) fn run(opts: &Options) -> Result<Record, String> {
-    let reference = read(&opts.root.join(REFERENCE_PATH))?;
-    let reference_span = reference_span(&reference)?;
-    let mutants = mutants(&opts.root)?;
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(&opts.candidates)
         .map_err(|e| format!("{}: {e}", opts.candidates.display()))?
         .filter_map(Result::ok)
@@ -881,14 +893,17 @@ pub(crate) fn run(opts: &Options) -> Result<Record, String> {
         return Err(format!("{}: no */candidate.rs", opts.candidates.display()));
     }
 
-    // One scratch copy for every candidate, removed whatever the outcome.
-    let _ = std::fs::remove_dir_all(&opts.scratch);
-    let judged = std::fs::create_dir_all(&opts.scratch)
-        .map_err(|e| format!("{}: {e}", opts.scratch.display()))
-        .and_then(|()| copy_tree(&opts.root, &opts.scratch))
-        .and_then(|()| judge(opts, &reference, reference_span, &mutants, &dirs));
-    let _ = std::fs::remove_dir_all(&opts.scratch);
-    let (rows, comparison) = judged?;
+    // One scratch copy for every candidate, at the pinned commit, removed
+    // whatever the outcome.
+    remove_worktree(opts);
+    let judged = add_worktree(opts).and_then(|()| {
+        let reference = read(&opts.scratch.join(REFERENCE_PATH))?;
+        let reference_span = reference_span(&reference)?;
+        let mutants = mutants(&opts.scratch)?;
+        judge(opts, &reference, reference_span, &mutants, &dirs).map(|judged| (judged, reference))
+    });
+    remove_worktree(opts);
+    let ((rows, comparison), reference) = judged?;
 
     let summary = summarize(&rows);
     Ok(Record {
@@ -899,6 +914,41 @@ pub(crate) fn run(opts: &Options) -> Result<Record, String> {
         comparison,
         summary,
     })
+}
+
+fn git(opts: &Options, args: &[&str]) -> Result<(), String> {
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(&opts.root)
+        .args(args)
+        .status()
+        .map_err(|e| format!("git: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("git {}: {status}", args.join(" ")))
+    }
+}
+
+/// Checks the workspace out at [`PINNED`] into the scratch directory. Fails
+/// when the commit is not in the repository, as in a shallow clone.
+fn add_worktree(opts: &Options) -> Result<(), String> {
+    let scratch = opts
+        .scratch
+        .to_str()
+        .ok_or("the scratch path is not text")?;
+    git(
+        opts,
+        &["worktree", "add", "--detach", "--force", scratch, PINNED],
+    )
+}
+
+fn remove_worktree(opts: &Options) {
+    if let Some(scratch) = opts.scratch.to_str() {
+        let _ = git(opts, &["worktree", "remove", "--force", scratch]);
+    }
+    let _ = std::fs::remove_dir_all(&opts.scratch);
+    let _ = git(opts, &["worktree", "prune"]);
 }
 
 /// Judges every candidate in the scratch copy, then compares them.
@@ -1125,7 +1175,24 @@ mod tests {
     }
 
     fn reference() -> String {
-        std::fs::read_to_string(root().join(super::REFERENCE_PATH)).unwrap()
+        std::fs::read_to_string(root().join(super::REFERENCE_FIXTURE)).unwrap()
+    }
+
+    /// The committed reference is the one the recorded run judged against:
+    /// its digest is the record's `reference_sha256`.
+    #[test]
+    fn the_reference_fixture_is_the_recorded_reference() {
+        let record: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                root().join("docs/research/2026-09-28-typed-core/results/generator-variance.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            record["reference_sha256"].as_str(),
+            Some(super::sha256_hex(reference().as_bytes()).as_str())
+        );
     }
 
     const SMALL: &str = "/// Docs.

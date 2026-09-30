@@ -1,0 +1,11 @@
+diff --git a/crates/adapters/nomos-substrate-mock/src/lib.rs b/crates/adapters/nomos-substrate-mock/src/lib.rs
+--- a/crates/adapters/nomos-substrate-mock/src/lib.rs
++++ b/crates/adapters/nomos-substrate-mock/src/lib.rs
+@@ -371,6 +371,7 @@ impl MockHost {
+                     requirement,
+                     Requirement::Directory(DirectoryCondition::Absent)
+                 ) && self.has_entries(path)
++                    && false
+             }
+             (ResourceKey::User(_), _) => match (known, requirement) {
+                 (

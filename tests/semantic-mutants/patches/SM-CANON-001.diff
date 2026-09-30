@@ -1,11 +1,16 @@
 diff --git a/crates/core/nomos-canon/src/model.rs b/crates/core/nomos-canon/src/model.rs
 --- a/crates/core/nomos-canon/src/model.rs
 +++ b/crates/core/nomos-canon/src/model.rs
-@@ -480,7 +480,6 @@
-             let end = |text: &str| {
-                 ResourcePath::new(text)
-                     .ok()
--                    .filter(|p| resources.contains_key(p))
-                     .ok_or(CanonError::DanglingRelation { relation: i })
-             };
-             let source = end(&rel.source)?;
+@@ -753,7 +753,11 @@ impl TryFrom<RawCanon> for Canon {
+         }
+         assemble(&raw.name, items, &raw.relations, |text, resources| {
+             let path = ResourcePath::new(text).ok()?;
+-            resources.keys().find(|k| k.path() == Some(&path)).cloned()
++            resources
++                .keys()
++                .find(|k| k.path() == Some(&path))
++                .cloned()
++                .or(Some(ResourceKey::File(path)))
+         })
+     }
+ }

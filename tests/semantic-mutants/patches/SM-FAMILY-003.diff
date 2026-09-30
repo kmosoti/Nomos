@@ -1,0 +1,15 @@
+diff --git a/crates/core/nomos-core/src/assessment.rs b/crates/core/nomos-core/src/assessment.rs
+--- a/crates/core/nomos-core/src/assessment.rs
++++ b/crates/core/nomos-core/src/assessment.rs
+@@ -282,7 +282,10 @@ pub fn assess_user(requirement: &UserCon
+ /// Judges collected evidence of a package (the package table).
+ pub fn assess_package(requirement: &PackageCondition, evidence: &PackageEvidence) -> Assessment {
+     match (requirement, evidence) {
+-        (_, PackageEvidence::Broken) => Assessment::Variance(Variance::Broken),
++        (PackageCondition::Absent, PackageEvidence::Broken) => {
++            Assessment::Variance(Variance::Broken)
++        }
++        (PackageCondition::Installed { .. }, PackageEvidence::Broken) => Assessment::Satisfied,
+         (PackageCondition::Absent, PackageEvidence::NotInstalled) => Assessment::Satisfied,
+         (PackageCondition::Absent, PackageEvidence::Installed { .. }) => {
+             Assessment::Variance(Variance::Unexpected)

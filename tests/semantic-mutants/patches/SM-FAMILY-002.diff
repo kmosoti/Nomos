@@ -1,0 +1,15 @@
+diff --git a/crates/core/nomos-core/src/assessment.rs b/crates/core/nomos-core/src/assessment.rs
+--- a/crates/core/nomos-core/src/assessment.rs
++++ b/crates/core/nomos-core/src/assessment.rs
+@@ -225,7 +225,10 @@ pub fn assess_unit(requirement: &UnitCon
+     let enablement = match requirement.enablement {
+         Enablement::Any => false,
+         Enablement::Enabled => evidence.file_state != UnitFileState::Enabled,
+-        Enablement::Disabled => evidence.file_state != UnitFileState::Disabled,
++        Enablement::Disabled => !matches!(
++            evidence.file_state,
++            UnitFileState::Disabled | UnitFileState::Static
++        ),
+     };
+     if activity || enablement {
+         Assessment::Variance(Variance::UnitDiffers {

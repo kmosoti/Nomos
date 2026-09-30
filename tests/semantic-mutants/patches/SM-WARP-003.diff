@@ -1,10 +1,9 @@
 diff --git a/crates/core/nomos-warp/src/graph.rs b/crates/core/nomos-warp/src/graph.rs
-index c11f964..2722898 100644
 --- a/crates/core/nomos-warp/src/graph.rs
 +++ b/crates/core/nomos-warp/src/graph.rs
-@@ -282,7 +282,7 @@ impl Graph {
- fn kahn(vertices: &BTreeMap<ResourcePath, Vertex>, edges: &[Edge]) -> Vec<ResourcePath> {
-     let mut indegree: BTreeMap<&ResourcePath, usize> =
+@@ -352,7 +352,7 @@ impl Graph {
+ fn kahn(vertices: &BTreeMap<ResourceKey, Vertex>, edges: &[Edge]) -> Vec<ResourceKey> {
+     let mut indegree: BTreeMap<&ResourceKey, usize> =
          vertices.keys().map(|r| (r, 0usize)).collect();
 -    for edge in edges {
 +    for edge in edges.iter().filter(|e| e.kind != EdgeKind::After) {

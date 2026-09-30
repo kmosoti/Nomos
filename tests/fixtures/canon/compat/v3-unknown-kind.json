@@ -1,0 +1,1 @@
+{"name":"compat","relations":[],"resources":[{"disrupts":[],"keys":[],"kind":"file","name":"/etc/a","spec":{"state":"absent"}},{"disrupts":[],"keys":[],"kind":"firewall","name":"input","spec":{"policy":"drop"}}],"schema":3}

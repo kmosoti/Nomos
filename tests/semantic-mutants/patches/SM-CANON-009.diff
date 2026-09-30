@@ -1,0 +1,14 @@
+diff --git a/crates/core/nomos-canon/src/model.rs b/crates/core/nomos-canon/src/model.rs
+--- a/crates/core/nomos-canon/src/model.rs
++++ b/crates/core/nomos-canon/src/model.rs
+@@ -792,9 +792,7 @@ impl TryFrom<RawCanon3> for Canon {
+             });
+         }
+         assemble(&raw.name, items, &raw.relations, |text, resources| {
+-            ResourceKey::parse(text)
+-                .ok()
+-                .filter(|k| resources.contains_key(k))
++            ResourceKey::parse(text).ok()
+         })
+     }
+ }

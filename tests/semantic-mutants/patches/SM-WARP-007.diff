@@ -1,0 +1,12 @@
+diff --git a/crates/app/nomos-app/src/kernel/step.rs b/crates/app/nomos-app/src/kernel/step.rs
+--- a/crates/app/nomos-app/src/kernel/step.rs
++++ b/crates/app/nomos-app/src/kernel/step.rs
+@@ -513,7 +513,7 @@ fn plan_round(run: &Run, report: &Report
+             let vertex = if owed.contains(path) {
+                 Vertex::owed(path.clone(), keys)
+             } else if matches!(assessment.get(path), Some(Assessment::Variance(_))) {
+-                Vertex::varying(path.clone(), keys)
++                Vertex::action(path.clone(), keys)
+             } else {
+                 Vertex::action(path.clone(), keys)
+             };
