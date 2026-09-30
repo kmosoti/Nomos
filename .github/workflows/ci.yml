@@ -37,6 +37,9 @@ jobs:
       # No build script, no dependency outside the allowlist, no_std, panic
       # lints denied. Violations print a stable code, crate, and dependency.
       - run: cargo xtask check-core-purity
+      # The authoring kit's build runs no procedural macro and no build
+      # script (canon-ir.md, Provenance).
+      - run: cargo xtask check-canon-build
       # Every receipt names a registered check and claims passed only with
       # evidence of a run.
       - run: cargo xtask receipts validate
@@ -217,3 +220,37 @@ jobs:
               echo "::warning title=Docs lint::${check%%=*} reported findings. Advisory only; see the job log."
             fi
           done
+
+  # A release: on a tag `v<version>`, once the required checks pass on the
+  # tagged commit, the Cell's Debian package is built and attached to a
+  # GitHub pre-release whose notes are docs/releases/<tag>.md. The asset's
+  # name spells the version with `-`, since GitHub renames `~`; the package
+  # inside carries Debian's `~`.
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [check, debian, trust-boundary, research-frozen]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          targets: x86_64-unknown-linux-musl
+      - run: cargo xtask package --out dist
+      - run: |
+          for deb in dist/*.deb; do
+            name="$(basename "$deb")"
+            mv "$deb" "dist/${name//\~/-}"
+          done
+          # Names without the directory, so `sha256sum --check` works
+          # beside the downloaded files.
+          (cd dist && sha256sum -- *.deb | tee SHA256SUMS)
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          body_path: docs/releases/${{ github.ref_name }}.md
+          files: |
+            dist/*.deb
+            dist/SHA256SUMS

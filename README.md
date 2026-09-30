@@ -33,12 +33,13 @@ Nomos is part of **Moiric**. FabricO11y observes systems, Nomos controls them, a
 
 ## Status
 
-Skeleton. The architecture and crate boundaries are in place, and the code is still empty. Phase 0 comes next: a deterministic Canon → Variance → Plan pipeline against a simulated machine.
+Alpha. `0.1.0-alpha.1` is the masterless Cell: one Debian host, a Canon compiled from Rust, and a timer that converges the host toward it and records what it did. It manages files, directories, systemd units, kernel parameters, accounts, and packages on Debian 12 and 13. The [release notes](docs/releases/v0.1.0-alpha.1.md) say what it does and does not establish, each claim with its record, and the [operator guide](docs/operator-guide.md) installs it. Fleets, secrets, and signed Canons come later.
 
 ## Learn More
 
 Everything technical lives in [`docs/`](docs/):
 
+- [Operator guide](docs/operator-guide.md): install the Cell, author a Canon, and run it
 - [Project specification](docs/PROJECT-SPEC.md): the model, semantics, and safety invariants
 - [Architecture](docs/architecture/): how the system and the code are organized
 - [Formal](docs/formal/): the algorithms, and the invariants Nomos must never break

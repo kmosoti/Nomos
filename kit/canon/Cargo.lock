@@ -3,8 +3,8 @@
 version = 4
 
 [[package]]
-name = "canon-authoring"
-version = "0.0.0"
+name = "canon-kit"
+version = "0.1.0"
 dependencies = [
  "nomos-canon",
  "nomos-core",

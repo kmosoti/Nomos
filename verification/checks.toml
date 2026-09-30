@@ -35,6 +35,10 @@ what = "the dependency rule of ADR 0000 over declared and resolved graphs"
 command = "cargo xtask check-core-purity"
 what = "the core purity policy of ADR 0016 over crates/core/"
 
+[checks.check-canon-build]
+command = "cargo xtask check-canon-build"
+what = "a Canon crate's build runs no procedural macro and no build script (canon-ir.md, Provenance)"
+
 [checks.check-trust-boundary]
 command = "cargo xtask check-trust-boundary --base <ref>"
 what = "every commit since the merge base declares its oracle changes (ADR 0015)"
@@ -70,3 +74,7 @@ what = "experiment generator-variance: each candidate against its own tests, the
 [checks.debian]
 command = "cargo xtask debian"
 what = "the Linux suites, built as static binaries, pass as root in a fresh privileged Debian container of the named release with systemd as PID 1; needs Docker and the musl target, and fails without them"
+
+[checks.package]
+command = "cargo xtask package"
+what = "the Cell's Debian package builds: a static binary, its service and timer, and its maintainer scripts; whether it installs is the debian check's"

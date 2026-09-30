@@ -1,0 +1,10 @@
+# The procedural macro of the `authoring-proc-macro` control. It defines
+# nothing: the check refuses the crate by its kind, not by what it does.
+[package]
+name = "canon-authoring-macro"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+proc-macro = true

@@ -6,7 +6,7 @@ Guidance for automated coding agents in this repository. It applies to any agent
 
 Nomos is a host-state convergence and fleet-control system for Linux, written in Rust. Canon is compiled desired intent, authored in typed Rust and consumed as an inert artifact. Nomos assesses each Condition of the Canon against Observations from the OS boundary (Substrate) as Satisfied, Variance, or Indeterminate, plans Actions for the known Variances as a dependency graph (Warp), applies them through Substrate, verifies the result, and records Events. Unknown evidence does not imply noncompliance.
 
-The repository is at the **skeleton stage**. Crates contain module docs only. Do not add implementation unless the task asks for it. The next steps are the kernel milestones of an executable kernel contract, planned in `docs/research/2026-09-28-typed-core/grounding-plan.md`; a task that assigns one of its milestones or experiments is such an ask, for the crates it names.
+The repository is at its **first alpha**, `0.1.0-alpha.1`: the masterless Cell of `docs/plans/phase-1-masterless-cell.md`, built on the kernel of `docs/research/2026-09-28-typed-core/grounding-plan.md`. Do not add implementation unless the task asks for it. Work beyond Phase 1 waits for its plan; a task that assigns a milestone or experiment of a plan is such an ask, for the crates it names.
 
 ## Source of Truth
 

@@ -26,6 +26,11 @@
 //!   policy of `crates/core/PURITY.toml` (ADR 0016) over the declared and
 //!   resolved graphs and the crate roots. Prints the report as JSON and one
 //!   `IMPURE` line per violation, with its stable code.
+//! - `check-canon-build [--manifest-path <Cargo.toml>]`: a Canon crate's
+//!   build runs no procedural macro and no build script (canon-ir.md,
+//!   Provenance), over its resolved graph; the authoring kit unless a
+//!   manifest is named. Prints one `REFUSED` line per package, with its
+//!   stable code.
 //! - `check-trust-boundary --base <ref>`: every non-merge commit since the
 //!   merge base with `<ref>` declares the oracle it changes (ADR 0015), in a
 //!   `Trust-Boundary:` line, and adds no undeclared escape hatch. Prints one
@@ -68,10 +73,17 @@
 //!   each in the container as root, and prints the record as JSON; fails
 //!   when the harness cannot run or any test fails. Needs Docker and the
 //!   `x86_64-unknown-linux-musl` target.
+//! - `package [--version <v>] [--out <dir>]`: the Cell as a Debian package
+//!   (`16-alpha-release`). Builds `nomos-cell` as a static release binary
+//!   and assembles `nomos-cell_<version>_amd64.deb` with its service, timer,
+//!   and maintainer scripts, at the workspace's version in Debian form
+//!   unless one is named. Prints the package's path and SHA-256. Needs the
+//!   `x86_64-unknown-linux-musl` target and `dpkg-deb`.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
 
+mod canon_build;
 mod counterexamples;
 mod debian;
 mod error;
@@ -81,6 +93,7 @@ mod graph;
 mod hermeticity;
 mod layers;
 mod manifest;
+mod package;
 mod purity;
 mod receipt;
 mod semantic;
@@ -99,13 +112,15 @@ const USAGE: &str = "usage:
   cargo xtask research frozen     --base <ref>
   cargo xtask check-layers        [--manifest-path <Cargo.toml>]
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
+  cargo xtask check-canon-build   [--manifest-path <Cargo.toml>]
   cargo xtask check-trust-boundary --base <ref>
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
   cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]
   cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]
-  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]";
+  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]
+  cargo xtask package             [--version <debian-version>] [--out <dir>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -116,6 +131,7 @@ fn main() -> ExitCode {
         ["research", "frozen", rest @ ..] => frozen(rest),
         ["check-layers", rest @ ..] => check_layers(rest),
         ["check-core-purity", rest @ ..] => check_core_purity(rest),
+        ["check-canon-build", rest @ ..] => check_canon_build(rest),
         ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
         ["receipts", "validate", rest @ ..] => receipts_validate(rest),
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
@@ -123,6 +139,7 @@ fn main() -> ExitCode {
         ["hermeticity", rest @ ..] => hermeticity(rest),
         ["generator-variance", rest @ ..] => generator_variance(rest),
         ["debian", rest @ ..] => debian(rest),
+        ["package", rest @ ..] => package(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -229,6 +246,20 @@ fn debian(rest: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("the suites failed on {}", record.os_release))
     }
+}
+
+fn package(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let version = match option(rest, "--version")? {
+        Some(v) => v.to_string(),
+        None => package::debian_version(&package::workspace_version(&root)?),
+    };
+    let out = root.join(option(rest, "--out")?.unwrap_or("target/deb"));
+    std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let binary = package::binary(&root)?;
+    let deb = package::assemble(&root, &binary, &out, &version)?;
+    println!("{} {}", deb.display(), package::sha256(&deb)?);
+    Ok(())
 }
 
 fn hermeticity(rest: &[&str]) -> Result<(), String> {
@@ -344,6 +375,28 @@ fn check_core_purity(rest: &[&str]) -> Result<(), String> {
             "{} core purity violation(s); see {}",
             report.violations().len(),
             purity::POLICY_PATH
+        ))
+    }
+}
+
+fn check_canon_build(rest: &[&str]) -> Result<(), String> {
+    let manifest_path = option(rest, "--manifest-path")?
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("kit/canon/Cargo.toml"));
+    let violations = canon_build::check(&manifest_path)?;
+    for violation in &violations {
+        eprintln!("REFUSED {violation}");
+    }
+    if violations.is_empty() {
+        println!(
+            "{}: the build runs no procedural macro and no build script",
+            manifest_path.display()
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "{} package(s) run code at build time; see docs/formal/canon-ir.md, Provenance",
+            violations.len()
         ))
     }
 }

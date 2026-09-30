@@ -4,6 +4,8 @@
 
 #![allow(dead_code)]
 
+pub mod demo;
+
 use std::path::Path;
 use std::process::Command;
 

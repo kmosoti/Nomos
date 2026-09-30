@@ -1,0 +1,16 @@
+# The Canon authoring kit: copy this directory, describe your host in
+# src/main.rs, and run `cargo run -- <out>` to write the artifact and its
+# content bundle. It is its own workspace, with Nomos's Canon crates as its
+# only dependencies (ADR 0004: the Canon's Rust runs once, here, and never
+# on the host).
+[package]
+name = "canon-kit"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+nomos-canon = { path = "../../crates/core/nomos-canon" }
+nomos-core = { path = "../../crates/core/nomos-core" }
