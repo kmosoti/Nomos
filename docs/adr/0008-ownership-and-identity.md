@@ -74,6 +74,15 @@ The composition criterion ran, on the mock host and a two-kernel harness ([recor
 
 The ADR stays Proposed. Nothing ran on a real host, no sysctl was modeled, and the check is not wired into Canon admission. The identity criterion (`identity-rollback`) has not run. Acceptance is the owner's.
 
+## Note, 2026-09-30: Phase 1 Keeps It Proposed
+
+Phase 1 of the [masterless-Cell plan](../plans/phase-1-masterless-cell.md) asked for §1 and §2 to be accepted or kept Proposed with the reason recorded. They stay Proposed.
+
+- **What §1 gained.** Admission now rejects a Canon whose Conditions overlap on a written property, over all 196 pairs of resources from the six families ([admission-composition](../plans/results/admission-composition.md)), and every Canon the Cell enforced on Debian 12 and 13 passed through it. That is the one-owner rule within one Canon, which is all one Cell with one Canon can exercise.
+- **Why §1 is not accepted.** No second controller wrote a real host. The explicit conflict policy is not implemented, and a Canon that needs one is refused.
+- **Why §2 is not accepted.** A foreign writer is still undeclared. The Cell's timer undoes a foreign change at its next run and reports nothing but the Action: `15-debian-convergence` changed each resource behind the Cell's back and saw it converged again, as the evidence of 2026-09-29 predicted, with no interference reported. Seeing a writer that takes turns needs Assessment history across runs, which nothing implements.
+- **§3 and §4.** Identity and rollback wait for `identity-rollback`, in Phases 3, 4, and 6. The ADR is accepted whole, so it waits with them, unless the owner splits it.
+
 ## Consequences
 
 - Canon admission gains a footprint check, and Conditions gain a footprint field.
