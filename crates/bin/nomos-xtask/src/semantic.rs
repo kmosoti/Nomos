@@ -381,6 +381,54 @@ mod tests {
             failures,
             ["SM-FIX-002", "SM-FIX-003", "SM-FIX-004", "SM-FIX-005"]
         );
+        let line = report.rows()[0].to_string();
+        assert!(
+            line.starts_with("CAUGHT SM-FIX-001 (") && line.contains("; test "),
+            "the printed row names the outcome, the mutant, and its test: {line}"
+        );
+    }
+
+    /// The printed identifier of each outcome is its serialized form, the one
+    /// the JSON report carries.
+    #[test]
+    fn each_outcome_prints_its_serialized_identifier() {
+        for outcome in [
+            Outcome::Caught,
+            Outcome::Survived,
+            Outcome::Unviable,
+            Outcome::NamedTestMissing,
+            Outcome::PatchMissing,
+            Outcome::PatchDoesNotApply,
+            Outcome::Planned,
+            Outcome::Retired,
+        ] {
+            let serialized = serde_json::to_value(outcome).unwrap();
+            assert_eq!(Some(outcome.as_str()), serialized.as_str(), "{outcome:?}");
+        }
+    }
+
+    /// The scratch copy of a workspace leaves out its build output and its
+    /// Git directory, and keeps everything else.
+    #[test]
+    fn copy_tree_leaves_out_target_and_git() {
+        let base = std::env::temp_dir().join(format!("nomos-copy-tree-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (from, to) = (base.join("from"), base.join("to"));
+        for dir in ["target/debug", ".git/objects", "src/nested"] {
+            std::fs::create_dir_all(from.join(dir)).unwrap();
+        }
+        std::fs::write(from.join("target/debug/big"), b"build output").unwrap();
+        std::fs::write(from.join(".git/HEAD"), b"ref").unwrap();
+        std::fs::write(from.join("src/nested/lib.rs"), b"kept").unwrap();
+        std::fs::create_dir_all(&to).unwrap();
+        super::copy_tree(&from, &to).unwrap();
+        assert!(!to.join("target").exists());
+        assert!(!to.join(".git").exists());
+        assert_eq!(
+            std::fs::read(to.join("src/nested/lib.rs")).unwrap(),
+            b"kept"
+        );
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
