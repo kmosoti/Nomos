@@ -10,6 +10,7 @@
 //! snapshot, its pending Obligations included, and then still converge
 //! with the refresh done.
 
+mod scratch;
 mod support;
 
 use std::collections::VecDeque;
@@ -23,10 +24,7 @@ use nomos_store_fs::{FileLog, LogError};
 use support::*;
 
 fn journal(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nomos-durable-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir.join("journal")
+    scratch::dir("durable", name).join("journal")
 }
 
 fn open(path: &Path) -> JournaledCell<FileLog<Input>> {

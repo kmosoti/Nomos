@@ -15,6 +15,7 @@
 //! run and runs in a disposable container through `cargo xtask debian`.
 
 mod debian;
+mod scratch;
 
 use debian::demo::{CONFIG, LOADED, PACKAGE, artifact, perturb, prepare, starting_states};
 use debian::package_truth;
@@ -89,9 +90,7 @@ fn converges(label: &str, state: &str, canon: &str, bundle: &str) -> usize {
 #[ignore = "changes the host; run by `cargo xtask debian`"]
 fn the_demonstration_converges_from_every_enumerated_starting_state() {
     prepare();
-    let dir = std::env::temp_dir().join(format!("nomos-demo-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch::dir("demo", "artifact");
     let (canon, bundle) = artifact(&dir);
     let state = dir.join("state");
     let (canon, bundle, state) = (

@@ -10,6 +10,7 @@
 //! never through the adapter (substrate-contract.md, Units on Linux).
 
 mod conformance;
+mod scratch;
 mod support;
 
 use std::collections::BTreeSet;
@@ -598,9 +599,7 @@ fn a_refresh_survives_a_crash_between_the_change_and_the_restart() {
     let _manager = exclusive();
     let old = b"setting = old\n";
     let new = b"setting = new\n";
-    let journals = std::env::temp_dir().join(format!("nomos-refresh-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&journals);
-    std::fs::create_dir_all(&journals).unwrap();
+    let journals = scratch::dir("refresh", "journals");
 
     // The uninterrupted run, which gives the number of inputs.
     arrange_refresh(old);
