@@ -11,13 +11,13 @@
 
 use std::collections::BTreeSet;
 
-use nomos_core::assessment::{Assessment, Reason, Report, assess, assess_evidence};
+use nomos_core::assessment::{Assessment, Reason, Report, assess, assess_file};
 use nomos_core::condition::{Condition, Content, FileCondition};
 use nomos_core::observation::{
-    Collection, CollectionFailure, CollectorId, FileEvidence, Instant, Observation, Provenance,
-    Window,
+    Account, Collection, CollectionFailure, CollectorId, FileEvidence, Instant, Observation,
+    ObservedMetadata, Provenance, Window,
 };
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::resource::{Digest, Mode, ResourcePath};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngAlgorithm, TestRng, TestRunner};
 
@@ -68,19 +68,29 @@ fn digest() -> impl Strategy<Value = Digest> {
 fn requirement() -> impl Strategy<Value = FileCondition> {
     prop_oneof![
         Just(FileCondition::Absent),
-        Just(FileCondition::Present {
-            content: Content::Any
-        }),
-        digest().prop_map(|d| FileCondition::Present {
-            content: Content::Exactly(d)
-        }),
+        Just(FileCondition::present(Content::Any)),
+        digest().prop_map(|d| FileCondition::present(Content::Exactly(d))),
     ]
+}
+
+/// The laws are about content; the metadata is fixed, and the requirement
+/// states none, so it is never a Variance here.
+fn metadata() -> ObservedMetadata {
+    ObservedMetadata {
+        owner: Account::Id(0),
+        group: Account::Id(0),
+        mode: Mode::new(0o644).unwrap(),
+    }
 }
 
 fn evidence() -> impl Strategy<Value = FileEvidence> {
     prop_oneof![
         Just(FileEvidence::Absent),
-        (digest(), 0u64..4).prop_map(|(digest, size)| FileEvidence::Present { digest, size }),
+        (digest(), 0u64..4).prop_map(|(digest, size)| FileEvidence::Present {
+            digest,
+            size,
+            metadata: metadata(),
+        }),
     ]
 }
 
@@ -90,10 +100,11 @@ fn failure() -> impl Strategy<Value = CollectionFailure> {
         Just(CollectionFailure::TimedOut),
         Just(CollectionFailure::Unsupported),
         Just(CollectionFailure::Io),
+        Just(CollectionFailure::Unavailable),
     ]
 }
 
-fn collection() -> impl Strategy<Value = Collection> {
+fn collection() -> impl Strategy<Value = Collection<FileEvidence>> {
     prop_oneof![
         evidence().prop_map(Collection::Collected),
         failure().prop_map(Collection::Failed),
@@ -129,9 +140,11 @@ fn holds(requirement: &FileCondition, evidence: &FileEvidence) -> bool {
         FileCondition::Absent => matches!(evidence, FileEvidence::Absent),
         FileCondition::Present {
             content: Content::Any,
+            ..
         } => matches!(evidence, FileEvidence::Present { .. }),
         FileCondition::Present {
             content: Content::Exactly(expected),
+            ..
         } => matches!(evidence, FileEvidence::Present { digest, .. } if digest == expected),
     }
 }
@@ -142,7 +155,7 @@ fn holds(requirement: &FileCondition, evidence: &FileEvidence) -> bool {
 fn evidence_assessment_is_sound_on_generated_inputs() {
     runner(SEEDS[0])
         .run(&(requirement(), evidence()), |(r, e)| {
-            let a = assess_evidence(&r, &e);
+            let a = assess_file(&r, &e);
             prop_assert_eq!(matches!(a, Assessment::Satisfied), holds(&r, &e));
             prop_assert!(!a.is_indeterminate());
             Ok(())
@@ -255,15 +268,15 @@ fn collected_evidence_is_judged_when_it_agrees_and_indeterminate_when_it_does_no
             ),
             |(r, collections)| {
                 let path = ResourcePath::new("/r/1").unwrap();
-                let condition = Condition::file(path.clone(), r);
+                let condition = Condition::file(path.clone(), r.clone());
                 let observations: Vec<Observation> = collections
                     .iter()
-                    .map(|(c, v)| Observation::file(path.clone(), *c, v.clone()))
+                    .map(|(c, v)| Observation::file(path.clone(), c.clone(), v.clone()))
                     .collect();
                 let evidences: BTreeSet<FileEvidence> = collections
                     .iter()
                     .filter_map(|(c, _)| match c {
-                        Collection::Collected(e) => Some(*e),
+                        Collection::Collected(e) => Some(e.clone()),
                         Collection::Failed(_) => None,
                     })
                     .collect();
@@ -272,7 +285,7 @@ fn collected_evidence_is_judged_when_it_agrees_and_indeterminate_when_it_does_no
                     0 => prop_assert!(a.is_indeterminate()),
                     1 => {
                         let e = evidences.iter().next().unwrap();
-                        prop_assert_eq!(a, assess_evidence(&r, e));
+                        prop_assert_eq!(a, assess_file(&r, e));
                     }
                     _ => prop_assert_eq!(a, Assessment::Indeterminate(Reason::Conflicting)),
                 }

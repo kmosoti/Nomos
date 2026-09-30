@@ -9,7 +9,7 @@
 mod support;
 
 use nomos_app::kernel::{Canon, RunOutcome};
-use nomos_canon::artifact::{DecodeError, Profile, Reader, decode, encode};
+use nomos_canon::artifact::{DecodeError, Profile, Reader, decode, encode, encode_v2};
 use nomos_canon::model::{CanonBuilder, RawCanon, RawRelation, RawResource, RawSpec};
 use nomos_canon::value::Value;
 use support::*;
@@ -18,9 +18,10 @@ fn hex(n: u8) -> String {
     format!("{n:02x}").repeat(32)
 }
 
-/// The refresh scenario as an artifact: the configuration must hold the new
-/// revision, the service must run, and a change to the first refreshes the
-/// second.
+/// The refresh scenario as a schema-2 artifact, as `06-canon-artifact`
+/// wrote it: the configuration must hold the new revision, the service must
+/// run, and a change to the first refreshes the second. The current reader
+/// migrates it.
 fn obligation_artifact(profile: Profile) -> Vec<u8> {
     let raw = RawCanon {
         name: "refresh".into(),
@@ -53,7 +54,7 @@ fn obligation_artifact(profile: Profile) -> Vec<u8> {
         }],
     };
     let canon = nomos_canon::model::Canon::try_from(raw).unwrap();
-    encode(&canon, profile)
+    encode_v2(&canon, profile).unwrap()
 }
 
 /// The Cell's intake: bytes to the kernel's Canon, or the reason there is
@@ -88,9 +89,7 @@ fn authoring_and_decoding_reach_the_same_kernel_canon() {
     let built = CanonBuilder::new("refresh")
         .resource(
             CONF,
-            Requirement::File(FileCondition::Present {
-                content: Content::Exactly(d(NEW)),
-            }),
+            Requirement::File(FileCondition::present(Content::Exactly(d(NEW)))),
             &["file:/etc/svc.conf"],
             &[],
         )
@@ -104,7 +103,14 @@ fn authoring_and_decoding_reach_the_same_kernel_canon() {
         .build()
         .unwrap();
     for profile in Profile::ALL {
-        assert_eq!(encode(&built, profile), obligation_artifact(profile));
+        assert_eq!(
+            encode_v2(&built, profile).unwrap(),
+            obligation_artifact(profile)
+        );
+        assert_eq!(
+            intake(&encode(&built, profile), profile).unwrap(),
+            intake(&obligation_artifact(profile), profile).unwrap()
+        );
         assert_eq!(
             Canon::try_from(&built).unwrap(),
             intake(&obligation_artifact(profile), profile).unwrap()
@@ -113,36 +119,65 @@ fn authoring_and_decoding_reach_the_same_kernel_canon() {
 }
 
 /// The refresh artifact with one more resource, of a kind no reader here
-/// knows, in its place by path, as a newer writer would write it.
-fn unknown_kind_artifact(profile: Profile) -> Vec<u8> {
-    let Value::Map(mut top) = profile.decode_value(&obligation_artifact(profile)).unwrap() else {
+/// knows, in its place, as a newer writer would write it: in schema 2, a
+/// kind schema 2 does not have; in schema 3, a family no reader here has.
+/// Returns the artifact and how to recognize the added resource.
+fn unknown_kind_artifact(profile: Profile, schema: u64) -> (Vec<u8>, fn(&Value) -> bool) {
+    let (base, added, is_added): (Vec<u8>, Value, fn(&Value) -> bool) = if schema == 2 {
+        (
+            obligation_artifact(profile),
+            Value::Map(vec![
+                (
+                    "path".into(),
+                    Value::Text("/proc/sys/net/ipv4/ip_forward".into()),
+                ),
+                (
+                    "spec".into(),
+                    Value::Map(vec![
+                        ("kind".into(), Value::Text("sysctl".into())),
+                        ("state".into(), Value::Text("value".into())),
+                    ]),
+                ),
+                ("keys".into(), Value::Array(vec![])),
+                ("disrupts".into(), Value::Array(vec![])),
+            ]),
+            |r| {
+                matches!(
+                    r.get("spec").and_then(|s| s.get("kind")),
+                    Some(Value::Text(k)) if k == "sysctl"
+                )
+            },
+        )
+    } else {
+        let canon = decode(&obligation_artifact(profile), profile, &Reader::current())
+            .unwrap()
+            .canon;
+        (
+            encode(&canon, profile),
+            Value::Map(vec![
+                ("kind".into(), Value::Text("firewall".into())),
+                ("name".into(), Value::Text("input".into())),
+                (
+                    "spec".into(),
+                    Value::Map(vec![("policy".into(), Value::Text("drop".into()))]),
+                ),
+                ("keys".into(), Value::Array(vec![])),
+                ("disrupts".into(), Value::Array(vec![])),
+            ]),
+            |r| matches!(r.get("kind"), Some(Value::Text(k)) if k == "firewall"),
+        )
+    };
+    let Value::Map(mut top) = profile.decode_value(&base).unwrap() else {
         panic!()
     };
     for (k, v) in &mut top {
         if k == "resources"
             && let Value::Array(items) = v
         {
-            items.insert(
-                1,
-                Value::Map(vec![
-                    (
-                        "path".into(),
-                        Value::Text("/proc/sys/net/ipv4/ip_forward".into()),
-                    ),
-                    (
-                        "spec".into(),
-                        Value::Map(vec![
-                            ("kind".into(), Value::Text("sysctl".into())),
-                            ("state".into(), Value::Text("value".into())),
-                        ]),
-                    ),
-                    ("keys".into(), Value::Array(vec![])),
-                    ("disrupts".into(), Value::Array(vec![])),
-                ]),
-            );
+            items.insert(1, added.clone());
         }
     }
-    profile.encode_value(&Value::Map(top))
+    (profile.encode_value(&Value::Map(top)), is_added)
 }
 
 /// The strict intake refuses the unknown kind, so no Plan exists and the
@@ -151,8 +186,8 @@ fn unknown_kind_artifact(profile: Profile) -> Vec<u8> {
 /// two apart by the effects executed.
 #[test]
 fn an_unknown_mutating_kind_is_refused_before_any_effect() {
-    for profile in Profile::ALL {
-        let bytes = unknown_kind_artifact(profile);
+    for (profile, schema) in Profile::ALL.into_iter().flat_map(|p| [(p, 2), (p, 3)]) {
+        let (bytes, is_added) = unknown_kind_artifact(profile, schema);
         let strict = intake(&bytes, profile);
         assert_eq!(
             strict.err(),
@@ -174,12 +209,7 @@ fn an_unknown_mutating_kind_is_refused_before_any_effect() {
             if k == "resources"
                 && let Value::Array(items) = v
             {
-                items.retain(|r| {
-                    !matches!(
-                        r.get("spec").and_then(|s| s.get("kind")),
-                        Some(Value::Text(k)) if k == "sysctl"
-                    )
-                });
+                items.retain(|r| !is_added(r));
             }
         }
         let lenient = intake(&profile.encode_value(&Value::Map(top)), profile).unwrap();

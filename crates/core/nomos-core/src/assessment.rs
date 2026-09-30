@@ -23,16 +23,45 @@
 
 use alloc::vec::Vec;
 
-use crate::condition::{Condition, Content, FileCondition};
-use crate::observation::{Collection, CollectionFailure, FileEvidence, Observation};
+use crate::condition::{
+    AccountClass, Activity, Condition, Content, DirectoryCondition, Enablement, FileCondition,
+    Metadata, PackageCondition, Requirement, SysctlCondition, UnitCondition, UserCondition,
+};
+use crate::observation::{
+    Account, ActiveState, Collection, CollectionFailure, DirectoryEvidence, Evidence, FileEvidence,
+    Observation, ObservedMetadata, PackageEvidence, SysctlEvidence, UnitEvidence, UnitFileState,
+    UserEvidence,
+};
 use crate::resource::Digest;
+
+/// A metadata field of a file or directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MetadataField {
+    /// The owner.
+    Owner,
+    /// The group.
+    Group,
+    /// The permission bits.
+    Mode,
+}
+
+/// A field of an account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AccountField {
+    /// Its class, system or regular.
+    Class,
+    /// Its home directory.
+    Home,
+    /// Its login shell.
+    Shell,
+}
 
 /// A known mismatch between a Condition and sufficient evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Variance {
-    /// The Condition requires a file and none exists.
+    /// The Condition requires the resource and it does not exist.
     Missing,
-    /// The Condition requires no file and one exists.
+    /// The Condition requires no resource and one exists.
     Unexpected,
     /// The file exists with the wrong content.
     ContentDiffers {
@@ -41,6 +70,24 @@ pub enum Variance {
         /// The digest observed.
         observed: Digest,
     },
+    /// A file or directory has the wrong metadata; the first field that
+    /// differs, in the order owner, group, mode.
+    MetadataDiffers(MetadataField),
+    /// A unit differs on the axes marked true.
+    UnitDiffers {
+        /// Whether it differs in activity.
+        activity: bool,
+        /// Whether it differs in enablement.
+        enablement: bool,
+    },
+    /// A kernel parameter has another value.
+    ValueDiffers,
+    /// An account differs; the first field, in the order class, home, shell.
+    AccountDiffers(AccountField),
+    /// A package is installed at another version.
+    VersionDiffers,
+    /// A package is in no settled state.
+    Broken,
 }
 
 /// Why evidence was insufficient.
@@ -55,6 +102,11 @@ pub enum Reason {
     CollectionFailed(CollectionFailure),
     /// Collected Observations of the resource disagree.
     Conflicting,
+    /// The evidence is of another family than the requirement. The
+    /// constructors of `Condition` and `Observation` make this unreachable
+    /// through `assess`; a caller of `assess_collection` can still hand it
+    /// mismatched values, and it is not a Variance.
+    WrongFamily,
 }
 
 /// The interpretation of a Condition against evidence.
@@ -80,10 +132,34 @@ impl Assessment {
     }
 }
 
-/// Judges collected evidence against a requirement. Evidence is sufficient
-/// by construction here, so the result is Satisfied or a Variance, never
-/// Indeterminate.
-pub fn assess_evidence(requirement: &FileCondition, evidence: &FileEvidence) -> Assessment {
+fn verdict(variance: Option<Variance>) -> Assessment {
+    variance.map_or(Assessment::Satisfied, Assessment::Variance)
+}
+
+fn account_is(required: &Option<crate::resource::AccountName>, observed: &Account) -> bool {
+    match required {
+        None => true,
+        Some(name) => matches!(observed, Account::Named(n) if n == name),
+    }
+}
+
+/// The first metadata field that differs, in the order owner, group, mode;
+/// a field the requirement does not state never differs.
+fn metadata_differs(required: &Metadata, observed: &ObservedMetadata) -> Option<Variance> {
+    if !account_is(&required.owner, &observed.owner) {
+        return Some(Variance::MetadataDiffers(MetadataField::Owner));
+    }
+    if !account_is(&required.group, &observed.group) {
+        return Some(Variance::MetadataDiffers(MetadataField::Group));
+    }
+    if required.mode.is_some_and(|m| m != observed.mode) {
+        return Some(Variance::MetadataDiffers(MetadataField::Mode));
+    }
+    None
+}
+
+/// Judges collected evidence of a file (the file table).
+pub fn assess_file(requirement: &FileCondition, evidence: &FileEvidence) -> Assessment {
     match (requirement, evidence) {
         (FileCondition::Absent, FileEvidence::Absent) => Assessment::Satisfied,
         (FileCondition::Absent, FileEvidence::Present { .. }) => {
@@ -93,34 +169,162 @@ pub fn assess_evidence(requirement: &FileCondition, evidence: &FileEvidence) -> 
             Assessment::Variance(Variance::Missing)
         }
         (
-            FileCondition::Present {
-                content: Content::Any,
+            FileCondition::Present { content, metadata },
+            FileEvidence::Present {
+                digest,
+                metadata: observed,
+                ..
             },
-            FileEvidence::Present { .. },
-        ) => Assessment::Satisfied,
-        (
-            FileCondition::Present {
-                content: Content::Exactly(expected),
-            },
-            FileEvidence::Present { digest, .. },
         ) => {
-            if digest == expected {
-                Assessment::Satisfied
-            } else {
-                Assessment::Variance(Variance::ContentDiffers {
+            if let Content::Exactly(expected) = content
+                && expected != digest
+            {
+                return Assessment::Variance(Variance::ContentDiffers {
                     expected: *expected,
                     observed: *digest,
-                })
+                });
+            }
+            verdict(metadata_differs(metadata, observed))
+        }
+    }
+}
+
+/// Judges collected evidence of a directory (the directory table).
+pub fn assess_directory(
+    requirement: &DirectoryCondition,
+    evidence: &DirectoryEvidence,
+) -> Assessment {
+    match (requirement, evidence) {
+        (DirectoryCondition::Absent, DirectoryEvidence::Absent) => Assessment::Satisfied,
+        (DirectoryCondition::Absent, DirectoryEvidence::Present { .. }) => {
+            Assessment::Variance(Variance::Unexpected)
+        }
+        (DirectoryCondition::Present { .. }, DirectoryEvidence::Absent) => {
+            Assessment::Variance(Variance::Missing)
+        }
+        (
+            DirectoryCondition::Present { metadata },
+            DirectoryEvidence::Present { metadata: observed },
+        ) => verdict(metadata_differs(metadata, observed)),
+    }
+}
+
+/// Judges collected evidence of a unit (the unit table): each axis on its
+/// own, and a Variance names every axis that differs.
+pub fn assess_unit(requirement: &UnitCondition, evidence: &UnitEvidence) -> Assessment {
+    let activity = match requirement.activity {
+        Activity::Any => false,
+        Activity::Active => !matches!(
+            evidence.active,
+            ActiveState::Active | ActiveState::Reloading
+        ),
+        Activity::Inactive => {
+            !matches!(evidence.active, ActiveState::Inactive | ActiveState::Failed)
+        }
+    };
+    let enablement = match requirement.enablement {
+        Enablement::Any => false,
+        Enablement::Enabled => evidence.file_state != UnitFileState::Enabled,
+        Enablement::Disabled => evidence.file_state != UnitFileState::Disabled,
+    };
+    if activity || enablement {
+        Assessment::Variance(Variance::UnitDiffers {
+            activity,
+            enablement,
+        })
+    } else {
+        Assessment::Satisfied
+    }
+}
+
+/// Judges collected evidence of a kernel parameter (the sysctl table).
+pub fn assess_sysctl(requirement: &SysctlCondition, evidence: &SysctlEvidence) -> Assessment {
+    if requirement.value == evidence.value {
+        Assessment::Satisfied
+    } else {
+        Assessment::Variance(Variance::ValueDiffers)
+    }
+}
+
+/// Judges collected evidence of an account (the user table).
+pub fn assess_user(requirement: &UserCondition, evidence: &UserEvidence) -> Assessment {
+    match (requirement, evidence) {
+        (UserCondition::Absent, UserEvidence::Absent) => Assessment::Satisfied,
+        (UserCondition::Absent, UserEvidence::Present { .. }) => {
+            Assessment::Variance(Variance::Unexpected)
+        }
+        (UserCondition::Present { .. }, UserEvidence::Absent) => {
+            Assessment::Variance(Variance::Missing)
+        }
+        (
+            UserCondition::Present { class, home, shell },
+            UserEvidence::Present {
+                uid,
+                home: observed_home,
+                shell: observed_shell,
+                ..
+            },
+        ) => {
+            if AccountClass::of(*uid) != *class {
+                return Assessment::Variance(Variance::AccountDiffers(AccountField::Class));
+            }
+            if home.as_ref().is_some_and(|h| h.as_str() != observed_home) {
+                return Assessment::Variance(Variance::AccountDiffers(AccountField::Home));
+            }
+            if shell.as_ref().is_some_and(|s| s.as_str() != observed_shell) {
+                return Assessment::Variance(Variance::AccountDiffers(AccountField::Shell));
+            }
+            Assessment::Satisfied
+        }
+    }
+}
+
+/// Judges collected evidence of a package (the package table).
+pub fn assess_package(requirement: &PackageCondition, evidence: &PackageEvidence) -> Assessment {
+    match (requirement, evidence) {
+        (_, PackageEvidence::Broken) => Assessment::Variance(Variance::Broken),
+        (PackageCondition::Absent, PackageEvidence::NotInstalled) => Assessment::Satisfied,
+        (PackageCondition::Absent, PackageEvidence::Installed { .. }) => {
+            Assessment::Variance(Variance::Unexpected)
+        }
+        (PackageCondition::Installed { .. }, PackageEvidence::NotInstalled) => {
+            Assessment::Variance(Variance::Missing)
+        }
+        (
+            PackageCondition::Installed { version },
+            PackageEvidence::Installed { version: observed },
+        ) => {
+            if version.as_ref().is_some_and(|v| v != observed) {
+                Assessment::Variance(Variance::VersionDiffers)
+            } else {
+                Assessment::Satisfied
             }
         }
     }
 }
 
+/// Judges collected evidence against a requirement of the same family.
+/// Evidence is sufficient by construction here, so the result is Satisfied
+/// or a Variance, never Indeterminate; `None` when the families differ.
+pub fn assess_evidence(requirement: &Requirement, evidence: &Evidence) -> Option<Assessment> {
+    Some(match (requirement, evidence) {
+        (Requirement::File(r), Evidence::File(e))
+        | (Requirement::Service(r), Evidence::Service(e)) => assess_file(r, e),
+        (Requirement::Directory(r), Evidence::Directory(e)) => assess_directory(r, e),
+        (Requirement::Unit(r), Evidence::Unit(e)) => assess_unit(r, e),
+        (Requirement::Sysctl(r), Evidence::Sysctl(e)) => assess_sysctl(r, e),
+        (Requirement::User(r), Evidence::User(e)) => assess_user(r, e),
+        (Requirement::Package(r), Evidence::Package(e)) => assess_package(r, e),
+        _ => return None,
+    })
+}
+
 /// Judges one collection outcome: a failure is Indeterminate with its
 /// reason, and evidence goes to [`assess_evidence`].
-pub fn assess_collection(requirement: &FileCondition, collection: &Collection) -> Assessment {
+pub fn assess_collection(requirement: &Requirement, collection: &Collection) -> Assessment {
     match collection {
-        Collection::Collected(evidence) => assess_evidence(requirement, evidence),
+        Collection::Collected(evidence) => assess_evidence(requirement, evidence)
+            .unwrap_or(Assessment::Indeterminate(Reason::WrongFamily)),
         Collection::Failed(failure) => {
             Assessment::Indeterminate(Reason::CollectionFailed(*failure))
         }
@@ -130,16 +334,16 @@ pub fn assess_collection(requirement: &FileCondition, collection: &Collection) -
 /// Assesses `condition` against every Observation of its resource among
 /// `observations`. Observations of other resources are ignored.
 pub fn assess(condition: &Condition, observations: &[Observation]) -> Assessment {
-    let relevant = observations.iter().filter(|o| o.path() == condition.path());
-    let mut evidence: Option<FileEvidence> = None;
+    let relevant = observations.iter().filter(|o| o.key() == condition.key());
+    let mut evidence: Option<&Evidence> = None;
     let mut least_failure: Option<CollectionFailure> = None;
     let mut seen = false;
     for observation in relevant {
         seen = true;
         match observation.collection() {
             Collection::Collected(this) => match evidence {
-                None => evidence = Some(*this),
-                Some(that) if that == *this => {}
+                None => evidence = Some(this),
+                Some(that) if that == this => {}
                 Some(_) => return Assessment::Indeterminate(Reason::Conflicting),
             },
             Collection::Failed(failure) => {
@@ -149,7 +353,8 @@ pub fn assess(condition: &Condition, observations: &[Observation]) -> Assessment
     }
     match (seen, evidence, least_failure) {
         (false, _, _) => Assessment::Indeterminate(Reason::NoObservation),
-        (true, Some(evidence), _) => assess_evidence(condition.requirement(), &evidence),
+        (true, Some(evidence), _) => assess_evidence(condition.requirement(), evidence)
+            .unwrap_or(Assessment::Indeterminate(Reason::WrongFamily)),
         (true, None, Some(failure)) => Assessment::Indeterminate(Reason::CollectionFailed(failure)),
         // Seen implies evidence or a failure; the arm is unreachable by construction.
         (true, None, None) => Assessment::Indeterminate(Reason::NoObservation),
@@ -211,8 +416,8 @@ mod tests {
     use alloc::vec;
     use alloc::vec::Vec;
 
-    use super::{Assessment, Reason, Report, Variance, assess, assess_collection, assess_evidence};
-    use crate::condition::{Condition, Content, FileCondition};
+    use super::{Assessment, Reason, Report, Variance, assess, assess_collection, assess_file};
+    use crate::condition::{Condition, Content, FileCondition, Requirement};
     use crate::observation::{
         Collection, CollectionFailure, CollectorId, FileEvidence, Instant, Observation, Provenance,
         Window,
@@ -234,40 +439,31 @@ mod tests {
         )
     }
 
-    fn observed(text: &str, collection: Collection) -> Observation {
+    fn observed(text: &str, collection: Collection<FileEvidence>) -> Observation {
         Observation::file(path(text), collection, provenance(10))
     }
 
-    const FAILURES: [CollectionFailure; 4] = [
+    const FAILURES: [CollectionFailure; 5] = [
         CollectionFailure::PermissionDenied,
         CollectionFailure::TimedOut,
         CollectionFailure::Unsupported,
         CollectionFailure::Io,
+        CollectionFailure::Unavailable,
     ];
 
     fn requirements() -> [FileCondition; 3] {
         [
             FileCondition::Absent,
-            FileCondition::Present {
-                content: Content::Any,
-            },
-            FileCondition::Present {
-                content: Content::Exactly(digest(1)),
-            },
+            FileCondition::present(Content::Any),
+            FileCondition::present(Content::Exactly(digest(1))),
         ]
     }
 
     fn evidences() -> [FileEvidence; 3] {
         [
             FileEvidence::Absent,
-            FileEvidence::Present {
-                digest: digest(1),
-                size: 3,
-            },
-            FileEvidence::Present {
-                digest: digest(2),
-                size: 3,
-            },
+            FileEvidence::present(digest(1), 3),
+            FileEvidence::present(digest(2), 3),
         ]
     }
 
@@ -277,17 +473,17 @@ mod tests {
         let [absent, any, exactly] = requirements();
         let [none, one, two] = evidences();
         let table = [
-            (absent, none, Assessment::Satisfied),
-            (absent, one, Assessment::Variance(Variance::Unexpected)),
-            (absent, two, Assessment::Variance(Variance::Unexpected)),
-            (any, none, Assessment::Variance(Variance::Missing)),
-            (any, one, Assessment::Satisfied),
-            (any, two, Assessment::Satisfied),
-            (exactly, none, Assessment::Variance(Variance::Missing)),
-            (exactly, one, Assessment::Satisfied),
+            (&absent, &none, Assessment::Satisfied),
+            (&absent, &one, Assessment::Variance(Variance::Unexpected)),
+            (&absent, &two, Assessment::Variance(Variance::Unexpected)),
+            (&any, &none, Assessment::Variance(Variance::Missing)),
+            (&any, &one, Assessment::Satisfied),
+            (&any, &two, Assessment::Satisfied),
+            (&exactly, &none, Assessment::Variance(Variance::Missing)),
+            (&exactly, &one, Assessment::Satisfied),
             (
-                exactly,
-                two,
+                &exactly,
+                &two,
                 Assessment::Variance(Variance::ContentDiffers {
                     expected: digest(1),
                     observed: digest(2),
@@ -296,7 +492,7 @@ mod tests {
         ];
         assert_eq!(table.len(), requirements().len() * evidences().len());
         for (requirement, evidence, expected) in table {
-            let actual = assess_evidence(&requirement, &evidence);
+            let actual = assess_file(requirement, evidence);
             assert_eq!(actual, expected, "{requirement:?} vs {evidence:?}");
             assert!(!actual.is_indeterminate());
         }
@@ -307,11 +503,14 @@ mod tests {
     fn a_failed_observation_is_indeterminate() {
         for requirement in requirements() {
             for failure in FAILURES {
-                let condition = Condition::file(path("/etc/hosts"), requirement);
+                let condition = Condition::file(path("/etc/hosts"), requirement.clone());
                 let observation = observed("/etc/hosts", Collection::Failed(failure));
                 let expected = Assessment::Indeterminate(Reason::CollectionFailed(failure));
                 assert_eq!(
-                    assess_collection(&requirement, &Collection::Failed(failure)),
+                    assess_collection(
+                        &Requirement::File(requirement.clone()),
+                        &Collection::Failed(failure)
+                    ),
                     expected
                 );
                 assert_eq!(assess(&condition, &[observation]), expected);
@@ -351,12 +550,7 @@ mod tests {
 
     #[test]
     fn contradicting_observations_are_indeterminate() {
-        let condition = Condition::file(
-            path("/etc/hosts"),
-            FileCondition::Present {
-                content: Content::Any,
-            },
-        );
+        let condition = Condition::file(path("/etc/hosts"), FileCondition::present(Content::Any));
         let [_, one, two] = evidences();
         let a = assess(
             &condition,
@@ -430,10 +624,7 @@ mod tests {
         let observations = vec![
             observed(
                 "/etc/hosts",
-                Collection::Collected(FileEvidence::Present {
-                    digest: digest(1),
-                    size: 1,
-                }),
+                Collection::Collected(FileEvidence::present(digest(1), 1)),
             ),
             observed(
                 "/etc/shadow",
@@ -444,11 +635,11 @@ mod tests {
         assert_eq!(report.entries().len(), 2);
         let variances: Vec<_> = report.variances().collect();
         assert_eq!(variances.len(), 1);
-        assert_eq!(variances[0].0.path().as_str(), "/etc/hosts");
+        assert_eq!(variances[0].0.key().name(), "/etc/hosts");
         assert_eq!(*variances[0].1, Variance::Unexpected);
         let indeterminate: Vec<_> = report.indeterminate().collect();
         assert_eq!(indeterminate.len(), 1);
-        assert_eq!(indeterminate[0].0.path().as_str(), "/etc/shadow");
+        assert_eq!(indeterminate[0].0.key().name(), "/etc/shadow");
         assert!(!report.all_satisfied());
     }
 
@@ -464,18 +655,15 @@ mod tests {
             observed("/a", Collection::Failed(CollectionFailure::Io)),
             observed(
                 "/b",
-                Collection::Collected(FileEvidence::Present {
-                    digest: digest(9),
-                    size: 0,
-                }),
+                Collection::Collected(FileEvidence::present(digest(9), 0)),
             ),
         ];
         let report = Report::assess(&conditions, &observations);
-        let plan_input: Vec<&str> = report.variances().map(|(c, _)| c.path().as_str()).collect();
+        let plan_input: Vec<&str> = report.variances().map(|(c, _)| c.key().name()).collect();
         assert_eq!(plan_input, ["/b"]);
         let reasons: Vec<(&str, Reason)> = report
             .indeterminate()
-            .map(|(c, r)| (c.path().as_str(), *r))
+            .map(|(c, r)| (c.key().name(), *r))
             .collect();
         assert_eq!(
             reasons,

@@ -20,7 +20,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-use crate::resource::ResourcePath;
+use crate::resource::{ResourceKey, ResourcePath};
 
 /// Why a string is not a property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +72,20 @@ impl Property {
     /// The content of the file at `path`: `file:<path>#content`.
     pub fn file_content(path: &ResourcePath) -> Self {
         Property(format!("file:{path}#content"))
+    }
+
+    /// The property a resource of a Canon writes, the unit of admission's
+    /// check ([resource-families.md], Admission): `path:<path>` for a file,
+    /// a directory, or a service, so that two of them at one path collide,
+    /// and `<family>:<name>` for every other family. Built directly, since
+    /// a path may contain whitespace that [`Property::new`] refuses.
+    ///
+    /// [resource-families.md]: ../../../../docs/formal/resource-families.md
+    pub fn written(key: &ResourceKey) -> Self {
+        match key.path() {
+            Some(path) => Property(format!("path:{path}")),
+            None => Property(format!("{key}")),
+        }
     }
 
     /// The property as text.

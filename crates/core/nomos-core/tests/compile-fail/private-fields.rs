@@ -1,10 +1,10 @@
 //! A Condition cannot be fabricated around its constructor.
-use nomos_core::condition::{Condition, FileCondition};
-use nomos_core::resource::ResourcePath;
+use nomos_core::condition::{Condition, FileCondition, Requirement};
+use nomos_core::resource::{ResourceKey, ResourcePath};
 
 fn main() {
     let _ = Condition {
-        path: ResourcePath::new("/etc/hosts").unwrap(),
-        requirement: FileCondition::Absent,
+        key: ResourceKey::File(ResourcePath::new("/etc/hosts").unwrap()),
+        requirement: Requirement::File(FileCondition::Absent),
     };
 }

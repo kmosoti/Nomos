@@ -142,7 +142,7 @@ fn a_crash_after_replacement_cannot_lose_the_refresh() {
         first,
         RunOutcome::Failed {
             failed: vec![],
-            unknown: vec![p(CONF)]
+            unknown: vec![k(CONF)]
         }
     );
     assert!(!sim.refresh_consumed());
@@ -161,7 +161,7 @@ fn a_crash_after_replacement_cannot_lose_the_refresh() {
     // exactly its discharge and nothing else.
     let after: Vec<_> = sim.host.executions()[before..].iter().collect();
     assert_eq!(after.len(), 1);
-    assert_eq!(after[0].0.resource(), &p(SVC));
+    assert_eq!(after[0].0.resource(), &k(SVC));
 }
 
 #[test]

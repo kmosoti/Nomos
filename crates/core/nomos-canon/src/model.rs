@@ -1,24 +1,33 @@
-//! The validated Canon, its untrusted data-transfer object, and the one
-//! validator between them ([canon-ir.md](../../../../docs/formal/canon-ir.md)).
+//! The validated Canon, its untrusted data-transfer objects, and the one
+//! validator behind them ([canon-ir.md](../../../../docs/formal/canon-ir.md),
+//! [resource-families.md](../../../../docs/formal/resource-families.md)).
 //!
-//! [`RawCanon`] has public fields and holds anything. [`Canon`] has private
-//! fields, and its only constructor is `Canon::try_from(RawCanon)`: the
-//! authoring API builds a `RawCanon` and calls it, the decoder builds a
-//! `RawCanon` from bytes and calls it, and a migration builds one from an
-//! older schema and calls it. One validator, three paths, and no way around
-//! it that compiles (`tests/compile-fail/`).
+//! [`RawCanon3`] is the schema-3 data-transfer object and [`RawCanon`] the
+//! schema-2 one; both have public fields and hold anything. [`Canon`] has
+//! private fields, and its only constructors are `Canon::try_from` of either:
+//! the authoring API builds a `RawCanon3`, the decoder builds one from bytes,
+//! and a schema-2 or schema-1 artifact arrives as a `RawCanon`. Each schema
+//! has its own reading of a resource's `spec`, with its own errors, and every
+//! Canon then passes the same structural validation: labels, one resource
+//! per key, no two resources writing one property, relations, and cycles. No
+//! way around it compiles (`tests/compile-fail/`).
 //!
-//! A `Canon` is normalized by construction: resources are a map by path,
+//! A `Canon` is normalized by construction: resources are a map by key,
 //! relations, keys, and nodes are sets. Two equivalent Canons are equal
-//! values, and [`Canon::to_raw`] gives the one normalized DTO.
+//! values, and [`Canon::to_raw`] gives the one normalized schema-3 DTO.
 
 use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-use nomos_core::condition::{Content, FileCondition};
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::condition::{
+    AccountClass, Activity, Content, DirectoryCondition, Enablement, FileCondition, Metadata,
+    PackageCondition, PackageVersion, SysctlCondition, SysctlValue, UnitCondition, UserCondition,
+};
+use nomos_core::footprint::Property;
+use nomos_core::resource::{AccountName, Digest, Family, Mode, ResourceKey, ResourcePath};
 
 /// The longest resource path the IR carries, in bytes.
 pub const MAX_PATH: usize = 4096;
@@ -72,6 +81,32 @@ pub struct RawRelation {
     pub kind: String,
 }
 
+/// A schema-3 Canon as data, unvalidated. Anything can be written here.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RawCanon3 {
+    /// The Canon's name.
+    pub name: String,
+    /// The managed resources.
+    pub resources: Vec<RawResource3>,
+    /// The relations between them; each end is a key's text form.
+    pub relations: Vec<RawRelation>,
+}
+
+/// A schema-3 resource as data, unvalidated.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RawResource3 {
+    /// The family.
+    pub kind: String,
+    /// The name within the family.
+    pub name: String,
+    /// The requirement's fields, by name.
+    pub spec: BTreeMap<String, String>,
+    /// Its Action's conflict keys.
+    pub keys: Vec<String>,
+    /// The nodes its Action would disrupt.
+    pub disrupts: Vec<String>,
+}
+
 // ---------------------------------------------------------------------------
 // The validated form
 
@@ -118,31 +153,44 @@ pub enum ServiceRequirement {
     Loaded(Digest),
 }
 
-/// What a resource must be. A file that is absent with contents, or an
-/// absent service, has no representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// What a resource must be, of one family ([resource-families.md]). A file
+/// that is absent with contents, or an absent service, has no
+/// representation.
+///
+/// [resource-families.md]: ../../../../docs/formal/resource-families.md
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Requirement {
+    /// A directory requirement.
+    Directory(DirectoryCondition),
     /// A file requirement.
     File(FileCondition),
+    /// A package requirement.
+    Package(PackageCondition),
     /// A service requirement.
     Service(ServiceRequirement),
+    /// A kernel parameter requirement.
+    Sysctl(SysctlCondition),
+    /// A unit requirement.
+    Unit(UnitCondition),
+    /// An account requirement.
+    User(UserCondition),
 }
 
-/// A resource kind: the capability a reader needs to execute it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Kind {
-    /// Files.
-    File,
-    /// Services.
-    Service,
-}
+/// A resource kind: the capability a reader needs to execute it. One per
+/// resource family.
+pub type Kind = Family;
 
 impl Requirement {
     /// The requirement's kind.
     pub fn kind(&self) -> Kind {
         match self {
-            Requirement::File(_) => Kind::File,
-            Requirement::Service(_) => Kind::Service,
+            Requirement::Directory(_) => Family::Directory,
+            Requirement::File(_) => Family::File,
+            Requirement::Package(_) => Family::Package,
+            Requirement::Service(_) => Family::Service,
+            Requirement::Sysctl(_) => Family::Sysctl,
+            Requirement::Unit(_) => Family::Unit,
+            Requirement::User(_) => Family::User,
         }
     }
 }
@@ -197,19 +245,19 @@ impl RelationKind {
 /// A relation between two resources of the Canon.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Relation {
-    source: ResourcePath,
-    target: ResourcePath,
+    source: ResourceKey,
+    target: ResourceKey,
     kind: RelationKind,
 }
 
 impl Relation {
     /// The constraining resource.
-    pub fn source(&self) -> &ResourcePath {
+    pub fn source(&self) -> &ResourceKey {
         &self.source
     }
 
     /// The constrained resource.
-    pub fn target(&self) -> &ResourcePath {
+    pub fn target(&self) -> &ResourceKey {
         &self.target
     }
 
@@ -223,7 +271,7 @@ impl Relation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Canon {
     name: Name,
-    resources: BTreeMap<ResourcePath, Resource>,
+    resources: BTreeMap<ResourceKey, Resource>,
     relations: BTreeSet<Relation>,
 }
 
@@ -233,8 +281,8 @@ impl Canon {
         &self.name
     }
 
-    /// The resources, by path.
-    pub fn resources(&self) -> &BTreeMap<ResourcePath, Resource> {
+    /// The resources, by key.
+    pub fn resources(&self) -> &BTreeMap<ResourceKey, Resource> {
         &self.resources
     }
 
@@ -251,36 +299,74 @@ impl Canon {
             .collect()
     }
 
-    /// The normalized data-transfer object: every set sorted, every field
-    /// present. Validating it gives this Canon back.
-    pub fn to_raw(&self) -> RawCanon {
-        RawCanon {
+    /// The normalized schema-3 data-transfer object: every set sorted,
+    /// every stated field present. Validating it gives this Canon back.
+    pub fn to_raw(&self) -> RawCanon3 {
+        RawCanon3 {
             name: String::from(self.name.as_str()),
             resources: self
                 .resources
                 .iter()
-                .map(|(path, r)| RawResource {
-                    path: String::from(path.as_str()),
-                    spec: raw_spec(&r.requirement),
-                    keys: r.keys.iter().map(|k| String::from(k.as_str())).collect(),
-                    disrupts: r
-                        .disrupts
-                        .iter()
-                        .map(|k| String::from(k.as_str()))
-                        .collect(),
+                .map(|(key, r)| RawResource3 {
+                    kind: String::from(key.family().as_str()),
+                    name: String::from(key.name()),
+                    spec: spec_fields(&r.requirement),
+                    keys: labels_text(&r.keys),
+                    disrupts: labels_text(&r.disrupts),
                 })
                 .collect(),
             relations: self
                 .relations
                 .iter()
                 .map(|rel| RawRelation {
-                    source: String::from(rel.source.as_str()),
-                    target: String::from(rel.target.as_str()),
+                    source: format!("{}", rel.source),
+                    target: format!("{}", rel.target),
                     kind: String::from(rel.kind.as_str()),
                 })
                 .collect(),
         }
     }
+
+    /// The normalized schema-2 data-transfer object, when schema 2 can say
+    /// this Canon: files and services only, and no file metadata.
+    pub fn to_raw_v2(&self) -> Option<RawCanon> {
+        let mut resources = Vec::new();
+        for (key, r) in &self.resources {
+            let path = key.path()?;
+            resources.push(RawResource {
+                path: String::from(path.as_str()),
+                spec: raw_spec_v2(&r.requirement)?,
+                keys: labels_text(&r.keys),
+                disrupts: labels_text(&r.disrupts),
+            });
+        }
+        // Schema 2 orders by path, then by the relation kind's order, as the
+        // Canon of `06-canon-artifact` held them; a key orders by family
+        // first, so the order is restated here rather than inherited.
+        let mut ends = Vec::new();
+        for rel in &self.relations {
+            ends.push((rel.source.path()?, rel.target.path()?, rel.kind));
+        }
+        ends.sort();
+        let relations = ends
+            .into_iter()
+            .map(|(source, target, kind)| RawRelation {
+                source: String::from(source.as_str()),
+                target: String::from(target.as_str()),
+                kind: String::from(kind.as_str()),
+            })
+            .collect();
+        resources.sort_by(|a, b| a.path.cmp(&b.path));
+        Some(RawCanon {
+            name: String::from(self.name.as_str()),
+            resources,
+            relations,
+        })
+    }
+}
+
+fn labels_text(set: &BTreeSet<Name>) -> Vec<String> {
+    set.iter().map(|k| String::from(k.as_str())).collect()
 }
 
 fn hex(d: &Digest) -> String {
@@ -293,23 +379,117 @@ fn hex(d: &Digest) -> String {
     s
 }
 
-fn raw_spec(r: &Requirement) -> RawSpec {
+fn raw_spec_v2(r: &Requirement) -> Option<RawSpec> {
     let (kind, state, digest) = match r {
         Requirement::File(FileCondition::Absent) => ("file", "absent", None),
-        Requirement::File(FileCondition::Present {
-            content: Content::Any,
-        }) => ("file", "present-any", None),
-        Requirement::File(FileCondition::Present {
-            content: Content::Exactly(d),
-        }) => ("file", "present-exact", Some(hex(d))),
+        Requirement::File(FileCondition::Present { content, metadata }) => {
+            if *metadata != Metadata::any() {
+                return None;
+            }
+            match content {
+                Content::Any => ("file", "present-any", None),
+                Content::Exactly(d) => ("file", "present-exact", Some(hex(d))),
+            }
+        }
         Requirement::Service(ServiceRequirement::Running) => ("service", "running", None),
         Requirement::Service(ServiceRequirement::Loaded(d)) => ("service", "loaded", Some(hex(d))),
+        _ => return None,
     };
-    RawSpec {
+    Some(RawSpec {
         kind: String::from(kind),
         state: String::from(state),
         digest,
+    })
+}
+
+fn put(map: &mut BTreeMap<String, String>, key: &str, value: &str) {
+    map.insert(String::from(key), String::from(value));
+}
+
+fn metadata_fields(map: &mut BTreeMap<String, String>, m: &Metadata) {
+    if let Some(owner) = &m.owner {
+        put(map, "owner", owner.as_str());
     }
+    if let Some(group) = &m.group {
+        put(map, "group", group.as_str());
+    }
+    if let Some(mode) = m.mode {
+        put(map, "mode", &format!("{mode}"));
+    }
+}
+
+/// The schema-3 `spec` fields of a requirement: a field is present exactly
+/// when the requirement states it (canon-ir.md, Schema Version 3).
+fn spec_fields(r: &Requirement) -> BTreeMap<String, String> {
+    let mut m = BTreeMap::new();
+    match r {
+        Requirement::File(FileCondition::Absent)
+        | Requirement::Directory(DirectoryCondition::Absent)
+        | Requirement::User(UserCondition::Absent)
+        | Requirement::Package(PackageCondition::Absent) => put(&mut m, "state", "absent"),
+        Requirement::File(FileCondition::Present { content, metadata }) => {
+            put(&mut m, "state", "present");
+            match content {
+                Content::Any => put(&mut m, "content", "any"),
+                Content::Exactly(d) => put(&mut m, "content", &hex(d)),
+            }
+            metadata_fields(&mut m, metadata);
+        }
+        Requirement::Directory(DirectoryCondition::Present { metadata }) => {
+            put(&mut m, "state", "present");
+            metadata_fields(&mut m, metadata);
+        }
+        Requirement::Service(ServiceRequirement::Running) => put(&mut m, "state", "running"),
+        Requirement::Service(ServiceRequirement::Loaded(d)) => {
+            put(&mut m, "state", "loaded");
+            put(&mut m, "digest", &hex(d));
+        }
+        Requirement::Unit(u) => {
+            put(
+                &mut m,
+                "active",
+                match u.activity {
+                    Activity::Active => "active",
+                    Activity::Inactive => "inactive",
+                    Activity::Any => "any",
+                },
+            );
+            put(
+                &mut m,
+                "enabled",
+                match u.enablement {
+                    Enablement::Enabled => "enabled",
+                    Enablement::Disabled => "disabled",
+                    Enablement::Any => "any",
+                },
+            );
+        }
+        Requirement::Sysctl(c) => put(&mut m, "value", c.value.as_str()),
+        Requirement::User(UserCondition::Present { class, home, shell }) => {
+            put(&mut m, "state", "present");
+            put(
+                &mut m,
+                "class",
+                match class {
+                    AccountClass::System => "system",
+                    AccountClass::Regular => "regular",
+                },
+            );
+            if let Some(h) = home {
+                put(&mut m, "home", h.as_str());
+            }
+            if let Some(sh) = shell {
+                put(&mut m, "shell", sh.as_str());
+            }
+        }
+        Requirement::Package(PackageCondition::Installed { version }) => {
+            put(&mut m, "state", "installed");
+            if let Some(v) = version {
+                put(&mut m, "version", v.as_str());
+            }
+        }
+    }
+    m
 }
 
 // ---------------------------------------------------------------------------
@@ -342,8 +522,25 @@ pub enum CanonError {
         /// The resource's position.
         resource: usize,
     },
-    /// Two resources have one path.
+    /// Two resources have one key; in schema 2, one path.
     DuplicatePath {
+        /// The second resource's position.
+        resource: usize,
+    },
+    /// A resource's name is not valid for its family.
+    InvalidResourceName {
+        /// The resource's position.
+        resource: usize,
+    },
+    /// A `spec` field has a value its family does not allow, or a field the
+    /// family requires is missing.
+    InvalidField {
+        /// The resource's position.
+        resource: usize,
+    },
+    /// A resource writes a property an earlier resource writes: a file and a
+    /// directory at one path, for example (resource-families.md, Admission).
+    Conflict {
         /// The second resource's position.
         resource: usize,
     },
@@ -381,7 +578,19 @@ impl fmt::Display for CanonError {
                 write!(f, "resource {resource}: invalid conflict key or node")
             }
             CanonError::DuplicatePath { resource } => {
-                write!(f, "resource {resource}: a second resource at one path")
+                write!(f, "resource {resource}: a second resource with one key")
+            }
+            CanonError::InvalidResourceName { resource } => {
+                write!(f, "resource {resource}: invalid name for its family")
+            }
+            CanonError::InvalidField { resource } => {
+                write!(f, "resource {resource}: invalid or missing spec field")
+            }
+            CanonError::Conflict { resource } => {
+                write!(
+                    f,
+                    "resource {resource}: writes a property another resource writes"
+                )
             }
             CanonError::UnknownRelation { relation } => {
                 write!(f, "relation {relation}: unknown kind")
@@ -421,12 +630,12 @@ fn requirement(spec: &RawSpec, resource: usize) -> Result<Requirement, CanonErro
     };
     match (spec.kind.as_str(), spec.state.as_str()) {
         ("file", "absent") => no_digest(Requirement::File(FileCondition::Absent)),
-        ("file", "present-any") => no_digest(Requirement::File(FileCondition::Present {
-            content: Content::Any,
-        })),
-        ("file", "present-exact") => Ok(Requirement::File(FileCondition::Present {
-            content: Content::Exactly(digest(&spec.digest, resource)?),
-        })),
+        ("file", "present-any") => {
+            no_digest(Requirement::File(FileCondition::present(Content::Any)))
+        }
+        ("file", "present-exact") => Ok(Requirement::File(FileCondition::present(
+            Content::Exactly(digest(&spec.digest, resource)?),
+        ))),
         ("service", "running") => no_digest(Requirement::Service(ServiceRequirement::Running)),
         ("service", "loaded") => Ok(Requirement::Service(ServiceRequirement::Loaded(digest(
             &spec.digest,
@@ -445,13 +654,82 @@ fn relation_kind(text: &str) -> Option<RelationKind> {
     }
 }
 
+/// One resource after its schema's reading of `spec`, before the structural
+/// checks every schema shares.
+struct Item<'a> {
+    key: ResourceKey,
+    requirement: Requirement,
+    keys: &'a [String],
+    disrupts: &'a [String],
+}
+
+/// The structural validation every Canon passes, whatever schema it came
+/// from: labels, one resource per key, no two resources writing one
+/// property, relations that name resources of the Canon, no self relation,
+/// and no cycle. `end` resolves a relation's end text to a key.
+fn assemble(
+    name: &str,
+    items: Vec<Item<'_>>,
+    relations: &[RawRelation],
+    end: impl Fn(&str, &BTreeMap<ResourceKey, Resource>) -> Option<ResourceKey>,
+) -> Result<Canon, CanonError> {
+    let name = canon_name(name).ok_or(CanonError::InvalidName)?;
+    let mut resources = BTreeMap::new();
+    let mut written: BTreeSet<Property> = BTreeSet::new();
+    for (i, item) in items.into_iter().enumerate() {
+        let labels = |list: &[String]| -> Result<BTreeSet<Name>, CanonError> {
+            list.iter()
+                .map(|k| label(k).ok_or(CanonError::InvalidLabel { resource: i }))
+                .collect()
+        };
+        let resource = Resource {
+            requirement: item.requirement,
+            keys: labels(item.keys)?,
+            disrupts: labels(item.disrupts)?,
+        };
+        if resources.contains_key(&item.key) {
+            return Err(CanonError::DuplicatePath { resource: i });
+        }
+        if !written.insert(Property::written(&item.key)) {
+            return Err(CanonError::Conflict { resource: i });
+        }
+        resources.insert(item.key, resource);
+    }
+    let mut set = BTreeSet::new();
+    for (i, rel) in relations.iter().enumerate() {
+        let kind = relation_kind(&rel.kind).ok_or(CanonError::UnknownRelation { relation: i })?;
+        let dangling = CanonError::DanglingRelation { relation: i };
+        let source = end(&rel.source, &resources).ok_or(dangling)?;
+        let target = end(&rel.target, &resources).ok_or(dangling)?;
+        if source == target {
+            return Err(CanonError::SelfRelation { relation: i });
+        }
+        set.insert(Relation {
+            source,
+            target,
+            kind,
+        });
+    }
+    if has_cycle(&resources, &set) {
+        return Err(CanonError::Cycle);
+    }
+    Ok(Canon {
+        name,
+        resources,
+        relations: set,
+    })
+}
+
 impl TryFrom<RawCanon> for Canon {
     type Error = CanonError;
 
-    /// The validator: the only way to a `Canon`.
+    /// Schema 2's reading: a path and a `spec` of `kind`, `state`, and
+    /// `digest`; then the shared structural validation. A relation's ends
+    /// are paths, each naming the one resource at that path.
     fn try_from(raw: RawCanon) -> Result<Self, CanonError> {
-        let name = canon_name(&raw.name).ok_or(CanonError::InvalidName)?;
-        let mut resources = BTreeMap::new();
+        canon_name(&raw.name).ok_or(CanonError::InvalidName)?;
+        let mut items = Vec::new();
+        let mut paths = BTreeSet::new();
         for (i, r) in raw.resources.iter().enumerate() {
             if r.path.len() > MAX_PATH {
                 return Err(CanonError::InvalidPath { resource: i });
@@ -459,62 +737,262 @@ impl TryFrom<RawCanon> for Canon {
             let path =
                 ResourcePath::new(&r.path).map_err(|_| CanonError::InvalidPath { resource: i })?;
             let requirement = requirement(&r.spec, i)?;
-            let labels = |list: &[String]| -> Result<BTreeSet<Name>, CanonError> {
-                list.iter()
-                    .map(|k| label(k).ok_or(CanonError::InvalidLabel { resource: i }))
-                    .collect()
-            };
-            let resource = Resource {
-                requirement,
-                keys: labels(&r.keys)?,
-                disrupts: labels(&r.disrupts)?,
-            };
-            if resources.insert(path, resource).is_some() {
+            if !paths.insert(path.clone()) {
                 return Err(CanonError::DuplicatePath { resource: i });
             }
-        }
-        let mut relations = BTreeSet::new();
-        for (i, rel) in raw.relations.iter().enumerate() {
-            let kind =
-                relation_kind(&rel.kind).ok_or(CanonError::UnknownRelation { relation: i })?;
-            let end = |text: &str| {
-                ResourcePath::new(text)
-                    .ok()
-                    .filter(|p| resources.contains_key(p))
-                    .ok_or(CanonError::DanglingRelation { relation: i })
+            let key = match requirement {
+                Requirement::Service(_) => ResourceKey::Service(path),
+                _ => ResourceKey::File(path),
             };
-            let source = end(&rel.source)?;
-            let target = end(&rel.target)?;
-            if source == target {
-                return Err(CanonError::SelfRelation { relation: i });
-            }
-            relations.insert(Relation {
-                source,
-                target,
-                kind,
+            items.push(Item {
+                key,
+                requirement,
+                keys: &r.keys,
+                disrupts: &r.disrupts,
             });
         }
-        if has_cycle(&resources, &relations) {
-            return Err(CanonError::Cycle);
-        }
-        Ok(Canon {
-            name,
-            resources,
-            relations,
+        assemble(&raw.name, items, &raw.relations, |text, resources| {
+            let path = ResourcePath::new(text).ok()?;
+            resources.keys().find(|k| k.path() == Some(&path)).cloned()
         })
     }
 }
 
+impl TryFrom<RawCanon3> for Canon {
+    type Error = CanonError;
+
+    /// Schema 3's reading: a family, a name valid for it, and the family's
+    /// `spec` fields; then the shared structural validation. A relation's
+    /// ends are keys in their text form.
+    fn try_from(raw: RawCanon3) -> Result<Self, CanonError> {
+        canon_name(&raw.name).ok_or(CanonError::InvalidName)?;
+        let mut items = Vec::new();
+        for (i, r) in raw.resources.iter().enumerate() {
+            let family =
+                Family::from_name(&r.kind).ok_or(CanonError::UnknownRequirement { resource: i })?;
+            if family.is_path() && r.name.len() > MAX_PATH {
+                return Err(CanonError::InvalidPath { resource: i });
+            }
+            let key = ResourceKey::from_parts(family, &r.name).map_err(|_| {
+                if family.is_path() {
+                    CanonError::InvalidPath { resource: i }
+                } else {
+                    CanonError::InvalidResourceName { resource: i }
+                }
+            })?;
+            if family == Family::Directory && r.name == "/" {
+                return Err(CanonError::InvalidPath { resource: i });
+            }
+            let requirement = requirement_v3(family, &r.spec, i)?;
+            items.push(Item {
+                key,
+                requirement,
+                keys: &r.keys,
+                disrupts: &r.disrupts,
+            });
+        }
+        assemble(&raw.name, items, &raw.relations, |text, resources| {
+            ResourceKey::parse(text)
+                .ok()
+                .filter(|k| resources.contains_key(k))
+        })
+    }
+}
+
+/// Reads one field set. `allowed` are the fields the family defines for the
+/// state; any other field is an unknown requirement.
+struct Spec<'a> {
+    fields: &'a BTreeMap<String, String>,
+    resource: usize,
+}
+
+impl<'a> Spec<'a> {
+    fn only(&self, allowed: &[&str]) -> Result<(), CanonError> {
+        if self.fields.keys().all(|k| allowed.contains(&k.as_str())) {
+            Ok(())
+        } else {
+            Err(CanonError::UnknownRequirement {
+                resource: self.resource,
+            })
+        }
+    }
+
+    fn get(&self, field: &str) -> Option<&'a str> {
+        self.fields.get(field).map(String::as_str)
+    }
+
+    fn required(&self, field: &str) -> Result<&'a str, CanonError> {
+        self.get(field).ok_or(CanonError::InvalidField {
+            resource: self.resource,
+        })
+    }
+
+    fn invalid(&self) -> CanonError {
+        CanonError::InvalidField {
+            resource: self.resource,
+        }
+    }
+
+    fn account(&self, field: &str) -> Result<Option<AccountName>, CanonError> {
+        self.get(field)
+            .map(|t| AccountName::new(t).map_err(|_| self.invalid()))
+            .transpose()
+    }
+
+    fn path(&self, field: &str) -> Result<Option<ResourcePath>, CanonError> {
+        self.get(field)
+            .map(|t| {
+                if t.len() > MAX_PATH {
+                    return Err(self.invalid());
+                }
+                ResourcePath::new(t).map_err(|_| self.invalid())
+            })
+            .transpose()
+    }
+
+    fn metadata(&self) -> Result<Metadata, CanonError> {
+        Ok(Metadata {
+            owner: self.account("owner")?,
+            group: self.account("group")?,
+            mode: self
+                .get("mode")
+                .map(|t| Mode::from_octal(t).ok_or(self.invalid()))
+                .transpose()?,
+        })
+    }
+}
+
+fn requirement_v3(
+    family: Family,
+    fields: &BTreeMap<String, String>,
+    resource: usize,
+) -> Result<Requirement, CanonError> {
+    let spec = Spec { fields, resource };
+    let unknown = CanonError::UnknownRequirement { resource };
+    let state = || spec.get("state").ok_or(unknown);
+    Ok(match family {
+        Family::File => match state()? {
+            "absent" => {
+                spec.only(&["state"])?;
+                Requirement::File(FileCondition::Absent)
+            }
+            "present" => {
+                spec.only(&["state", "content", "owner", "group", "mode"])?;
+                let content = match spec.required("content")? {
+                    "any" => Content::Any,
+                    text => Content::Exactly(digest(&Some(String::from(text)), resource)?),
+                };
+                Requirement::File(FileCondition::Present {
+                    content,
+                    metadata: spec.metadata()?,
+                })
+            }
+            _ => return Err(unknown),
+        },
+        Family::Directory => match state()? {
+            "absent" => {
+                spec.only(&["state"])?;
+                Requirement::Directory(DirectoryCondition::Absent)
+            }
+            "present" => {
+                spec.only(&["state", "owner", "group", "mode"])?;
+                Requirement::Directory(DirectoryCondition::Present {
+                    metadata: spec.metadata()?,
+                })
+            }
+            _ => return Err(unknown),
+        },
+        Family::Service => match state()? {
+            "running" => {
+                spec.only(&["state"])?;
+                Requirement::Service(ServiceRequirement::Running)
+            }
+            "loaded" => {
+                spec.only(&["state", "digest"])?;
+                Requirement::Service(ServiceRequirement::Loaded(digest(
+                    &spec.get("digest").map(String::from),
+                    resource,
+                )?))
+            }
+            _ => return Err(unknown),
+        },
+        Family::Unit => {
+            spec.only(&["active", "enabled"])?;
+            let activity = match spec.required("active")? {
+                "active" => Activity::Active,
+                "inactive" => Activity::Inactive,
+                "any" => Activity::Any,
+                _ => return Err(spec.invalid()),
+            };
+            let enablement = match spec.required("enabled")? {
+                "enabled" => Enablement::Enabled,
+                "disabled" => Enablement::Disabled,
+                "any" => Enablement::Any,
+                _ => return Err(spec.invalid()),
+            };
+            Requirement::Unit(UnitCondition {
+                activity,
+                enablement,
+            })
+        }
+        Family::Sysctl => {
+            spec.only(&["value"])?;
+            let value = spec.required("value")?;
+            if value.is_empty() || !SysctlValue::is_normal(value) {
+                return Err(spec.invalid());
+            }
+            Requirement::Sysctl(SysctlCondition {
+                value: SysctlValue::normalized(value),
+            })
+        }
+        Family::User => match state()? {
+            "absent" => {
+                spec.only(&["state"])?;
+                Requirement::User(UserCondition::Absent)
+            }
+            "present" => {
+                spec.only(&["state", "class", "home", "shell"])?;
+                let class = match spec.required("class")? {
+                    "system" => AccountClass::System,
+                    "regular" => AccountClass::Regular,
+                    _ => return Err(spec.invalid()),
+                };
+                Requirement::User(UserCondition::Present {
+                    class,
+                    home: spec.path("home")?,
+                    shell: spec.path("shell")?,
+                })
+            }
+            _ => return Err(unknown),
+        },
+        Family::Package => match state()? {
+            "absent" => {
+                spec.only(&["state"])?;
+                Requirement::Package(PackageCondition::Absent)
+            }
+            "installed" => {
+                spec.only(&["state", "version"])?;
+                let version = spec
+                    .get("version")
+                    .map(|t| PackageVersion::new(t).ok_or(spec.invalid()))
+                    .transpose()?;
+                Requirement::Package(PackageCondition::Installed { version })
+            }
+            _ => return Err(unknown),
+        },
+    })
+}
+
 /// Kahn's algorithm over every relation kind: a cycle leaves vertices
 /// with remaining in-degree.
-fn has_cycle(resources: &BTreeMap<ResourcePath, Resource>, relations: &BTreeSet<Relation>) -> bool {
-    let mut indegree: BTreeMap<&ResourcePath, usize> = resources.keys().map(|p| (p, 0)).collect();
+fn has_cycle(resources: &BTreeMap<ResourceKey, Resource>, relations: &BTreeSet<Relation>) -> bool {
+    let mut indegree: BTreeMap<&ResourceKey, usize> = resources.keys().map(|p| (p, 0)).collect();
     for r in relations {
         if let Some(d) = indegree.get_mut(&r.target) {
             *d += 1;
         }
     }
-    let mut ready: Vec<&ResourcePath> = indegree
+    let mut ready: Vec<&ResourceKey> = indegree
         .iter()
         .filter(|(_, d)| **d == 0)
         .map(|(p, _)| *p)
@@ -537,37 +1015,38 @@ fn has_cycle(resources: &BTreeMap<ResourcePath, Resource>, relations: &BTreeSet<
 // ---------------------------------------------------------------------------
 // The authoring API
 
-/// Builds a Canon from typed parts. It writes a [`RawCanon`] and validates
-/// it with the same validator the decoder uses, so the two cannot disagree
+/// Builds a Canon from typed parts. It writes a [`RawCanon3`] and validates
+/// it with the same validation the decoder uses, so the two cannot disagree
 /// about what a Canon is.
 #[derive(Debug, Clone, Default)]
 pub struct CanonBuilder {
-    raw: RawCanon,
+    raw: RawCanon3,
 }
 
 impl CanonBuilder {
     /// A Canon named `name`.
     pub fn new(name: &str) -> Self {
         CanonBuilder {
-            raw: RawCanon {
+            raw: RawCanon3 {
                 name: String::from(name),
-                ..RawCanon::default()
+                ..RawCanon3::default()
             },
         }
     }
 
-    /// Adds the resource at `path` with `requirement`, conflict `keys`, and
-    /// disrupted `nodes`.
+    /// Adds the resource named `name` in `requirement`'s family, with
+    /// conflict `keys` and disrupted `nodes`.
     pub fn resource(
         mut self,
-        path: &str,
+        name: &str,
         requirement: Requirement,
         keys: &[&str],
         nodes: &[&str],
     ) -> Self {
-        self.raw.resources.push(RawResource {
-            path: String::from(path),
-            spec: raw_spec(&requirement),
+        self.raw.resources.push(RawResource3 {
+            kind: String::from(requirement.kind().as_str()),
+            name: String::from(name),
+            spec: spec_fields(&requirement),
             keys: keys.iter().map(|k| String::from(*k)).collect(),
             disrupts: nodes.iter().map(|k| String::from(*k)).collect(),
         });
@@ -579,18 +1058,62 @@ impl CanonBuilder {
         self.resource(path, Requirement::File(requirement), &[], &[])
     }
 
+    /// Adds a directory with no conflict keys and no disruption.
+    pub fn directory(self, path: &str, requirement: DirectoryCondition) -> Self {
+        self.resource(path, Requirement::Directory(requirement), &[], &[])
+    }
+
     /// Adds a service with no conflict keys and no disruption.
     pub fn service(self, path: &str, requirement: ServiceRequirement) -> Self {
         self.resource(path, Requirement::Service(requirement), &[], &[])
     }
 
-    /// Relates `source` to `target`.
-    pub fn relate(mut self, source: &str, kind: RelationKind, target: &str) -> Self {
-        self.raw.relations.push(RawRelation {
-            source: String::from(source),
-            target: String::from(target),
-            kind: String::from(kind.as_str()),
+    /// Adds a unit with no conflict keys and no disruption.
+    pub fn unit(self, name: &str, requirement: UnitCondition) -> Self {
+        self.resource(name, Requirement::Unit(requirement), &[], &[])
+    }
+
+    /// Adds a kernel parameter with this value, normalized.
+    pub fn sysctl(self, name: &str, value: &str) -> Self {
+        let requirement = Requirement::Sysctl(SysctlCondition {
+            value: SysctlValue::normalized(value),
         });
+        self.resource(name, requirement, &[], &[])
+    }
+
+    /// Adds an account with no conflict keys and no disruption.
+    pub fn user(self, name: &str, requirement: UserCondition) -> Self {
+        self.resource(name, Requirement::User(requirement), &[], &[])
+    }
+
+    /// Adds a package with no conflict keys and no disruption.
+    pub fn package(self, name: &str, requirement: PackageCondition) -> Self {
+        self.resource(name, Requirement::Package(requirement), &[], &[])
+    }
+
+    /// Relates `source` to `target`. Each end is a key's text form,
+    /// `<family>:<name>`, or a path, which names the resource already added
+    /// at that path.
+    pub fn relate(mut self, source: &str, kind: RelationKind, target: &str) -> Self {
+        let end = |text: &str| -> String {
+            if text.starts_with('/') {
+                let found = self.raw.resources.iter().find(|r| {
+                    r.name == text && Family::from_name(&r.kind).is_some_and(|f| f.is_path())
+                });
+                match found {
+                    Some(r) => format!("{}:{}", r.kind, r.name),
+                    None => format!("file:{text}"),
+                }
+            } else {
+                String::from(text)
+            }
+        };
+        let relation = RawRelation {
+            source: end(source),
+            target: end(target),
+            kind: String::from(kind.as_str()),
+        };
+        self.raw.relations.push(relation);
         self
     }
 

@@ -23,8 +23,9 @@
 //! | `on_change` group | Empty, Blocked, Waiting, Activated, Disabled, checked in that order |
 //!
 //! A pending vertex is Blocked when a `requires` edge or its group is,
-//! Waiting when any unit is, Skipped when its group is Disabled, and Ready
-//! otherwise. Blocked and Skipped are final and propagate. A Skipped vertex
+//! Waiting when any unit is, Skipped when its group is Disabled and it has
+//! no reason of its own to run (an owed Obligation or its own Variance),
+//! and Ready otherwise. Blocked and Skipped are final and propagate. A Skipped vertex
 //! had no reason to run and every trigger ended well, so it is met: its
 //! dependents see it as they see a satisfaction anchor. A Blocked vertex
 //! will never run and is not met: it blocks its `requires` and `on_change`
@@ -40,7 +41,7 @@
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::ResourceKey;
 
 use crate::graph::{EdgeKind, Graph, VertexKind};
 
@@ -214,14 +215,15 @@ pub fn resolve_group(sources: &[SourceState]) -> GroupState {
     }
 }
 
-/// The resolution of a pending vertex from its units. An `owed` vertex has
-/// a pending Obligation, which is its reason to run, so a Disabled group
-/// makes it Ready instead of Skipped (ADR 0009 note).
+/// The resolution of a pending vertex from its units. A vertex with an
+/// `own_reason` to run, a pending Obligation or a Variance of its own, does
+/// not need its group Activated, so a Disabled group makes it Ready instead
+/// of Skipped (ADR 0009 notes).
 pub fn resolve_vertex(
     requires: &[EdgeState],
     after: &[AfterState],
     group: GroupState,
-    owed: bool,
+    own_reason: bool,
 ) -> Resolution {
     if requires.contains(&EdgeState::Blocked) || group == GroupState::Blocked {
         Resolution::Blocked
@@ -230,7 +232,7 @@ pub fn resolve_vertex(
         || group == GroupState::Waiting
     {
         Resolution::Waiting
-    } else if group == GroupState::Disabled && !owed {
+    } else if group == GroupState::Disabled && !own_reason {
         Resolution::Skipped
     } else {
         Resolution::Ready
@@ -241,31 +243,31 @@ pub fn resolve_vertex(
 /// the Ready ones in topological order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Frontier {
-    resolutions: BTreeMap<ResourcePath, Resolution>,
-    ready: Vec<ResourcePath>,
+    resolutions: BTreeMap<ResourceKey, Resolution>,
+    ready: Vec<ResourceKey>,
 }
 
 impl Frontier {
     /// The resolution of a pending vertex; `None` for a vertex that is not pending.
-    pub fn resolution(&self, resource: &ResourcePath) -> Option<Resolution> {
+    pub fn resolution(&self, resource: &ResourceKey) -> Option<Resolution> {
         self.resolutions.get(resource).copied()
     }
 
     /// Every pending vertex with its resolution, by resource.
-    pub fn resolutions(&self) -> &BTreeMap<ResourcePath, Resolution> {
+    pub fn resolutions(&self) -> &BTreeMap<ResourceKey, Resolution> {
         &self.resolutions
     }
 
     /// The Ready vertices, in the graph's topological order.
-    pub fn ready(&self) -> &[ResourcePath] {
+    pub fn ready(&self) -> &[ResourceKey] {
         &self.ready
     }
 }
 
 /// The frontier of `graph` given the progress of its Actions. An Action
 /// absent from `progress` is Pending; anchors have their outcome on entry.
-pub fn frontier(graph: &Graph, progress: &BTreeMap<ResourcePath, Progress>) -> Frontier {
-    let mut states: BTreeMap<&ResourcePath, SourceState> = BTreeMap::new();
+pub fn frontier(graph: &Graph, progress: &BTreeMap<ResourceKey, Progress>) -> Frontier {
+    let mut states: BTreeMap<&ResourceKey, SourceState> = BTreeMap::new();
     let mut resolutions = BTreeMap::new();
     let mut ready = Vec::new();
     // Topological order: every source is classified before its dependents.
@@ -280,7 +282,7 @@ pub fn frontier(graph: &Graph, progress: &BTreeMap<ResourcePath, Progress>) -> F
         };
         let state = match effective {
             Progress::Pending => {
-                let source = |edge_source: &ResourcePath| {
+                let source = |edge_source: &ResourceKey| {
                     states
                         .get(edge_source)
                         .copied()
@@ -305,7 +307,7 @@ pub fn frontier(graph: &Graph, progress: &BTreeMap<ResourcePath, Progress>) -> F
                     &requires,
                     &after,
                     resolve_group(&group_sources),
-                    vertex.is_owed(),
+                    vertex.has_own_reason(),
                 );
                 resolutions.insert(resource.clone(), resolution);
                 match resolution {
@@ -337,10 +339,10 @@ mod tests {
         resolve_after, resolve_group, resolve_requires, resolve_vertex,
     };
     use crate::graph::{Edge, EdgeKind, Graph, Vertex};
-    use nomos_core::resource::ResourcePath;
+    use nomos_core::resource::{ResourceKey, ResourcePath};
 
-    fn r(text: &str) -> ResourcePath {
-        ResourcePath::new(text).unwrap()
+    fn r(text: &str) -> ResourceKey {
+        ResourceKey::File(ResourcePath::new(text).unwrap())
     }
 
     fn action(text: &str) -> Vertex {
@@ -536,7 +538,7 @@ mod tests {
         progress: &[(&str, Progress)],
     ) -> super::Frontier {
         let graph = Graph::compile(vertices, edges).unwrap();
-        let progress: BTreeMap<ResourcePath, Progress> =
+        let progress: BTreeMap<ResourceKey, Progress> =
             progress.iter().map(|(p, s)| (r(p), *s)).collect();
         frontier(&graph, &progress)
     }
@@ -570,6 +572,32 @@ mod tests {
             &[],
         );
         assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Skipped));
+    }
+
+    /// A resource with a Variance of its own has a reason to run whatever
+    /// its sources did: a stopped unit whose configuration is Satisfied is
+    /// started, not Skipped (ADR 0009 note of 2026-09-30).
+    #[test]
+    fn a_varying_vertex_runs_when_its_group_is_disabled() {
+        let f = run(
+            vec![
+                Vertex::anchor(r("/conf")),
+                Vertex::varying(r("/svc"), BTreeSet::new()),
+            ],
+            vec![edge("/conf", "/svc", EdgeKind::OnChange)],
+            &[],
+        );
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Ready));
+        // A failed trigger still blocks it.
+        let f = run(
+            vec![
+                Vertex::indeterminate_anchor(r("/conf")),
+                Vertex::varying(r("/svc"), BTreeSet::new()),
+            ],
+            vec![edge("/conf", "/svc", EdgeKind::OnChange)],
+            &[],
+        );
+        assert_eq!(f.resolution(&r("/svc")), Some(Resolution::Blocked));
     }
 
     /// An owed refresh still waits for its trigger and is still Blocked by

@@ -14,7 +14,7 @@ mod support;
 use std::cell::Cell;
 use std::collections::BTreeMap;
 
-use nomos_canon::artifact::{DecodeError, Profile, Reader, decode, raw_value, raw_value_v1};
+use nomos_canon::artifact::{DecodeError, Profile, Reader, decode, raw_value_v1, raw_value_v2};
 use nomos_canon::model::{
     Canon, CanonBuilder, CanonError, RawCanon, RawSpec, RelationKind, Requirement,
     ServiceRequirement,
@@ -60,14 +60,12 @@ fn typed_requirement(spec: &RawSpec) -> Option<Requirement> {
     let none = spec.digest.is_none();
     match (spec.kind.as_str(), spec.state.as_str()) {
         ("file", "absent") if none => Some(Requirement::File(FileCondition::Absent)),
-        ("file", "present-any") if none => Some(Requirement::File(FileCondition::Present {
-            content: Content::Any,
-        })),
-        ("file", "present-exact") => digest().map(|d| {
-            Requirement::File(FileCondition::Present {
-                content: Content::Exactly(d),
-            })
-        }),
+        ("file", "present-any") if none => {
+            Some(Requirement::File(FileCondition::present(Content::Any)))
+        }
+        ("file", "present-exact") => {
+            digest().map(|d| Requirement::File(FileCondition::present(Content::Exactly(d))))
+        }
         ("service", "running") if none => Some(Requirement::Service(ServiceRequirement::Running)),
         ("service", "loaded") => {
             digest().map(|d| Requirement::Service(ServiceRequirement::Loaded(d)))
@@ -112,11 +110,11 @@ fn builder(raw: &RawCanon) -> Outcome {
 /// failure, so valid inputs are given in their canonical order.
 fn decoder(raw: &RawCanon, profile: Profile) -> Outcome {
     let raw = match Canon::try_from(raw.clone()) {
-        Ok(c) => c.to_raw(),
+        Ok(c) => c.to_raw_v2().unwrap(),
         Err(_) => raw.clone(),
     };
     decoded(decode(
-        &profile.encode_value(&raw_value(&raw)),
+        &profile.encode_value(&raw_value_v2(&raw)),
         profile,
         &Reader::current(),
     ))
@@ -125,7 +123,7 @@ fn decoder(raw: &RawCanon, profile: Profile) -> Outcome {
 /// The schema-1 migration, for inputs schema 1 can say.
 fn migration(raw: &RawCanon, profile: Profile) -> Outcome {
     let raw = match Canon::try_from(raw.clone()) {
-        Ok(c) => c.to_raw(),
+        Ok(c) => c.to_raw_v2().unwrap(),
         Err(_) => raw.clone(),
     };
     match raw_value_v1(&raw) {
@@ -160,8 +158,8 @@ fn all_paths(raw: &RawCanon) -> BTreeMap<&'static str, Outcome> {
 
 /// The error each break must produce, stated from the break, not read from
 /// the validator. `resource` is the position of the broken resource and
-/// `relation` of the added relation.
-fn expected(b: &Break, resources: usize, relations: usize) -> Vec<String> {
+/// `relation` of the added relation; `first` is the first resource's kind.
+fn expected(b: &Break, resources: usize, relations: usize, first: &str) -> Vec<String> {
     let r0 = CanonError::InvalidPath { resource: 0 };
     let e = match b {
         Break::Name(_) => CanonError::InvalidName,
@@ -179,6 +177,19 @@ fn expected(b: &Break, resources: usize, relations: usize) -> Vec<String> {
             CanonError::InvalidDigest { resource: 0 }
         }
         Break::Label(_) => CanonError::InvalidLabel { resource: 0 },
+        Break::DuplicatePath if first == "service" => {
+            // The copy is a file at the service's path. Schema 2 has one
+            // resource per path, so its readings refuse a second resource
+            // at the path; the builder writes schema 3, where the file and
+            // the service are two keys that write one property
+            // (resource-families.md, Admission). Either refusal names the
+            // copy.
+            let resource = resources - 1;
+            return vec![
+                format!("{:?}", CanonError::DuplicatePath { resource }),
+                format!("{:?}", CanonError::Conflict { resource }),
+            ];
+        }
         Break::DuplicatePath => CanonError::DuplicatePath {
             resource: resources - 1,
         },
@@ -238,7 +249,12 @@ fn no_path_accepts_a_malformed_canon() {
     support::runner(12, 2048)
         .run(&(valid_raw(), a_break()), |(raw, b)| {
             let bad = apply(raw, &b);
-            let want = expected(&b, bad.resources.len(), bad.relations.len());
+            let want = expected(
+                &b,
+                bad.resources.len(),
+                bad.relations.len(),
+                &bad.resources[0].spec.kind,
+            );
             let mut tally = counts.take();
             for (path, outcome) in all_paths(&bad) {
                 let entry = tally.entry(path).or_default();
@@ -441,7 +457,7 @@ fn errors_never_repeat_the_input() {
             assert!(!shown.contains(S), "case {i}: {shown}");
         }
         for profile in Profile::ALL {
-            let bytes = profile.encode_value(&raw_value(raw));
+            let bytes = profile.encode_value(&raw_value_v2(raw));
             let e = decode(&bytes, profile, &Reader::current()).unwrap_err();
             for shown in [format!("{e:?}"), format!("{e}")] {
                 assert!(!shown.contains(S), "case {i} {profile:?}: {shown}");
@@ -502,7 +518,7 @@ fn leaks(accepts: impl Fn(&[u8]) -> bool, seed: u8) -> (u32, u32) {
     support::runner(seed, 512)
         .run(&(valid_raw(), a_break()), |(raw, b)| {
             let bad = apply(raw, &b);
-            let bytes = Profile::Jcs.encode_value(&raw_value(&bad));
+            let bytes = Profile::Jcs.encode_value(&raw_value_v2(&bad));
             seen.set(seen.get() + 1);
             if accepts(&bytes) {
                 leaked.set(leaked.get() + 1);
@@ -586,7 +602,7 @@ fn errors_say_where_and_why() {
         ),
         (
             CanonError::DuplicatePath { resource: 1 },
-            "resource 1: a second resource at one path",
+            "resource 1: a second resource with one key",
         ),
         (
             CanonError::UnknownRelation { relation: 3 },

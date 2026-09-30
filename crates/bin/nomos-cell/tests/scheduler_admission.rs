@@ -36,7 +36,7 @@ fn drifted(paths: &[&str]) -> MockHost {
     host
 }
 
-fn dispatched(sim: &Sim) -> Vec<nomos_core::resource::ResourcePath> {
+fn dispatched(sim: &Sim) -> Vec<nomos_core::resource::ResourceKey> {
     sim.decisions
         .iter()
         .flat_map(|d| &d.events)
@@ -63,20 +63,20 @@ fn a_timeout_keeps_its_reservation() {
         sim.next();
     }
     let held = sim.queue.pop_front().expect("A was dispatched");
-    assert_eq!(dispatched(&sim), vec![p("/a")]);
+    assert_eq!(dispatched(&sim), vec![k("/a")]);
     for _ in 0..19 {
         sim.tick(1);
         while sim.next() {}
-        let a = &sim.snapshot.round().unwrap().actions[&p("/a")];
+        let a = &sim.snapshot.round().unwrap().actions[&k("/a")];
         if sim.now >= 5 {
             assert_eq!(a.stage, Stage::TimedOut, "at {}", sim.now);
         }
-        assert_eq!(dispatched(&sim), vec![p("/a")], "B admitted at {}", sim.now);
+        assert_eq!(dispatched(&sim), vec![k("/a")], "B admitted at {}", sim.now);
     }
     sim.tick(1);
     assert_eq!(
         dispatched(&sim),
-        vec![p("/a"), p("/b")],
+        vec![k("/a"), k("/b")],
         "B admitted once A is Settled"
     );
     sim.deliver(held);
@@ -84,7 +84,7 @@ fn a_timeout_keeps_its_reservation() {
         sim.run(),
         RunOutcome::Failed {
             failed: vec![],
-            unknown: vec![p("/a")]
+            unknown: vec![k("/a")]
         }
     );
 }
@@ -188,7 +188,7 @@ fn a_superseding_plan_drains_before_it_acts() {
         .decisions
         .iter()
         .flat_map(|d| &d.events)
-        .any(|e| matches!(e, Event::ActionAdvanced { resource, stage: Stage::Cancelled, .. } if *resource == p("/b")));
+        .any(|e| matches!(e, Event::ActionAdvanced { resource, stage: Stage::Cancelled, .. } if *resource == k("/b")));
     assert!(old_b, "the old Plan's B was Cancelled");
     assert!(
         sim.snapshot.run().unwrap().phase == nomos_app::kernel::Phase::Awaiting,

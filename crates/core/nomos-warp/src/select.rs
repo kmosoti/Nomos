@@ -17,7 +17,7 @@
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
 
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::ResourceKey;
 
 use crate::budget::{Budgets, Node};
 use crate::frontier::Frontier;
@@ -39,14 +39,14 @@ pub struct Reserved {
 /// What one selection pass chose, and what is reserved afterward.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
-    chosen: Vec<ResourcePath>,
+    chosen: Vec<ResourceKey>,
     held: BTreeSet<ConflictKey>,
     nodes: BTreeSet<Node>,
 }
 
 impl Selection {
     /// The Actions admitted, in the order they were considered.
-    pub fn chosen(&self) -> &[ResourcePath] {
+    pub fn chosen(&self) -> &[ResourceKey] {
         &self.chosen
     }
 
@@ -118,10 +118,10 @@ mod tests {
     use crate::budget::{Budget, Budgets, Node};
     use crate::frontier::{Frontier, Outcome, Progress, frontier};
     use crate::graph::{ConflictKey, Edge, EdgeKind, Graph, Vertex};
-    use nomos_core::resource::ResourcePath;
+    use nomos_core::resource::{ResourceKey, ResourcePath};
 
-    fn r(text: &str) -> ResourcePath {
-        ResourcePath::new(text).unwrap()
+    fn r(text: &str) -> ResourceKey {
+        ResourceKey::File(ResourcePath::new(text).unwrap())
     }
 
     fn keys(names: &[&str]) -> BTreeSet<ConflictKey> {
@@ -212,15 +212,15 @@ mod tests {
         assert_eq!(names(s.chosen()), ["/d"]);
     }
 
-    fn names(paths: &[ResourcePath]) -> Vec<&str> {
-        paths.iter().map(ResourcePath::as_str).collect()
+    fn names(paths: &[ResourceKey]) -> Vec<&str> {
+        paths.iter().map(ResourceKey::name).collect()
     }
 
     /// The frontier with exactly `ready` pending; every other Action is Running.
     fn ready_only(g: &Graph, ready: &[&str]) -> Frontier {
-        let progress: BTreeMap<ResourcePath, Progress> = g
+        let progress: BTreeMap<ResourceKey, Progress> = g
             .vertices()
-            .filter(|v| !ready.contains(&v.resource().as_str()))
+            .filter(|v| !ready.contains(&v.resource().name()))
             .map(|v| (v.resource().clone(), Progress::Running))
             .collect();
         frontier(g, &progress)
@@ -284,7 +284,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let progress: BTreeMap<ResourcePath, Progress> = [
+        let progress: BTreeMap<ResourceKey, Progress> = [
             (r("/failed"), Progress::Done(Outcome::Failed)),
             (r("/running"), Progress::Running),
         ]

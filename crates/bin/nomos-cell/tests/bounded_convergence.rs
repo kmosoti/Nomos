@@ -159,7 +159,7 @@ fn a_denied_read_with_nothing_else_to_do_is_indeterminate() {
     assert_eq!(
         sim.run(),
         RunOutcome::Indeterminate(vec![(
-            p(F),
+            k(F),
             Reason::CollectionFailed(CollectionFailure::PermissionDenied)
         )])
     );
@@ -182,7 +182,7 @@ fn a_variance_blocked_behind_an_unknown_is_indeterminate() {
     assert_eq!(
         sim.run(),
         RunOutcome::Indeterminate(vec![(
-            p("/etc/app.d"),
+            k("/etc/app.d"),
             Reason::CollectionFailed(CollectionFailure::PermissionDenied)
         )])
     );

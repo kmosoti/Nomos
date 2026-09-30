@@ -16,7 +16,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use nomos_canon::artifact::{
-    CanonId, DecodeError, Profile, Reader, canon_id, decode, encode, raw_value, raw_value_v1,
+    CanonId, DecodeError, Profile, Reader, canon_id, canon_id_v2, decode, encode, encode_v2,
+    raw_value, raw_value_v1, raw_value_v2,
 };
 use nomos_canon::model::{Canon, RawCanon};
 use nomos_canon::value::{SyntaxError, Value};
@@ -124,8 +125,9 @@ fn reference_decode(bytes: &[u8], profile: Profile) -> Value {
     }
 }
 
-/// The reference `CanonID`: `sha2` over the preimage canon-ir.md states.
-fn reference_id(canon: &Canon, profile: Profile) -> String {
+/// The reference `CanonID`: `sha2` over the preimage canon-ir.md states,
+/// for the artifact `bytes` of schema `schema`.
+fn reference_id(profile: Profile, schema: u64, bytes: &[u8]) -> String {
     let tag: &[u8] = match profile {
         Profile::Cbor => b"nomos.canon-id.cbor",
         Profile::Jcs => b"nomos.canon-id.jcs",
@@ -133,8 +135,8 @@ fn reference_id(canon: &Canon, profile: Profile) -> String {
     let mut h = sha2::Sha256::new();
     h.update(tag);
     h.update([0u8]);
-    h.update(2u64.to_be_bytes());
-    h.update(encode(canon, profile));
+    h.update(schema.to_be_bytes());
+    h.update(bytes);
     format!("sha256:{}", hex(&h.finalize()))
 }
 
@@ -164,22 +166,41 @@ fn canon(raw: RawCanon) -> Canon {
 // ---------------------------------------------------------------------------
 // Golden vectors
 
-/// Every golden Canon, in both profiles, schema 2 and, where it can say it,
-/// schema 1: the encoder under test and the independent encoder agree, the
-/// committed fixture is that encoding, the independent decoder reads the
-/// value back, and the identity agrees with `sha2`.
+/// Every golden Canon: the five of `06-canon-artifact` and the schema-3
+/// ones, validated.
+fn golden_canons() -> Vec<(&'static str, Canon)> {
+    let mut all: Vec<(&'static str, Canon)> = golden()
+        .into_iter()
+        .map(|(n, raw)| (n, canon(raw)))
+        .collect();
+    all.extend(
+        golden_v3()
+            .into_iter()
+            .map(|(n, raw)| (n, Canon::try_from(raw).unwrap())),
+    );
+    all
+}
+
+/// Every golden Canon, in both profiles, schema 3 and, where it can say it,
+/// schema 2 and schema 1: the encoder under test and the independent
+/// encoder agree, the committed fixture is that encoding, the independent
+/// decoder reads the value back, and each identity agrees with `sha2`. The
+/// schema-2 identities are the ones `06-canon-artifact` recorded, in
+/// `ids.txt`; the schema-3 ones are in `ids.v3.txt`.
 #[test]
 fn golden_vectors_agree_with_the_independent_encoders() {
     let bless = std::env::var_os("NOMOS_CANON_BLESS").is_some();
-    let mut ids = String::new();
+    let (mut ids, mut ids_v3) = (String::new(), String::new());
     let mut checked = 0;
-    for (name, raw) in golden() {
-        let c = canon(raw);
+    for (name, c) in golden_canons() {
         for profile in Profile::ALL {
-            let mut forms = vec![("v2", raw_value(&c.to_raw()), encode(&c, profile))];
-            if let Some(v1) = raw_value_v1(&c.to_raw()) {
-                let ours = nomos_canon::artifact::encode_v1(&c, profile).unwrap();
-                forms.push(("v1", v1, ours));
+            let mut forms = vec![("v3", raw_value(&c.to_raw()), encode(&c, profile))];
+            if let Some(v2) = c.to_raw_v2() {
+                forms.push(("v2", raw_value_v2(&v2), encode_v2(&c, profile).unwrap()));
+                if let Some(v1) = raw_value_v1(&v2) {
+                    let ours = nomos_canon::artifact::encode_v1(&c, profile).unwrap();
+                    forms.push(("v1", v1, ours));
+                }
             }
             for (schema, value, ours) in forms {
                 let theirs = reference(&value, profile);
@@ -205,31 +226,48 @@ fn golden_vectors_agree_with_the_independent_encoders() {
             let id = canon_id(&c, profile);
             assert_eq!(
                 id.to_string(),
-                reference_id(&c, profile),
+                reference_id(profile, 3, &encode(&c, profile)),
                 "{name} {profile:?}"
             );
-            ids.push_str(&format!("{name} {} {id}\n", ext(profile)));
+            ids_v3.push_str(&format!("{name} {} {id}\n", ext(profile)));
+            if let Some(id) = canon_id_v2(&c, profile) {
+                let bytes = encode_v2(&c, profile).unwrap();
+                assert_eq!(id.to_string(), reference_id(profile, 2, &bytes));
+                ids.push_str(&format!("{name} {} {id}\n", ext(profile)));
+            }
         }
     }
-    let ids_file = fixtures().join("ids.txt");
-    if bless {
-        fs::write(&ids_file, &ids).unwrap();
+    for (file, text) in [("ids.txt", &ids), ("ids.v3.txt", &ids_v3)] {
+        let file = fixtures().join(file);
+        if bless {
+            fs::write(&file, text).unwrap();
+        }
+        assert_eq!(&fs::read_to_string(&file).unwrap(), text);
     }
-    assert_eq!(fs::read_to_string(&ids_file).unwrap(), ids);
-    // Five Canons in two profiles at schema 2; three of them, the ones with
-    // files only and no labels, also at schema 1.
-    assert_eq!(checked, 16);
+    // Seven Canons in two profiles at schema 3; the five of `06` also at
+    // schema 2; three of them, with files only and no labels, at schema 1.
+    assert_eq!(checked, 14 + 10 + 6);
 }
 
+/// Every golden vector decodes to its Canon: the schema-3 one as read,
+/// the older ones migrated, with lineage to the schema-3 identity.
 #[test]
 fn every_golden_vector_decodes_to_its_canon() {
-    for (name, raw) in golden() {
-        let c = canon(raw);
+    for (name, c) in golden_canons() {
         for profile in Profile::ALL {
             let decoded = decode(&encode(&c, profile), profile, &Reader::current()).unwrap();
             assert_eq!(decoded.canon, c, "{name} {profile:?}");
-            assert_eq!(decoded.schema, 2);
+            assert_eq!(decoded.schema, 3);
             assert!(decoded.lineage.is_none());
+            if let Some(bytes) = encode_v2(&c, profile) {
+                let decoded = decode(&bytes, profile, &Reader::current()).unwrap();
+                assert_eq!(decoded.canon, c, "{name} {profile:?} v2");
+                assert_eq!(decoded.schema, 2);
+                let lineage = decoded.lineage.unwrap();
+                assert_eq!(lineage.from_schema, 2);
+                assert_eq!(lineage.from_digest, nomos_canon::sha256::digest(&bytes));
+                assert_eq!(lineage.to, canon_id(&c, profile));
+            }
         }
     }
 }
@@ -344,7 +382,10 @@ fn generated_canons_agree_with_the_independent_encoders() {
                     sorted(reference_decode(&ours, profile)),
                     sorted(value.clone())
                 );
-                prop_assert_eq!(canon_id(&c, profile).to_string(), reference_id(&c, profile));
+                prop_assert_eq!(
+                    canon_id(&c, profile).to_string(),
+                    reference_id(profile, 3, &encode(&c, profile))
+                );
             }
             Ok(())
         })
@@ -559,7 +600,7 @@ fn the_profiles_have_separate_identities() {
         for (profile, other) in [(Profile::Cbor, Profile::Jcs), (Profile::Jcs, Profile::Cbor)] {
             let bytes = encode(&c, profile);
             let id = canon_id(&c, profile).to_string();
-            assert_eq!(id, reference_id(&c, profile));
+            assert_eq!(id, reference_id(profile, 3, &encode(&c, profile)));
             assert_ne!(id, preimage(b"", &bytes), "{profile:?}: the tag is missing");
             let other_tag: &[u8] = match other {
                 Profile::Cbor => b"nomos.canon-id.cbor",
@@ -580,8 +621,8 @@ fn the_profiles_have_separate_identities() {
 #[test]
 fn adversarial_cbor_is_rejected() {
     let c = canon(golden().into_iter().nth(1).unwrap().1);
-    let good = encode(&c, Profile::Cbor);
-    let value = raw_value(&c.to_raw());
+    let good = encode_v2(&c, Profile::Cbor).unwrap();
+    let value = raw_value_v2(&c.to_raw_v2().unwrap());
     let reject = |bytes: Vec<u8>, expected: DecodeError, what: &str| {
         assert_eq!(
             decode(&bytes, Profile::Cbor, &Reader::current()).err(),
@@ -639,30 +680,30 @@ fn adversarial_cbor_is_rejected() {
     );
     // Resources written in reverse: a valid value, canonical as a value, not
     // the canonical encoding of the Canon.
-    let mut raw = c.to_raw();
+    let mut raw = c.to_raw_v2().unwrap();
     raw.resources.reverse();
     reject(
-        nomos_canon::cbor::encode(&raw_value(&raw)),
+        nomos_canon::cbor::encode(&raw_value_v2(&raw)),
         DecodeError::NonCanonical,
         "resources out of order",
     );
-    let mut raw = c.to_raw();
+    let mut raw = c.to_raw_v2().unwrap();
     // Resource 2 is /etc/nomos/cell.conf, the one with a key and a digest.
     let key = raw.resources[2].keys[0].clone();
     raw.resources[2].keys.push(key);
     reject(
-        nomos_canon::cbor::encode(&raw_value(&raw)),
+        nomos_canon::cbor::encode(&raw_value_v2(&raw)),
         DecodeError::NonCanonical,
         "a key twice",
     );
-    let mut raw = c.to_raw();
+    let mut raw = c.to_raw_v2().unwrap();
     raw.resources[2].spec.digest = raw.resources[2]
         .spec
         .digest
         .clone()
         .map(|d| d.to_uppercase());
     reject(
-        nomos_canon::cbor::encode(&raw_value(&raw)),
+        nomos_canon::cbor::encode(&raw_value_v2(&raw)),
         DecodeError::Invalid(nomos_canon::model::CanonError::InvalidDigest { resource: 2 }),
         "uppercase digest",
     );
@@ -671,7 +712,7 @@ fn adversarial_cbor_is_rejected() {
 #[test]
 fn adversarial_json_is_rejected() {
     let c = canon(golden().into_iter().nth(1).unwrap().1);
-    let good = String::from_utf8(encode(&c, Profile::Jcs)).unwrap();
+    let good = String::from_utf8(encode_v2(&c, Profile::Jcs).unwrap()).unwrap();
     let reject = |text: String, expected: DecodeError, what: &str| {
         assert_eq!(
             decode(text.as_bytes(), Profile::Jcs, &Reader::current()).err(),
@@ -726,7 +767,7 @@ fn adversarial_json_is_rejected() {
     );
     // The top-level members in insertion order, through serde_json's
     // order-preserving map.
-    let value = raw_value(&c.to_raw());
+    let value = raw_value_v2(&c.to_raw_v2().unwrap());
     let unsorted = serde_json::to_string(&to_json(&value)).unwrap();
     assert_ne!(unsorted, good);
     reject(unsorted, DecodeError::NonCanonical, "unsorted members");

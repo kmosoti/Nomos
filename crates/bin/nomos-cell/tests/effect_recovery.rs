@@ -113,7 +113,7 @@ fn an_effect_without_a_readable_postcondition_stays_unresolved() {
         sim.run(),
         RunOutcome::Failed {
             failed: vec![],
-            unknown: vec![p(F)]
+            unknown: vec![k(F)]
         }
     );
     assert_eq!(sim.host.executions().len(), 1);
@@ -127,7 +127,7 @@ fn a_receipt_for_an_unknown_execution_changes_nothing() {
     sim.enforce(plan("p", 1, one_file(), 3));
     sim.run();
     let before = sim.snapshot.clone();
-    let stranger = EffectKey::new(PlanId::new("x").unwrap(), Generation(9), 0, p(F));
+    let stranger = EffectKey::new(PlanId::new("x").unwrap(), Generation(9), 0, k(F));
     sim.step(Input::Receipt(
         stranger,
         Receipt::Completed { changed: true },
@@ -147,7 +147,7 @@ fn a_refused_request_withdraws_its_obligation() {
     assert_eq!(
         sim.run(),
         RunOutcome::Failed {
-            failed: vec![p(CONF)],
+            failed: vec![k(CONF)],
             unknown: vec![]
         }
     );
@@ -167,7 +167,7 @@ fn a_blocked_refresh_reruns_once_its_trigger_is_repaired() {
     assert_eq!(
         sim.run(),
         RunOutcome::Failed {
-            failed: vec![p(CONF)],
+            failed: vec![k(CONF)],
             unknown: vec![]
         }
     );
