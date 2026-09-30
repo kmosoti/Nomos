@@ -51,6 +51,10 @@ The storage engine for Loom's materialized state (the persistence ablation of `n
 - `09-file-and-directory`: the Linux adapter's file suite passes with content from the store; a blob whose bytes were changed on disk is refused, not written; a bundle with a misnamed file is refused whole.
 - `10-durable-cell`, experiment `durable-log`: a Cell killed at every step of a batch's write recovers every acknowledged Event and Obligation; a torn final record is truncated and reported; a corrupted middle record fails the open.
 
+## Note, 2026-09-30: The First Criterion
+
+`09-file-and-directory` met the first acceptance criterion ([linux-files-and-directories](../plans/results/linux-files-and-directories.md)): the Linux file suite passes on Debian 12 and 13 with content from the store, a changed blob is refused, and a bundle with a bad entry is refused whole. The ADR stays Proposed until `10-durable-cell` meets the second.
+
 ## Consequences
 
 - The Cell has state on disk that must be backed up with, or rebuilt from, its Canon and bundles. Losing the log loses pending Obligations; losing the store makes exact file requirements refused until the bundle is imported again. Neither silently changes intent.
