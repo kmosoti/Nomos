@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `15-debian-convergence` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `16-alpha-release` landed 2026-09-30, and `0.1.0-alpha.1` is tagged from the last; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -115,6 +115,8 @@ What turns a converging Cell into something an operator installs. A static `nomo
 
 Exit: the package installs, upgrades, and purges cleanly on fresh Debian 12 and Debian 13 containers booting systemd; the demonstration Canon of `15` converges from each enumerated starting state through the installed service; the release notes list what `0.1.0-alpha.1` does and does not establish, each with its record.
 
+Landed 2026-09-30: [alpha-release](results/alpha-release.md), with the [release notes](../releases/v0.1.0-alpha.1.md) and the [operator guide](../operator-guide.md).
+
 ## Experiments
 
 | Experiment | Milestone | Question |
@@ -131,8 +133,8 @@ Each ends in a result record under [results/](results/), with receipts, in the f
 
 ## Carried Forward
 
-- **Procedural macros in the Canon build.** The hermeticity check cannot see one ([build-hermeticity](../research/2026-09-28-typed-core/results/build-hermeticity.md)). A static check over `cargo metadata` that refuses a procedural-macro crate in a Canon crate's graph, with a negative-control fixture, fits before `14-cell-commands` makes artifacts an operator path.
-- **ADR 0008 and ADR 0013.** `08-resource-families` puts the ownership check on the admission path and `09` to `13` run it on a host, which is the evidence §1 and §2 of each still lack. Identity (ADR 0008 §3 and §4) and secrets (ADR 0013 §3) stay with Phases 3, 4, and 6.
+- **Procedural macros in the Canon build.** The hermeticity check cannot see one ([build-hermeticity](../research/2026-09-28-typed-core/results/build-hermeticity.md)). A static check over `cargo metadata` that refuses a procedural-macro crate in a Canon crate's graph, with a negative-control fixture, fits before `14-cell-commands` makes artifacts an operator path. Settled 2026-09-30 in `16-alpha-release`: `cargo xtask check-canon-build`, with two negative controls, as [canon-ir.md](../formal/canon-ir.md) now states.
+- **ADR 0008 and ADR 0013.** `08-resource-families` puts the ownership check on the admission path and `09` to `13` run it on a host, which is the evidence §1 and §2 of each still lack. ADR 0008 stays Proposed, with the reason in its note of 2026-09-30. Identity (ADR 0008 §3 and §4) and secrets (ADR 0013 §3) stay with Phases 3, 4, and 6.
 - **Mutation cost.** Settled 2026-09-30 ([mutation-calibration](../research/2026-09-28-typed-core/results/mutation-calibration.md)): the weekly run mutates only the week's changes, and mutation runs leave out the repository-corpus test, so mutating the new adapter code costs seconds a mutant.
 
 ## Exit Criteria
