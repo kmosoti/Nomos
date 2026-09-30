@@ -18,11 +18,15 @@ use sha2::{Digest, Sha256};
 /// The target every package is built for.
 pub(crate) const TARGET: &str = "x86_64-unknown-linux-musl";
 
-/// The service the package installs.
+/// The service the package installs. A run is a oneshot that is never
+/// restarted, so systemd's start limit, five starts in ten seconds, would
+/// only refuse an operator who starts it by hand in quick succession; it is
+/// lifted.
 pub(crate) const SERVICE: &str = "[Unit]
 Description=Nomos Cell: converge this host to its Canon
 Documentation=https://github.com/kmosoti/nomos
 ConditionPathExists=/etc/nomos/canon.cbor
+StartLimitIntervalSec=0
 Wants=network-online.target
 After=network-online.target
 
@@ -255,6 +259,8 @@ mod tests {
             "ExecStart=/usr/bin/nomos-cell --state /var/lib/nomos enforce --canon /etc/nomos/canon.cbor --bundle /etc/nomos/bundle"
         ));
         assert!(SERVICE.contains("ConditionPathExists=/etc/nomos/canon.cbor"));
+        assert!(SERVICE.contains("StartLimitIntervalSec=0"));
+        assert!(!SERVICE.contains("Restart="));
         assert!(TIMER.contains("WantedBy=timers.target"));
         assert!(POSTRM.contains("rm -rf /var/lib/nomos"));
         assert!(!POSTRM.contains("/etc/nomos"));
