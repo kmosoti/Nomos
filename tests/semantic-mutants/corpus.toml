@@ -8,8 +8,8 @@
 # resource families' (`08-resource-families`), the Linux files and
 # directories' and the content store's (`09-file-and-directory`), the
 # durable log's (`10-durable-cell`), the systemd units' on Debian
-# (`11-systemd-unit`), and the kernel parameters' and users'
-# (`12-sysctl-and-user`). A patch is regenerated
+# (`11-systemd-unit`), the kernel parameters' and users'
+# (`12-sysctl-and-user`), and the packages' (`13-package`). A patch is regenerated
 # against the code it mutates when that code moves, with the same wrong
 # behavior; the 08 regenerations are named in the milestone's record.
 
@@ -580,4 +580,48 @@ wrong_behavior = "the Linux adapter creates every account without --system"
 crate = "nomos-cell"
 patch = "patches/SM-SUBSTRATE-017.diff"
 test = "the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-018"
+property = "N13"
+threat = "a package database another package manager is changing is read as evidence, so a transaction's middle state becomes a Variance"
+wrong_behavior = "the Linux adapter reads dpkg's status database without looking for a held lock"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-018.diff"
+test = "a_held_dpkg_lock_times_the_collection_out"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-019"
+property = "N12"
+threat = "Nomos removes packages the Canon did not describe, as dependents or conflicts of the one it names"
+wrong_behavior = "the Linux adapter runs apt-get whatever its simulation would remove"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-019.diff"
+test = "the_linux_adapter_passes_the_suite_for_packages"
+status = "active"
+host = "debian"
+target = "debian_host"
+
+[[mutant]]
+id = "SM-SUBSTRATE-020"
+property = "N2"
+threat = "a package pinned to a version is installed at another, and never converges"
+wrong_behavior = "the Linux adapter installs a pinned package without its version"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-020.diff"
+test = "the_linux_adapter_passes_the_suite_for_packages"
+status = "active"
+host = "debian"
+target = "debian_host"
+
+[[mutant]]
+id = "SM-SUBSTRATE-021"
+property = "N13"
+threat = "a package dpkg holds unpacked and unconfigured is reported installed, and Nomos declares a broken host converged"
+wrong_behavior = "the Linux adapter reads an unpacked package as installed"
+crate = "nomos-substrate-linux"
+patch = "patches/SM-SUBSTRATE-021.diff"
+test = "packages::tests::the_status_database_reads_as_the_table_says"
 status = "active"

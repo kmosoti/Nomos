@@ -99,13 +99,16 @@ fn the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users() {
     }
 }
 
-/// A family the Linux adapter does not serve yet is a failed collection
-/// when observed, never absence, and refused when changed (S7).
+/// A family the Linux adapter does not serve is a failed collection when
+/// observed, never absence, and refused when changed (S7): units, for a
+/// host given no connection to systemd.
 #[test]
 fn the_linux_adapter_refuses_the_families_it_does_not_serve() {
+    use nomos_core::resource::Family;
     let mut s = LinuxSubject::new("unserved");
     for family in families::PHASE_1 {
-        if families::World::families(&s).contains(&family) {
+        // Packages are served; their suite runs on Debian (debian_host).
+        if families::World::families(&s).contains(&family) || family == Family::Package {
             continue;
         }
         let key = families::resource(family, "unserved", 0);
@@ -698,4 +701,63 @@ fn content_comes_from_the_store_and_a_changed_blob_is_refused() {
     assert_eq!(refused, vec![Receipt::Refused]);
     assert_eq!(s.truth(&p("/srv/b.conf")), Truth::Absent);
     let _ = std::fs::remove_dir_all(&scratch);
+}
+
+// ---------------------------------------------------------------------------
+// Packages beneath a scratch root
+
+/// A lock another package manager holds on dpkg's database, as the
+/// kernel's lock table shows it, makes a package's collection time out,
+/// never read; once released, the package reads as the database says. A
+/// package operation beneath a scratch root is refused (Packages on
+/// Linux).
+#[test]
+fn a_held_dpkg_lock_times_the_collection_out() {
+    use nomos_core::condition::{PackageCondition, Requirement};
+    use nomos_core::observation::PackageEvidence;
+    use nomos_core::resource::{PackageName, ResourceKey};
+    use std::os::unix::fs::MetadataExt;
+    let mut s = LinuxSubject::new("dpkg-lock");
+    let dpkg = s.root.join("var/lib/dpkg");
+    std::fs::create_dir_all(&dpkg).unwrap();
+    std::fs::create_dir_all(s.root.join("proc")).unwrap();
+    std::fs::write(
+        dpkg.join("status"),
+        "Package: hello\nStatus: install ok installed\nArchitecture: all\nVersion: 2.10-3\n",
+    )
+    .unwrap();
+    std::fs::write(dpkg.join("lock-frontend"), b"").unwrap();
+    let lock = std::fs::metadata(dpkg.join("lock-frontend")).unwrap();
+    let dev = lock.dev();
+    let entry = format!(
+        "1: POSIX  ADVISORY  WRITE 4242 {:02x}:{:02x}:{} 0 EOF\n",
+        rustix::fs::major(dev),
+        rustix::fs::minor(dev),
+        lock.ino()
+    );
+    std::fs::write(s.root.join("proc/locks"), &entry).unwrap();
+    let key = ResourceKey::Package(PackageName::new("hello").unwrap());
+
+    let started = std::time::Instant::now();
+    let seen = s.observe(std::slice::from_ref(&key));
+    assert_eq!(
+        seen[0].collection(),
+        &Collection::Failed(CollectionFailure::TimedOut)
+    );
+    assert!(started.elapsed() >= std::time::Duration::from_secs(5));
+
+    std::fs::write(s.root.join("proc/locks"), b"").unwrap();
+    let seen = s.observe(std::slice::from_ref(&key));
+    assert_eq!(
+        seen[0].collection(),
+        &Collection::Collected(Evidence::Package(PackageEvidence::Installed {
+            version: nomos_core::condition::PackageVersion::new("2.10-3").unwrap(),
+        }))
+    );
+    let receipts = s.apply(&families::converge(
+        &key,
+        1,
+        Requirement::Package(PackageCondition::Absent),
+    ));
+    assert_eq!(receipts, vec![Receipt::Refused]);
 }

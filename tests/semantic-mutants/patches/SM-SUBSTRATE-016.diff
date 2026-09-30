@@ -1,7 +1,7 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -333,12 +333,7 @@ impl LinuxHost {
+@@ -350,12 +350,7 @@ impl LinuxHost {
          if written.is_err() {
              return Receipt::Failed;
          }
@@ -14,4 +14,4 @@ diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/
 +        Receipt::Completed { changed: true }
      }
  
-     /// Creates, changes, or deletes an account with the distribution's
+     /// Whether another package manager holds dpkg's lock: a lock on one of

@@ -1,0 +1,17 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -449,12 +449,7 @@ impl LinuxHost {
+         let Some(simulation) = simulate.output() else {
+             return Receipt::Refused;
+         };
+-        if packages::removals(&simulation)
+-            .iter()
+-            .any(|n| n != name.as_str())
+-        {
+-            return Receipt::Refused;
+-        }
++        let _ = packages::removals(&simulation);
+         let ran = run.run();
+         match (ran, self.read_package(name)) {
+             (true, Ok(after)) => Receipt::Completed {

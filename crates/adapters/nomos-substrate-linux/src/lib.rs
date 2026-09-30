@@ -13,19 +13,21 @@
 //! written, synced, renamed over the target, and the directory synced (spec
 //! §11). Native system calls only; no shell (AGENTS.md rule 5).
 //!
-//! It serves the `file`, `directory`, `sysctl`, and `user` families, and
-//! the `unit` family when it is given a connection to systemd ([`units`],
-//! Units on Linux); a key of another family is observed as a failed
-//! collection (`Unsupported`), and an operation on one is refused. Owners
-//! and groups are resolved from the user and group databases beneath the
-//! root ([`accounts`]). Kernel parameters are the files of `/proc/sys`
-//! beneath the root; accounts are changed through the distribution's tools
-//! ([`users`]). Content comes from a [`ContentSource`], or from bytes added
-//! directly. Later family: `package`.
+//! It serves the `file`, `directory`, `sysctl`, `user`, and `package`
+//! families, and the `unit` family when it is given a connection to
+//! systemd ([`units`], Units on Linux); a key of the legacy `service`
+//! family is observed as a failed collection (`Unsupported`), and an
+//! operation on one is refused. Owners and groups are resolved from the
+//! user and group databases beneath the root ([`accounts`]). Kernel
+//! parameters are the files of `/proc/sys` beneath the root; accounts are
+//! changed through the distribution's tools ([`users`]); packages are read
+//! from dpkg's database and changed through `apt-get` ([`packages`]).
+//! Content comes from a [`ContentSource`], or from bytes added directly.
 //!
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
 pub mod accounts;
+pub mod packages;
 pub mod units;
 pub mod users;
 
@@ -37,14 +39,17 @@ use std::path::{Path, PathBuf};
 
 use nomos_canon::sha256::Sha256;
 use nomos_core::condition::{
-    Content, DirectoryCondition, FileCondition, Metadata, Requirement, SysctlValue, UserCondition,
+    Content, DirectoryCondition, FileCondition, Metadata, PackageCondition, Requirement,
+    SysctlValue, UserCondition,
 };
 use nomos_core::effect::{Apply, EffectKey, Operation, Receipt};
 use nomos_core::observation::{
     Account, Collection, CollectionFailure, CollectorId, DirectoryEvidence, Evidence, FileEvidence,
-    Instant, Observation, ObservedMetadata, Provenance, SysctlEvidence, Window,
+    Instant, Observation, ObservedMetadata, PackageEvidence, Provenance, SysctlEvidence, Window,
 };
-use nomos_core::resource::{AccountName, Digest, ResourceKey, ResourcePath, SysctlKey};
+use nomos_core::resource::{
+    AccountName, Digest, PackageName, ResourceKey, ResourcePath, SysctlKey,
+};
 use nomos_substrate::{ContentSource, Mutate, Observe};
 use rustix::fs::{AtFlags, FileType, Gid, Mode, OFlags, ResolveFlags, Stat, Uid};
 use rustix::io::Errno;
@@ -57,6 +62,12 @@ use units::Systemd;
 const RESOLVE: ResolveFlags = ResolveFlags::BENEATH
     .union(ResolveFlags::NO_SYMLINKS)
     .union(ResolveFlags::NO_MAGICLINKS);
+
+/// How long an Observation waits for another package manager to release
+/// dpkg's lock (Packages on Linux).
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+/// How often it looks.
+const LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// The mode a new file gets when its requirement states none.
 const FILE_MODE: u16 = 0o644;
@@ -194,6 +205,12 @@ impl LinuxHost {
         let path = match (key, &self.systemd) {
             (ResourceKey::File(p) | ResourceKey::Directory(p), _) => p,
             (ResourceKey::Sysctl(name), _) => return self.read_sysctl(name),
+            (ResourceKey::Package(name), _) => {
+                return match self.read_package(name) {
+                    Ok(e) => Collection::Collected(Evidence::Package(e)),
+                    Err(f) => Collection::Failed(f),
+                };
+            }
             (ResourceKey::User(name), _) => {
                 return match self.accounts() {
                     Ok(a) => Collection::Collected(Evidence::User(users::evidence(&a, name))),
@@ -341,6 +358,112 @@ impl LinuxHost {
         }
     }
 
+    /// Whether another package manager holds dpkg's lock: a lock on one of
+    /// its lock files in the kernel's lock table, which is read and never
+    /// taken (Packages on Linux, The Lock).
+    fn dpkg_locked(&self) -> Result<bool, Errno> {
+        let table = match rustix::fs::openat2(
+            self.root.as_fd(),
+            "proc/locks",
+            OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+            RESOLVE,
+        ) {
+            Ok(fd) => {
+                let mut text = String::new();
+                File::from(fd).read_to_string(&mut text).map_err(errno)?;
+                text
+            }
+            Err(Errno::NOENT) => return Ok(false),
+            Err(e) => return Err(e),
+        };
+        for lock in packages::LOCKS {
+            match rustix::fs::statat(self.root.as_fd(), lock, AtFlags::SYMLINK_NOFOLLOW) {
+                Ok(st) => {
+                    let (major, minor) =
+                        (rustix::fs::major(st.st_dev), rustix::fs::minor(st.st_dev));
+                    if packages::locked(&table, major, minor, st.st_ino) {
+                        return Ok(true);
+                    }
+                }
+                Err(Errno::NOENT | Errno::NOTDIR) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(false)
+    }
+
+    /// A package's evidence from dpkg's status database, once no other
+    /// package manager holds the lock; timed out when one still does after
+    /// [`LOCK_WAIT`].
+    fn read_package(&self, name: &PackageName) -> Result<PackageEvidence, CollectionFailure> {
+        let fail = |e: Errno| match failure(e) {
+            Collection::Failed(f) => f,
+            Collection::Collected(_) => CollectionFailure::Io,
+        };
+        let limit = std::time::Instant::now() + LOCK_WAIT;
+        while self.dpkg_locked().map_err(fail)? {
+            if std::time::Instant::now() >= limit {
+                return Err(CollectionFailure::TimedOut);
+            }
+            std::thread::sleep(LOCK_POLL);
+        }
+        let text = match rustix::fs::openat2(
+            self.root.as_fd(),
+            packages::STATUS,
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+            RESOLVE,
+        ) {
+            Ok(fd) => {
+                let mut text = String::new();
+                File::from(fd)
+                    .read_to_string(&mut text)
+                    .map_err(|e| fail(errno(e)))?;
+                text
+            }
+            // No database: nothing is installed.
+            Err(Errno::NOENT) => String::new(),
+            Err(e) => return Err(fail(e)),
+        };
+        Ok(packages::evidence(
+            &text,
+            name,
+            packages::native_architecture(),
+        ))
+    }
+
+    /// Installs or removes a package with `apt-get`, simulated first
+    /// (Packages on Linux).
+    fn converge_package(&self, name: &PackageName, requirement: &PackageCondition) -> Receipt {
+        if self.prefix.is_some() {
+            return Receipt::Refused;
+        }
+        let Ok(before) = self.read_package(name) else {
+            return Receipt::Refused;
+        };
+        let (simulate, run) = match packages::plan(name, requirement, &before) {
+            packages::Plan::Nothing => return Receipt::Completed { changed: false },
+            packages::Plan::Run { simulate, run } => (simulate, run),
+        };
+        let Some(simulation) = simulate.output() else {
+            return Receipt::Refused;
+        };
+        if packages::removals(&simulation)
+            .iter()
+            .any(|n| n != name.as_str())
+        {
+            return Receipt::Refused;
+        }
+        let ran = run.run();
+        match (ran, self.read_package(name)) {
+            (true, Ok(after)) => Receipt::Completed {
+                changed: after != before,
+            },
+            _ => Receipt::Failed,
+        }
+    }
+
     /// Creates, changes, or deletes an account with the distribution's
     /// tools (Users on Linux).
     fn converge_user(&self, name: &AccountName, requirement: &UserCondition) -> Receipt {
@@ -371,6 +494,9 @@ impl LinuxHost {
             }
             (ResourceKey::User(name), Requirement::User(c)) => {
                 return self.converge_user(name, c);
+            }
+            (ResourceKey::Package(name), Requirement::Package(c)) => {
+                return self.converge_package(name, c);
             }
             _ => {}
         }

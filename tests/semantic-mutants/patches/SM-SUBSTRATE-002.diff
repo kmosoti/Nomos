@@ -1,7 +1,7 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -49,9 +49,7 @@ use accounts::Accounts;
+@@ -59,9 +59,7 @@ use accounts::Accounts;
  use units::Systemd;
  
  /// The resolve flags of every path resolution (ADR 0013 §2).
@@ -10,5 +10,5 @@ diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/
 -    .union(ResolveFlags::NO_MAGICLINKS);
 +const RESOLVE: ResolveFlags = ResolveFlags::BENEATH.union(ResolveFlags::NO_MAGICLINKS);
  
- /// The mode a new file gets when its requirement states none.
- const FILE_MODE: u16 = 0o644;
+ /// How long an Observation waits for another package manager to release
+ /// dpkg's lock (Packages on Linux).

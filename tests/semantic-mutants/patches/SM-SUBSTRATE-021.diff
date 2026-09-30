@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/packages.rs b/crates/adapters/nomos-substrate-linux/src/packages.rs
+--- a/crates/adapters/nomos-substrate-linux/src/packages.rs
++++ b/crates/adapters/nomos-substrate-linux/src/packages.rs
+@@ -84,7 +84,7 @@ fn of_status(status: Option<&str>, versi
+         return PackageEvidence::Broken;
+     }
+     match state {
+-        "installed" | "triggers-awaited" | "triggers-pending" => {
++        "installed" | "triggers-awaited" | "triggers-pending" | "unpacked" => {
+             match version.and_then(PackageVersion::new) {
+                 Some(version) => PackageEvidence::Installed { version },
+                 None => PackageEvidence::Broken,

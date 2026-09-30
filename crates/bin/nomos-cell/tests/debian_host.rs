@@ -1,11 +1,17 @@
-//! Kernel parameters and users on a real Debian host (Phase 1 plan,
-//! `12-sysctl-and-user`): the running kernel's own `/proc/sys`, and the
-//! host's user database changed without `--prefix`, as production does.
+//! Kernel parameters, users, and packages on a real Debian host (Phase 1
+//! plan, `12-sysctl-and-user` and `13-package`): the running kernel's own
+//! `/proc/sys`, the host's user database changed without `--prefix`, and
+//! the host's packages through `apt-get`, from a local repository of
+//! dummy packages the tests build, as production does.
 //!
 //! Every test here changes the host, so every one is ignored on an
 //! ordinary run and runs in a disposable container: `cargo xtask debian`
 //! runs this binary with `--include-ignored`. The ground truth is read
-//! from `/proc/sys` and with `getent`, never through the adapter.
+//! from `/proc/sys`, with `getent`, and with `dpkg-query`, never through
+//! the adapter.
+
+mod conformance;
+mod support;
 
 use std::path::Path;
 use std::process::Command;
@@ -199,4 +205,369 @@ fn an_account_is_managed_on_the_host() {
     let receipts = host.apply(&converge(&key, 4, Requirement::User(UserCondition::Absent)));
     assert_eq!(receipts.last(), Some(&Receipt::Completed { changed: true }));
     assert_eq!(getent(name), None);
+}
+
+// ---------------------------------------------------------------------------
+// Packages
+
+use conformance::families::{self, Contents, World};
+use nomos_app::driver::Cell;
+use nomos_app::kernel::{Canon, Input, Managed, Plan, Policy, RunOutcome};
+use nomos_core::assessment::Reason;
+use nomos_core::condition::{Condition, PackageCondition, PackageVersion};
+use nomos_core::observation::{Observation, PackageEvidence};
+use nomos_core::resource::{Digest, Family, PackageName};
+
+/// The local repository the tests build.
+const REPO: &str = "/srv/nomos-repo";
+
+fn run(program: &str, args: &[&str]) -> bool {
+    Command::new(program)
+        .args(args)
+        .env("DEBIAN_FRONTEND", "noninteractive")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap()
+        .status
+        .success()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Builds the dummy package `name` at `version`, depending on `depends`,
+/// into the repository, and returns its file.
+fn build(name: &str, version: &str, depends: Option<&str>) -> String {
+    let file = format!("{REPO}/{name}_{version}_all.deb");
+    if Path::new(&file).exists() {
+        return file;
+    }
+    let dir = format!("/tmp/nomos-deb-{name}-{version}");
+    std::fs::create_dir_all(format!("{dir}/DEBIAN")).unwrap();
+    let depends = depends.map_or(String::new(), |d| format!("Depends: {d}\n"));
+    std::fs::write(
+        format!("{dir}/DEBIAN/control"),
+        format!(
+            "Package: {name}\nVersion: {version}\nArchitecture: all\n{depends}\
+             Maintainer: Nomos Tests <tests@nomos.invalid>\nDescription: Nomos test package\n"
+        ),
+    )
+    .unwrap();
+    std::fs::create_dir_all(REPO).unwrap();
+    assert!(run(
+        "dpkg-deb",
+        &["--build", "--root-owner-group", &dir, &file]
+    ));
+    file
+}
+
+/// Writes the repository's index from the packages in it, and reads it
+/// into apt's lists, from this source alone.
+fn publish() {
+    let mut index = String::new();
+    let mut debs: Vec<_> = std::fs::read_dir(REPO)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "deb"))
+        .collect();
+    debs.sort();
+    for deb in debs {
+        let control = Command::new("dpkg-deb")
+            .arg("-f")
+            .arg(&deb)
+            .output()
+            .unwrap();
+        let bytes = std::fs::read(&deb).unwrap();
+        index.push_str(&String::from_utf8(control.stdout).unwrap());
+        index.push_str(&format!(
+            "Filename: ./{}\nSize: {}\nSHA256: {}\n\n",
+            deb.file_name().unwrap().to_string_lossy(),
+            bytes.len(),
+            hex(&nomos_canon::sha256::digest(&bytes))
+        ));
+    }
+    std::fs::write(format!("{REPO}/Packages"), index).unwrap();
+    std::fs::write(
+        "/etc/apt/sources.list.d/nomos-test.list",
+        format!("deb [trusted=yes] file:{REPO} ./\n"),
+    )
+    .unwrap();
+    assert!(run(
+        "apt-get",
+        &[
+            "update",
+            "-o",
+            "Dir::Etc::sourcelist=sources.list.d/nomos-test.list",
+            "-o",
+            "Dir::Etc::sourceparts=-",
+            "-o",
+            "APT::Get::List-Cleanup=0",
+        ]
+    ));
+}
+
+/// The ground truth of a package, read with `dpkg-query`: `None` when
+/// dpkg holds no installed or broken state for it.
+fn package_truth(name: &str) -> Option<PackageEvidence> {
+    let out = Command::new("dpkg-query")
+        .args(["-W", "-f=${db:Status-Abbrev}|${Version}", name])
+        .output()
+        .unwrap();
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(out.stdout).unwrap();
+    let (abbrev, version) = text.split_once('|').unwrap();
+    match abbrev.trim() {
+        "ii" => Some(PackageEvidence::Installed {
+            version: PackageVersion::new(version).unwrap(),
+        }),
+        "un" | "rc" | "pn" => None,
+        _ => Some(PackageEvidence::Broken),
+    }
+}
+
+/// Makes dpkg's status database readable again, whatever a denial did.
+fn readable_status() {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(
+        "/var/lib/dpkg/status",
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
+}
+
+/// The host's packages, as a world the family suite arranges.
+struct PackageSubject {
+    host: LinuxHost,
+}
+
+impl PackageSubject {
+    fn new() -> Self {
+        conformance::drop_permission_override();
+        PackageSubject { host: linux() }
+    }
+}
+
+impl Observe for PackageSubject {
+    fn observe(&mut self, resources: &[ResourceKey]) -> Vec<Observation> {
+        self.host.observe(resources)
+    }
+}
+
+impl Mutate for PackageSubject {
+    fn apply(&mut self, request: &Apply) -> Vec<Receipt> {
+        self.host.apply(request)
+    }
+}
+
+impl World for PackageSubject {
+    fn families(&self) -> Vec<Family> {
+        vec![Family::Package]
+    }
+    fn arrange(&mut self, key: &ResourceKey, evidence: Option<Evidence>) {
+        readable_status();
+        let name = key.name();
+        assert!(run("dpkg", &["--purge", name]) || package_truth(name).is_none());
+        match evidence {
+            Some(Evidence::Package(PackageEvidence::Installed { version })) => {
+                assert!(run(
+                    "dpkg",
+                    &["--install", &build(name, version.as_str(), None)]
+                ));
+            }
+            Some(Evidence::Package(PackageEvidence::Broken)) => {
+                assert!(run("dpkg", &["--unpack", &build(name, "1.0-1", None)]));
+            }
+            _ => {}
+        }
+    }
+    fn deny(&mut self, _key: &ResourceKey) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            "/var/lib/dpkg/status",
+            std::fs::Permissions::from_mode(0o000),
+        )
+        .unwrap();
+    }
+    fn truth(&self, key: &ResourceKey) -> Option<Evidence> {
+        package_truth(key.name()).map(Evidence::Package)
+    }
+    fn provide(&mut self, key: &ResourceKey, _requirement: &Requirement) {
+        build(key.name(), "1.0-1", None);
+        build(key.name(), "2.0-1", None);
+        publish();
+    }
+    fn executions(&self) -> usize {
+        self.host.executions()
+    }
+    fn now(&mut self) -> Instant {
+        let t = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+        Instant(t.tv_sec as u64 * 1_000_000_000 + t.tv_nsec as u64)
+    }
+    fn contents(&mut self) -> Contents {
+        let mut out = [(Digest::from_bytes([0; 32]), 0); 3];
+        for (i, bytes) in [&b"one"[..], b"two!", b"three"].into_iter().enumerate() {
+            out[i] = (self.host.add_content(bytes.to_vec()), bytes.len() as u64);
+        }
+        Contents(out)
+    }
+    fn refusals(&mut self, family: Family) -> Vec<Apply> {
+        let c = self.contents();
+        let at = |i| families::resource(family, "s7", i);
+        let mut requests = vec![families::wrong_family(&at(0), 70)];
+        // A refresh, which a package does not have.
+        let pkg = at(1);
+        self.arrange(&pkg, families::starts(family, &c)[1].clone());
+        requests.push(Apply {
+            operation: Operation::Refresh(families::requirements(family, &c)[1].clone()),
+            ..families::converge(&pkg, 79, families::requirements(family, &c)[1].clone())
+        });
+        // A package another depends on, asked to be absent: removing it
+        // would remove the other too.
+        let base = at(2);
+        let dependent = "pkgs7-dependent";
+        readable_status();
+        run("dpkg", &["--purge", dependent]);
+        self.arrange(&base, families::starts(family, &c)[1].clone());
+        build(dependent, "1.0-1", Some(base.name()));
+        self.provide(&base, &families::requirements(family, &c)[0]);
+        assert!(run(
+            "dpkg",
+            &["--install", &format!("{REPO}/{dependent}_1.0-1_all.deb")]
+        ));
+        requests.push(families::converge(
+            &base,
+            81,
+            Requirement::Package(PackageCondition::Absent),
+        ));
+        // A version the index does not offer.
+        let unoffered = at(3);
+        self.arrange(&unoffered, None);
+        requests.push(families::converge(
+            &unoffered,
+            82,
+            Requirement::Package(PackageCondition::Installed {
+                version: Some(PackageVersion::new("9.0-1").unwrap()),
+            }),
+        ));
+        requests
+    }
+}
+
+#[test]
+#[ignore = "changes the host's packages; run by `cargo xtask debian`"]
+fn the_linux_adapter_passes_the_suite_for_packages() {
+    let _host = exclusive();
+    let mut s = PackageSubject::new();
+    let results = families::all(&mut s, Family::Package);
+    readable_status();
+    println!("Package: {:?}", conformance::report(&results));
+    let failures: Vec<String> = results
+        .into_iter()
+        .filter_map(|(k, r)| r.err().map(|e| format!("{k}: {e}")))
+        .collect();
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+fn policy() -> Policy {
+    Policy::new(4, 120_000_000_000, 120_000_000_000, 3_000_000_000)
+}
+
+fn plan(id: &str, generation: u64, canon: Canon) -> Plan {
+    Plan {
+        id: PlanId::new(id).unwrap(),
+        generation: Generation(generation),
+        canon,
+        bound: 4,
+        policy: policy(),
+        expires: None,
+    }
+}
+
+fn package_canon(name: &str, version: &str) -> Canon {
+    Canon::new(
+        vec![Managed {
+            condition: Condition::new(
+                ResourceKey::Package(PackageName::new(name).unwrap()),
+                Requirement::Package(PackageCondition::Installed {
+                    version: Some(PackageVersion::new(version).unwrap()),
+                }),
+            )
+            .unwrap(),
+            keys: std::collections::BTreeSet::new(),
+            disrupts: std::collections::BTreeSet::new(),
+        }],
+        vec![],
+    )
+}
+
+fn clock() -> Instant {
+    let t = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+    Instant(t.tv_sec as u64 * 1_000_000_000 + t.tv_nsec as u64)
+}
+
+/// The milestone's exit: while another package manager holds dpkg's lock,
+/// a package is Indeterminate and nothing is executed, never a false
+/// Variance; once it is released, a pin converges, and a second Enforce
+/// executes nothing (spec §39, N3).
+#[test]
+#[ignore = "changes the host's packages; run by `cargo xtask debian`"]
+fn a_held_lock_is_indeterminate_and_a_pin_converges_to_a_fixed_point() {
+    let _host = exclusive();
+    let name = "nomos-pinned";
+    readable_status();
+    run("dpkg", &["--purge", name]);
+    build(name, "1.0-1", None);
+    build(name, "2.0-1", None);
+    publish();
+    let key = ResourceKey::Package(PackageName::new(name).unwrap());
+    let canon = package_canon(name, "1.0-1");
+    let mut host = linux();
+
+    // Another package manager, as far as dpkg can tell: a POSIX record
+    // lock on lock-frontend, which is the lock apt-get takes.
+    let lock = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open("/var/lib/dpkg/lock-frontend")
+        .unwrap();
+    rustix::fs::fcntl_lock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+    let mut cell = Cell::open(support::MemLog::default());
+    cell.settle(Input::Tick(clock()), &mut host).unwrap();
+    cell.settle(Input::Enforce(plan("locked", 1, canon.clone())), &mut host)
+        .unwrap();
+    assert_eq!(
+        cell.snapshot().outcome(),
+        Some(&RunOutcome::Indeterminate(vec![(
+            key.clone(),
+            Reason::CollectionFailed(CollectionFailure::TimedOut)
+        )]))
+    );
+    assert_eq!(host.executions(), 0);
+    drop(lock);
+
+    cell.settle(Input::Tick(clock()), &mut host).unwrap();
+    cell.settle(Input::Enforce(plan("pinned", 2, canon.clone())), &mut host)
+        .unwrap();
+    assert_eq!(cell.snapshot().outcome(), Some(&RunOutcome::Converged));
+    assert_eq!(
+        package_truth(name),
+        Some(PackageEvidence::Installed {
+            version: PackageVersion::new("1.0-1").unwrap()
+        })
+    );
+    let executions = host.executions();
+    cell.settle(Input::Tick(clock()), &mut host).unwrap();
+    cell.settle(Input::Enforce(plan("again", 3, canon)), &mut host)
+        .unwrap();
+    assert_eq!(cell.snapshot().outcome(), Some(&RunOutcome::Converged));
+    assert_eq!(
+        host.executions(),
+        executions,
+        "a converged package executed again"
+    );
+    run("dpkg", &["--purge", name]);
 }
