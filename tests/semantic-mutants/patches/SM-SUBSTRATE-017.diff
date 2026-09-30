@@ -1,0 +1,13 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/users.rs b/crates/adapters/nomos-substrate-linux/src/users.rs
+--- a/crates/adapters/nomos-substrate-linux/src/users.rs
++++ b/crates/adapters/nomos-substrate-linux/src/users.rs
+@@ -115,9 +115,6 @@ pub fn plan(
+         }
+         (UserCondition::Present { class, home, shell }, None) => {
+             let mut run = Invocation::new("useradd", prefix);
+-            if *class == AccountClass::System {
+-                run = run.arg("--system");
+-            }
+             run = run.arg("--no-create-home");
+             if let Some(h) = home {
+                 run = run.arg("--home-dir").arg(h.as_str());

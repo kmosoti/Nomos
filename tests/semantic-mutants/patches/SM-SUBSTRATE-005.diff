@@ -1,11 +1,11 @@
 diff --git a/crates/adapters/nomos-substrate-mock/src/lib.rs b/crates/adapters/nomos-substrate-mock/src/lib.rs
 --- a/crates/adapters/nomos-substrate-mock/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-mock/src/lib.rs
-@@ -371,6 +371,7 @@ impl MockHost {
+@@ -376,6 +376,7 @@ impl MockHost {
                      requirement,
                      Requirement::Directory(DirectoryCondition::Absent)
                  ) && self.has_entries(path)
 +                    && false
              }
-             (ResourceKey::User(_), _) => match (known, requirement) {
-                 (
+             (ResourceKey::User(_), _) => {
+                 // An account whose ID another account holds: an alias.
