@@ -1,0 +1,3 @@
+Skip the slow gate test in CI
+
+Trust-Boundary: verifier
