@@ -15,7 +15,8 @@ A result about a document here answers one of three questions, kept apart in the
 | [event-log.md](event-log.md) | Ordering, causality, state as a fold, and the integrity chain |
 | [canon-ir.md](canon-ir.md) | The Canonical IR: data model, schema versions, semantic equivalence, the two candidate encodings, strict decoding, migration, and `CanonID` |
 | [resource-families.md](resource-families.md) | The seven resource families: keys, requirements, evidence, truth tables, operations, and the admission check against two resources writing one property |
-| [substrate-contract.md](substrate-contract.md) | The Substrate port's clauses every adapter satisfies, the conformance suite that checks them, and the Linux adapter's first operation: file observation and replacement beneath a root |
+| [substrate-contract.md](substrate-contract.md) | The Substrate port's clauses every adapter satisfies, the conformance suite that checks them, and and how the Linux adapter serves each family |
+| [cell-commands.md](cell-commands.md) | The `nomos-cell` binary: `traits`, `trace`, `enforce`, `import`, and `events`, its state directory, the Plan it enforces, what it prints, and its exit status |
 | [core-purity.md](core-purity.md) | The purity contract of `crates/core/`: what a core function may depend on, what enforces each clause, and what nothing enforces |
 | [verification-strategy.md](verification-strategy.md) | The twelve-layer ladder, what each layer establishes and does not, the policies on counterexamples, metamorphic, differential, and mutation testing, and what is not a pass |
 | [verification-matrix.md](verification-matrix.md) | Which property is checked by which layer, with what result and which record; filled from receipts and result records only |

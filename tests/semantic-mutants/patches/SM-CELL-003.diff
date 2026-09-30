@@ -1,0 +1,12 @@
+diff --git a/crates/bin/nomos-cell/src/render.rs b/crates/bin/nomos-cell/src/render.rs
+--- a/crates/bin/nomos-cell/src/render.rs
++++ b/crates/bin/nomos-cell/src/render.rs
+@@ -180,7 +180,7 @@ pub fn outcome(o: &RunOutcome) -> (Strin
+             for (k, r) in list {
+                 let _ = writeln!(out, "  {k}: {}", reason(r));
+             }
+-            (out, 2)
++            (out, 0)
+         }
+         RunOutcome::NonConvergent(n) => (
+             format!(

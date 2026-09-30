@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `13-package` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `14-cell-commands` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -98,6 +98,8 @@ Landed 2026-09-30: [linux-packages](results/linux-packages.md), against a local 
 `nomos-cell traits`, `trace`, `enforce`, and `events` on a `.cbor` artifact, sharing one pipeline as spec §37 requires: `trace` differs from `enforce` only in never holding the mutate capability. Traits carry provenance, observation time, and stability (spec §4).
 
 Exit: `trace` on a host with a denied read prints the Indeterminate Assessment and plans nothing for it; `trace` changes nothing (N1) on the Debian host, checked against a before-and-after projection; `enforce` ends `Converged`, `Indeterminate`, `NonConvergent`, or `Failed` exactly as [reconciliation.md](../formal/reconciliation.md) defines.
+
+Landed 2026-09-30: [cell-commands](results/cell-commands.md), as [cell-commands.md](../formal/cell-commands.md) defines them.
 
 ### 15-debian-convergence
 

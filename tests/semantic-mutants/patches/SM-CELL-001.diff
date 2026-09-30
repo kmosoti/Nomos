@@ -1,0 +1,12 @@
+diff --git a/crates/bin/nomos-cell/src/render.rs b/crates/bin/nomos-cell/src/render.rs
+--- a/crates/bin/nomos-cell/src/render.rs
++++ b/crates/bin/nomos-cell/src/render.rs
+@@ -92,7 +92,7 @@ pub fn variance(v: &Variance) -> String
+ /// The Action planned for a resource, as trace prints it.
+ pub fn action(record: Option<&ActionRecord>) -> String {
+     match record {
+-        None => "none".into(),
++        None => "converge".into(),
+         Some(r) => {
+             let verb = match r.operation {
+                 Operation::Converge(_) => "converge",
