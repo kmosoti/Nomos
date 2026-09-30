@@ -218,7 +218,7 @@ fn debian(rest: &[&str]) -> Result<(), String> {
             .map(|(p, t)| (p.to_string(), t.to_string()))
             .collect(),
     };
-    let record = debian::run_suites(&root, release, &tests)?;
+    let record = debian::run_suites(&root, release, &tests, debian::Selection::default())?;
     let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
     if let Some(out) = option(rest, "--out")? {
         std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;

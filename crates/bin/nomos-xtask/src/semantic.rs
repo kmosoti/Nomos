@@ -21,6 +21,12 @@
 //! Only `caught` is acceptable for an active mutant. A planned mutant is
 //! listed and not run; it may name a patch that does not exist yet. The
 //! format of the corpus is in `tests/semantic-mutants/README.md`.
+//!
+//! A mutant of behavior that exists only on a real host, such as a unit
+//! managed through systemd, names `host = "debian"` and the test binary as
+//! `target`: its named test runs in a fresh Debian 12 container through
+//! `cargo xtask debian`, since it is ignored everywhere else. A harness
+//! that cannot run fails the whole run, never the one mutant.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -95,7 +101,28 @@ struct Mutant {
     patch: String,
     test: String,
     status: Status,
+    /// Where the named test runs.
+    #[serde(default)]
+    host: Host,
+    /// The integration-test binary that holds the named test, for a mutant
+    /// run on Debian.
+    #[serde(default)]
+    target: Option<String>,
 }
+
+/// Where a mutant's named test runs.
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "kebab-case")]
+enum Host {
+    /// Here, with `cargo test`.
+    #[default]
+    Local,
+    /// In a fresh Debian 12 container, through `cargo xtask debian`.
+    Debian,
+}
+
+/// The release a Debian mutant's named test runs on.
+const MUTANT_RELEASE: &str = "12";
 
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -228,6 +255,12 @@ fn run_one(
         return Ok((Outcome::PatchDoesNotApply, None, detail));
     }
 
+    if mutant.host == Host::Debian {
+        let result = run_on_debian(opts, mutant, &scratch);
+        let _ = std::fs::remove_dir_all(&scratch);
+        return result;
+    }
+
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let mut cmd = Command::new(cargo);
     cmd.args(["test", "--quiet", "-p", &mutant.package]);
@@ -281,6 +314,73 @@ fn run_one(
             ),
         ))
     }
+}
+
+/// Runs a Debian mutant's named test in a fresh container, from the patched
+/// copy of the workspace at `scratch`.
+fn run_on_debian(
+    opts: &Options,
+    mutant: &Mutant,
+    scratch: &Path,
+) -> Result<(Outcome, Option<u64>, String), String> {
+    let target = mutant.target.clone().ok_or_else(|| {
+        format!(
+            "{}: a Debian mutant names its test binary as `target`",
+            mutant.id
+        )
+    })?;
+    let selection = crate::debian::Selection {
+        exact: Some(&mutant.test),
+        target_dir: Some(&opts.target_dir),
+    };
+    let record = match crate::debian::run_suites(
+        scratch,
+        MUTANT_RELEASE,
+        &[(mutant.package.clone(), target)],
+        selection,
+    ) {
+        Ok(record) => record,
+        Err(e) if e.contains("could not compile") || e.contains("error[E") => {
+            let first = e
+                .lines()
+                .find(|l| l.contains("error"))
+                .unwrap_or("compile error")
+                .to_owned();
+            return Ok((Outcome::Unviable, None, first));
+        }
+        Err(e) => return Err(format!("{}: the Debian harness failed: {e}", mutant.id)),
+    };
+    let (passed, failed) = record
+        .runs
+        .iter()
+        .fold((0, 0), |(p, f), r| (p + r.passed, f + r.failed));
+    let run = passed + failed;
+    let on = &record.os_release;
+    Ok(if run == 0 {
+        (
+            Outcome::NamedTestMissing,
+            Some(0),
+            format!(
+                "{} ran no test named {} on {on}",
+                mutant.package, mutant.test
+            ),
+        )
+    } else if failed > 0 {
+        (
+            Outcome::Caught,
+            Some(run),
+            format!("{} failed against the mutant on {on}", mutant.test),
+        )
+    } else {
+        (
+            Outcome::Survived,
+            Some(run),
+            format!(
+                "{} passed against the mutant on {on}; it does not detect: {}",
+                mutant.test, mutant.wrong_behavior
+            ),
+        )
+    })
 }
 
 /// Runs every active mutant of the corpus.

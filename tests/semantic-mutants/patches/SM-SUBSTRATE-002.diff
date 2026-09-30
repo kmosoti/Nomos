@@ -1,8 +1,8 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -46,9 +46,7 @@ use rustix::time::{ClockId, clock_gettim
- use accounts::Accounts;
+@@ -49,9 +49,7 @@ use accounts::Accounts;
+ use units::Systemd;
  
  /// The resolve flags of every path resolution (ADR 0013 §2).
 -const RESOLVE: ResolveFlags = ResolveFlags::BENEATH

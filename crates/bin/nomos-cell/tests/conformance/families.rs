@@ -57,6 +57,12 @@ pub trait World: Observe + Mutate {
     /// Three contents the world can write, as digest and size, for the
     /// file family's starting points and requirements.
     fn contents(&mut self) -> Contents;
+    /// The starting points of `family` the world can hold still while a
+    /// clause compares the ground truth before and after: by default, every
+    /// one of the family's table.
+    fn starts(&mut self, family: Family, c: &Contents) -> Vec<Option<Evidence>> {
+        starts(family, c)
+    }
 }
 
 /// Three contents, by digest and byte count.
@@ -374,7 +380,7 @@ fn observe_one(w: &mut impl World, key: &ResourceKey) -> Result<Collection, Stri
 /// and none of a resource not requested.
 pub fn s1_coverage(w: &mut impl World, family: Family) -> Result<(), String> {
     let c = w.contents();
-    let starts = starts(family, &c);
+    let starts = w.starts(family, &c);
     let asked: Vec<ResourceKey> = (0..3).map(|i| resource(family, "s1", i)).collect();
     w.arrange(&asked[0], starts.last().cloned().flatten());
     w.arrange(&asked[1], None);
@@ -410,7 +416,8 @@ pub fn s2_truthful_absence(w: &mut impl World, family: Family) -> Result<(), Str
         format!("{none}, arranged absent, observed as {got:?}, not {want:?}")
     })?;
     let secret = resource(family, "s2", 1);
-    w.arrange(&secret, starts(family, &c).last().cloned().flatten());
+    let last = w.starts(family, &c).last().cloned().flatten();
+    w.arrange(&secret, last);
     w.deny(&secret);
     let got = observe_one(w, &secret)?;
     check(
@@ -422,7 +429,7 @@ pub fn s2_truthful_absence(w: &mut impl World, family: Family) -> Result<(), Str
 /// S3: the evidence the family's table lists, as arranged.
 pub fn s3_evidence(w: &mut impl World, family: Family) -> Result<(), String> {
     let c = w.contents();
-    for (i, start) in starts(family, &c).into_iter().enumerate() {
+    for (i, start) in w.starts(family, &c).into_iter().enumerate() {
         let key = resource(family, "s3", i as u32);
         w.arrange(&key, start.clone());
         let got = observe_one(w, &key)?;
@@ -437,7 +444,8 @@ pub fn s3_evidence(w: &mut impl World, family: Family) -> Result<(), String> {
 /// S4: observing changes nothing, however often it is repeated.
 pub fn s4_observation_does_not_mutate(w: &mut impl World, family: Family) -> Result<(), String> {
     let c = w.contents();
-    let keys: Vec<ResourceKey> = starts(family, &c)
+    let keys: Vec<ResourceKey> = w
+        .starts(family, &c)
         .into_iter()
         .enumerate()
         .map(|(i, start)| {
@@ -464,7 +472,7 @@ pub fn s5_postconditions_are_cores(w: &mut impl World, family: Family) -> Result
     let c = w.contents();
     let mut n = 0u32;
     for requirement in requirements(family, &c) {
-        for start in starts(family, &c) {
+        for start in w.starts(family, &c) {
             if refused(&start, &requirement) {
                 continue;
             }
@@ -500,7 +508,7 @@ pub fn s5_postconditions_are_cores(w: &mut impl World, family: Family) -> Result
 pub fn s6_once_per_key(w: &mut impl World, family: Family) -> Result<(), String> {
     let c = w.contents();
     let key = resource(family, "s6", 0);
-    let starts = starts(family, &c);
+    let starts = w.starts(family, &c);
     let first_start = starts.first().cloned().flatten();
     w.arrange(&key, first_start.clone());
     let requirement = requirements(family, &c)
@@ -552,7 +560,8 @@ pub fn s7_refusal_before_effect(w: &mut impl World, family: Family) -> Result<()
 pub fn s9_one_clock(w: &mut impl World, family: Family) -> Result<(), String> {
     let c = w.contents();
     let key = resource(family, "s9", 0);
-    w.arrange(&key, starts(family, &c).last().cloned().flatten());
+    let last = w.starts(family, &c).last().cloned().flatten();
+    w.arrange(&key, last);
     let before = w.now();
     let observed = w.observe(std::slice::from_ref(&key));
     let after = w.now();

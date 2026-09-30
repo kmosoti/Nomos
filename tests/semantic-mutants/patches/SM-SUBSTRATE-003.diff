@@ -1,13 +1,13 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -305,9 +305,6 @@
+@@ -605,9 +605,6 @@ impl Observe for LinuxHost {
  
  impl Mutate for LinuxHost {
      fn apply(&mut self, request: &Apply) -> Vec<Receipt> {
 -        if let Some(receipts) = self.ledger.get(&request.key) {
 -            return receipts.clone();
 -        }
-         let receipts = match self.execute(request) {
-             Receipt::Refused => vec![Receipt::Refused],
-             done => {
+         let done = match (request.key.resource(), &self.systemd) {
+             (ResourceKey::Unit(name), Some(systemd)) => {
+                 let settle_by = request.settle_by;

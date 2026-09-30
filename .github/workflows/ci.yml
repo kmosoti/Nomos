@@ -18,6 +18,9 @@ jobs:
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
           components: rustfmt, clippy
+          # The semantic mutants of the systemd adapter run their named test
+          # in a Debian container, built as a static binary.
+          targets: x86_64-unknown-linux-musl
       - run: cargo fmt --all --check
       # --locked: a changed resolution fails instead of silently rewriting Cargo.lock.
       # The cargo xtask alias passes --locked too (.cargo/config.toml).
@@ -45,7 +48,9 @@ jobs:
       # about 150 seconds; it runs there once instead of twice. Locally,
       # `cargo test --workspace` still runs it.
       - run: sudo env "PATH=$PATH" "HOME=$HOME" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" cargo test --workspace --locked -- --skip the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught
-      # Every active semantic mutant is caught by its named test.
+      # Every active semantic mutant is caught by its named test; a mutant
+      # of behavior only a real host has runs its test on Debian 12, in a
+      # container, through the same harness as the debian job.
       - run: sudo env "PATH=$PATH" "HOME=$HOME" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" cargo xtask mutants semantic
 
   # The Linux suites on disposable Debian hosts with systemd as PID 1

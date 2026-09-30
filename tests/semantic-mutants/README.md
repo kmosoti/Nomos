@@ -18,6 +18,8 @@ A semantic mutant is a hand-written patch that makes the code wrong in one way a
 | `patch` | Unified diff under `patches/`, applied at the workspace root with `git apply`. |
 | `test` | The one test that must fail, as a `cargo test` filter matched exactly. |
 | `status` | `planned` (listed, not run), `active` (run, must be caught), or `retired` (kept for the record, not run). |
+| `host` | Optional. `debian` runs the named test in a fresh Debian 12 container through `cargo xtask debian`, for behavior only a real host has, such as a unit managed through systemd; the default runs it here. |
+| `target` | With `host = "debian"`: the integration-test binary that holds the named test. |
 
 A mutant is `active` only with a patch that applies and a test that exists. A `survived` outcome is a finding against the test, not the code: the test does not test what its name claims. The fix is a stronger test, never a weaker mutant.
 

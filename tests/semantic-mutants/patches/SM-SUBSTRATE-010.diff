@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/units.rs b/crates/adapters/nomos-substrate-linux/src/units.rs
+--- a/crates/adapters/nomos-substrate-linux/src/units.rs
++++ b/crates/adapters/nomos-substrate-linux/src/units.rs
+@@ -323,7 +323,7 @@ impl Systemd {
+         let limit = std::time::Instant::now() + JOB_LIMIT;
+         loop {
+             match pending.get_property::<String>("State") {
+-                Ok(_) => {}
++                Ok(_) => return Ok(true),
+                 Err(e) if gone(&e) => return Ok(true),
+                 Err(e) => return Err(e),
+             }

@@ -13,16 +13,18 @@
 //! written, synced, renamed over the target, and the directory synced (spec
 //! §11). Native system calls only; no shell (AGENTS.md rule 5).
 //!
-//! It serves the `file` and `directory` families and no other: a key of
-//! another family is observed as a failed collection (`Unsupported`), and an
-//! operation on one is refused. Owners and groups are resolved from the
-//! user and group databases beneath the root ([`accounts`]). Content comes
-//! from a [`ContentSource`], or from bytes added directly. Later families:
-//! `unit` (via D-Bus), `sysctl`, `user`, `package`.
+//! It serves the `file` and `directory` families, and the `unit` family
+//! when it is given a connection to systemd ([`units`], Units on Linux); a
+//! key of another family is observed as a failed collection
+//! (`Unsupported`), and an operation on one is refused. Owners and groups
+//! are resolved from the user and group databases beneath the root
+//! ([`accounts`]). Content comes from a [`ContentSource`], or from bytes
+//! added directly. Later families: `sysctl`, `user`, `package`.
 //!
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
 pub mod accounts;
+pub mod units;
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -44,6 +46,7 @@ use rustix::io::Errno;
 use rustix::time::{ClockId, clock_gettime};
 
 use accounts::Accounts;
+use units::Systemd;
 
 /// The resolve flags of every path resolution (ADR 0013 §2).
 const RESOLVE: ResolveFlags = ResolveFlags::BENEATH
@@ -61,6 +64,7 @@ pub struct LinuxHost {
     collector: CollectorId,
     content: BTreeMap<Digest, Vec<u8>>,
     source: Option<Box<dyn ContentSource>>,
+    systemd: Option<Systemd>,
     ledger: BTreeMap<EffectKey, Vec<Receipt>>,
     executions: usize,
 }
@@ -113,6 +117,7 @@ impl LinuxHost {
             collector,
             content: BTreeMap::new(),
             source: None,
+            systemd: None,
             ledger: BTreeMap::new(),
             executions: 0,
         })
@@ -122,6 +127,12 @@ impl LinuxHost {
     /// `source`.
     pub fn with_source(mut self, source: Box<dyn ContentSource>) -> Self {
         self.source = Some(source);
+        self
+    }
+
+    /// The same host, serving units through `systemd`.
+    pub fn with_systemd(mut self, systemd: Systemd) -> Self {
+        self.systemd = Some(systemd);
         self
     }
 
@@ -171,8 +182,14 @@ impl LinuxHost {
     }
 
     fn collect(&self, key: &ResourceKey) -> Collection {
-        let path = match key {
-            ResourceKey::File(p) | ResourceKey::Directory(p) => p,
+        let path = match (key, &self.systemd) {
+            (ResourceKey::File(p) | ResourceKey::Directory(p), _) => p,
+            (ResourceKey::Unit(name), Some(systemd)) => {
+                return match systemd.examine(name) {
+                    Collection::Collected(e) => Collection::Collected(Evidence::Unit(e)),
+                    Collection::Failed(f) => Collection::Failed(f),
+                };
+            }
             _ => return Collection::Failed(CollectionFailure::Unsupported),
         };
         let absent = || match key {
@@ -591,11 +608,24 @@ impl Mutate for LinuxHost {
         if let Some(receipts) = self.ledger.get(&request.key) {
             return receipts.clone();
         }
-        let receipts = match self.execute(request) {
-            Receipt::Refused => vec![Receipt::Refused],
-            done => {
+        let done = match (request.key.resource(), &self.systemd) {
+            (ResourceKey::Unit(name), Some(systemd)) => {
+                let settle_by = request.settle_by;
+                systemd.execute(name, &request.operation, || now() >= settle_by)
+            }
+            _ => Some(self.execute(request)),
+        };
+        let receipts = match done {
+            Some(Receipt::Refused) => vec![Receipt::Refused],
+            Some(done) => {
                 self.executions += 1;
                 vec![Receipt::Accepted, Receipt::Started, done]
+            }
+            // A job cancelled at the deadline: whether it changed the unit
+            // is unknown, and no receipt settles it (N10).
+            None => {
+                self.executions += 1;
+                vec![Receipt::Accepted, Receipt::Started]
             }
         };
         self.ledger.insert(request.key.clone(), receipts.clone());

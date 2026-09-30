@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/units.rs b/crates/adapters/nomos-substrate-linux/src/units.rs
+--- a/crates/adapters/nomos-substrate-linux/src/units.rs
++++ b/crates/adapters/nomos-substrate-linux/src/units.rs
+@@ -329,7 +329,7 @@ impl Systemd {
+             }
+             if deadline() || std::time::Instant::now() >= limit {
+                 let _: zbus::Result<()> = pending.call("Cancel", &());
+-                return Ok(false);
++                return Ok(true);
+             }
+             std::thread::sleep(POLL);
+         }

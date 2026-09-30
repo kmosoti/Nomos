@@ -16,3 +16,4 @@ nomos-core.workspace = true
 nomos-canon.workspace = true
 nomos-substrate.workspace = true
 rustix.workspace = true
+zbus.workspace = true
