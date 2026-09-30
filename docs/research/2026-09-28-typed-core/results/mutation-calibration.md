@@ -71,6 +71,52 @@ The run itself: a mutation run in which every mutant is caught, on a suite that 
 - Mutants `cargo-mutants` does not generate: it replaces function bodies and flips operators; it does not reorder statements or change constants in general.
 - Runtime on other machines.
 
+## Re-Run, 2026-09-29
+
+The grounding plan's exit audit found that neither run above has a receipt, and the first ran on a tree with uncommitted changes. This section records the same three modules mutated again, after milestones `03` to `07`, under receipts.
+
+| Field | Value |
+| --- | --- |
+| Command | `cargo mutants -p nomos-xtask -f manifest.rs -f strict_json.rs -f snapshot.rs --no-shuffle -j 3 --gitignore true --shard K/4 --output <dir>`, for `K` from 0 to 3 |
+| Configuration | `.cargo/mutants.toml` as committed: the `with Verified::` and `::for_harness` exclusions, `--locked`, a timeout multiplier of 3 |
+| Trees | Commits `21f5602` (shards 0 and 1), `9835e5a` (shard 2), and `c7e167e` (shard 3), each clean; they differ from one another only in receipt files, and none changed a mutated file since `997df85` |
+| Machine | The development container, 4 cores, 3 parallel jobs |
+| Receipts | `verification/receipts/2026-09-29-mutation-calibration.ndjson` (the failed first attempt) and `2026-09-29-mutation-calibration-shards.ndjson` (one receipt per shard) |
+
+### What Happened
+
+- **The first attempt tested nothing.** The command above, as run 2 wrote it, passes `-C --locked`. `.cargo/mutants.toml` has added `--locked` since, so cargo refused the flag given twice and the unmutated baseline did not build. Its receipt is kept, as failed. The re-run drops `-C --locked` and takes `--locked` from the configuration alone.
+- **The run is split in four.** Each mutant now runs the whole `nomos-xtask` test suite, and the suite takes about 155 seconds on the unmutated tree: `the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught` applies every semantic mutant and builds the workspace for each. At two jobs, 41 mutants come to about 65 minutes, longer than the development container stays up between tool calls; a detached attempt died when the container was reclaimed, and so did the first run of shard 3. `cargo mutants --shard K/4` splits the list deterministically; each shard ran to completion under its own receipt, with its own baseline.
+
+### Measurements
+
+| Measure | Run 2 (2026-09-28) | Re-run |
+| --- | --- | --- |
+| Mutants generated | 41 | 41 |
+| Baseline test | 4 s | 155 s |
+| Wall time | 3 min 23 s on two jobs | 78 minutes on three jobs, in four shards of 23, 21, 20, and 15 minutes |
+| Caught | 34 | 34 |
+| Unviable | 3 | 3 |
+| Timed out | 0 | 0 |
+| Survived (`missed`) | 4 | 4 |
+
+### Survivors
+
+| Mutant | Class | Disposition |
+| --- | --- | --- |
+| `strict_json.rs:67` `expecting` returns `Ok(Default::default())` | **excluded**: message text | As in run 1: it changes the text of an error nobody asserts on |
+| `strict_json.rs:93` `visit_string` returns `Ok(Default::default())` | **equivalent** under `serde_json` | As in run 1: `serde_json` delivers strings through `visit_str` |
+| `strict_json.rs:97` `visit_unit` returns `Ok(Default::default())` | **equivalent** | As in run 1: `Value::default()` is `Value::Null`, which `visit_unit` returns |
+| `strict_json.rs:101` `visit_none` returns `Ok(Default::default())` | **equivalent** under `serde_json` | As in run 1: `deserialize_any` never calls `visit_none` |
+
+The three unviable mutants are the ones run 2 recorded: a deleted `!` in `manifest.rs` `verify` and two `Default::default()` replacements that do not type-check.
+
+### Findings
+
+- **The calibration reproduces.** The counts equal run 2's, and the four survivors are run 2's four, each in the class run 1 gave it. Three milestones of new tooling left these three modules' tests as strong as the calibration left them.
+- **Mutation now costs minutes per mutant.** The tooling crate's own suite includes the semantic-mutant runner's self-test, so every syntactic mutant of `nomos-xtask` pays for 29 semantic mutants. A targeted test selection per mutated module would restore seconds per mutant; it is a verifier change and is not made here.
+- **The scheduled job cannot finish.** CI's `mutation` job runs `cargo mutants -p nomos-xtask --no-shuffle` over the whole crate: 716 mutants today, at about three minutes each on one job, roughly 36 hours, against GitHub's six-hour job limit. It has never run on its schedule. Sharding it across a job matrix, or selecting tests per module, would bring it back within the limit; the choice is the owner's, since the workflow is protected.
+
 ## Decision
 
-`cargo-mutants` is adopted as configured in `.cargo/mutants.toml`, on a weekly schedule and by hand ([CI](../../../../.github/workflows/ci.yml), job `mutation`), never on the required path. Every survivor is classified with the table above's classes. The calibration is rerun on the Assessment Kernel when it exists. Semantic mutants, chosen from the invariants, are the other half and are on the required path ([corpus](../../../../tests/semantic-mutants/README.md)).
+`cargo-mutants` is adopted as configured in `.cargo/mutants.toml`, on a weekly schedule and by hand ([CI](../../../../.github/workflows/ci.yml), job `mutation`), never on the required path. Every survivor is classified with the table above's classes. The calibration is rerun on the Assessment Kernel when it exists. The re-run of 2026-09-29 reproduces run 2 under receipts; the scheduled job's cost is an open question for the owner (see its Findings). Semantic mutants, chosen from the invariants, are the other half and are on the required path ([corpus](../../../../tests/semantic-mutants/README.md)).
