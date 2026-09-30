@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. Nothing here is started; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -50,6 +50,8 @@ flowchart LR
 Generalize the core model and the port from one family to many, on the mock only. Each family gets its requirement type, its evidence type, and an exhaustive requirement-by-evidence truth table, written into `docs/formal/` before the code, as the file family's was for [assessment-algebra](../research/2026-09-28-typed-core/results/assessment-algebra.md). The port's nine clauses are restated per family in [substrate-contract.md](../formal/substrate-contract.md). The Canon schema gains the families under a new schema version, with a migration from the current one and golden vectors. The footprint check moves into Canon admission: a Canon whose Conditions write one property twice is rejected before anything runs.
 
 Exit: the mock passes the per-family suite for all six families; a Canon with overlapping written properties is rejected at admission (`SM-COMPOSE-001` still caught, and a new mutant for admission); every existing test and mutant still passes; Canon artifacts of the previous schema decode and migrate.
+
+Landed 2026-09-30: [family-truth-tables](results/family-truth-tables.md), [admission-composition](results/admission-composition.md), and [canon-schema-3](results/canon-schema-3.md), with receipts in `verification/receipts/2026-09-30-resource-families.ndjson`. Implementing it amended the specification in three places, each in its own commit: keys order by name, then family; a Variance of a resource's own is a reason to run, which an unchanged `on_change` source cannot Skip (ADR 0009 note of 2026-09-30, for the owner's review); and the unit's refresh and refusals are stated.
 
 ### 09-file-and-directory
 
@@ -111,7 +113,7 @@ Exit: the package installs, upgrades, and purges cleanly on fresh Debian 12 and 
 | `trace-is-enforce` | `14-cell-commands` | Do `trace` and `enforce` compute the same Plan on the same evidence? |
 | `debian-fixed-point` | `15-debian-convergence` | Does every enumerated starting state converge, and does a second run execute nothing? |
 
-Each ends in a result record under `results/`, with receipts, in the form the grounding plan used.
+Each ends in a result record under [results/](results/), with receipts, in the form the grounding plan used.
 
 ## Carried Forward
 
