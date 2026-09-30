@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families`, `09-file-and-directory`, and `10-durable-cell` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` to `11-systemd-unit` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -74,6 +74,8 @@ Landed 2026-09-30: [durable-log](results/durable-log.md). The Cell journals the 
 Units over D-Bus (`org.freedesktop.systemd1`), never `systemctl`: loaded, enabled, active, and a refresh as a restart or reload job whose completion is the settlement evidence. The refresh Obligation of `05-transition-kernel` meets a real service manager here.
 
 Exit: a configuration change followed by a crash between replacement and restart still ends with the unit restarted (the `05` exit, now on a host); a job that fails leaves the Action Failed, not Converged; a unit that systemd cannot load is Indeterminate with its reason.
+
+Landed 2026-09-30: [systemd-refresh](results/systemd-refresh.md), on Debian 12 and 13, where `cargo xtask debian` now also runs the unit suite, and where the unit mutants run their tests.
 
 ### 12-sysctl-and-user
 
