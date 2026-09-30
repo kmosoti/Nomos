@@ -58,8 +58,17 @@ fn the_mock_passes_the_suite_for_every_family() {
 /// Milestone `09-file-and-directory`: the Linux adapter passes every
 /// clause for files and directories, with owners, groups, and modes, on the
 /// host that runs the tests.
+///
+/// The suite sets owners and groups, which only root may, so it runs as
+/// root: in CI, and on Debian through `cargo xtask debian`. As another user
+/// it fails, saying so, rather than pass on less.
 #[test]
 fn the_linux_adapter_passes_the_suite_for_files_and_directories() {
+    assert!(
+        rustix::process::geteuid().is_root(),
+        "the Linux suite for files and directories sets owners and needs root; \
+         run it as root or through `cargo xtask debian`"
+    );
     let mut s = LinuxSubject::new("families");
     for family in families::World::families(&s) {
         let results = families::all(&mut s, family);
