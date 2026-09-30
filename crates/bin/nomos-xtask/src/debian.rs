@@ -123,27 +123,53 @@ impl Drop for Container {
     }
 }
 
+/// Registries that mirror the official Debian image, tried in order: a
+/// shared runner's anonymous quota at any one of them can run out, and the
+/// image is the same at each.
+pub(crate) const MIRRORS: [&str; 3] = [
+    "mirror.gcr.io/library/debian",
+    "public.ecr.aws/docker/library/debian",
+    "docker.io/library/debian",
+];
+
 /// Builds the image for `release` from the recipe, passing the caller's
 /// proxy settings as build arguments, which Docker does not keep in the
-/// image.
+/// image. Each mirror is tried until one builds.
 fn build_image(root: &Path, release: &str) -> Result<String, String> {
     let tag = format!("nomos-debian:{release}");
-    let mut cmd = Command::new("docker");
-    cmd.args(["build", "--network", "host", "--build-arg"])
-        .arg(format!("RELEASE={release}"));
-    for var in ["http_proxy", "https_proxy", "no_proxy"] {
-        let value = std::env::var(var)
-            .or_else(|_| std::env::var(var.to_uppercase()))
-            .unwrap_or_default();
-        if !value.is_empty() {
-            cmd.arg("--build-arg").arg(format!("{var}={value}"));
+    let mut failures = Vec::new();
+    for mirror in MIRRORS {
+        let mut cmd = Command::new("docker");
+        cmd.args(["build", "--network", "host", "--build-arg"])
+            .arg(format!("BASE={mirror}:{release}"));
+        for var in ["http_proxy", "https_proxy", "no_proxy"] {
+            let value = std::env::var(var)
+                .or_else(|_| std::env::var(var.to_uppercase()))
+                .unwrap_or_default();
+            if !value.is_empty() {
+                cmd.arg("--build-arg").arg(format!("{var}={value}"));
+            }
+        }
+        cmd.args(["-t", &tag])
+            .arg(root.join("tests/fixtures/debian"));
+        match ok(&mut cmd) {
+            Ok(_) => {
+                let id =
+                    ok(Command::new("docker")
+                        .args(["image", "inspect", "--format", "{{.Id}}", &tag]))?;
+                return Ok(format!("{mirror}:{release} {tag} {}", id.trim()));
+            }
+            Err(e) => {
+                let last = e.lines().last().unwrap_or_default().to_string();
+                eprintln!("{mirror}:{release}: {last}");
+                failures.push(format!("{mirror}: {last}"));
+            }
         }
     }
-    cmd.args(["-t", &tag])
-        .arg(root.join("tests/fixtures/debian"));
-    ok(&mut cmd)?;
-    let id = ok(Command::new("docker").args(["image", "inspect", "--format", "{{.Id}}", &tag]))?;
-    Ok(format!("{tag} {}", id.trim()))
+    Err(format!(
+        "no mirror built the image: {}",
+        failures.join("; ")
+    ))
 }
 
 /// Builds each test as a static binary and returns them with their names.

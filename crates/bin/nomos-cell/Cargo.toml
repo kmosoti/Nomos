@@ -26,4 +26,4 @@ nomos-canon.workspace = true
 nomos-warp.workspace = true
 nomos-substrate-mock.workspace = true
 proptest.workspace = true
-rustix = { workspace = true, features = ["thread"] }
+rustix = { workspace = true, features = ["thread", "process"] }
