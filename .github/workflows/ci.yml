@@ -23,11 +23,6 @@ jobs:
       # The cargo xtask alias passes --locked too (.cargo/config.toml).
       - run: cargo check --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      # The repository-corpus test calls the same function as the
-      # `cargo xtask mutants semantic` step below and takes as long, about
-      # 150 seconds; it runs there once instead of twice. Locally,
-      # `cargo test --workspace` still runs it.
-      - run: cargo test --workspace --locked -- --skip the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught
       # Integrity gate: every accepted research snapshot through the same
       # verify_snapshot the tests call (manifest, coverage, strict NDJSON,
       # schema, references, negative controls). Failures print a stable code.
@@ -40,9 +35,18 @@ jobs:
       # lints denied. Violations print a stable code, crate, and dependency.
       - run: cargo xtask check-core-purity
       # Every receipt names a registered check and claims passed only with
-      # evidence of a run; every active semantic mutant is caught by its test.
+      # evidence of a run.
       - run: cargo xtask receipts validate
-      - run: cargo xtask mutants semantic
+      # The tests and the semantic mutants run as root, last, because the
+      # Linux adapter's suites set owners and groups, which only root may.
+      # As another user a Linux mutant's named test would fail for want of
+      # privilege and the mutant would count as caught. The repository-corpus
+      # test calls the same function as the mutants step and takes as long,
+      # about 150 seconds; it runs there once instead of twice. Locally,
+      # `cargo test --workspace` still runs it.
+      - run: sudo env "PATH=$PATH" "HOME=$HOME" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" cargo test --workspace --locked -- --skip the_repository_corpus_parses_and_has_no_active_mutant_that_is_not_caught
+      # Every active semantic mutant is caught by its named test.
+      - run: sudo env "PATH=$PATH" "HOME=$HOME" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" cargo xtask mutants semantic
 
   # The Linux suites on disposable Debian hosts with systemd as PID 1
   # (Phase 1 plan, decision 4): the tests built as static binaries and run
