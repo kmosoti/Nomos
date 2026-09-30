@@ -392,3 +392,46 @@ crate = "nomos-app"
 patch = "patches/SM-WARP-007.diff"
 test = "kernel::tests::a_unit_refreshes_exactly_when_its_source_acts"
 status = "active"
+
+# Milestone `09-file-and-directory`: metadata, directories, and the content
+# store on Linux.
+
+[[mutant]]
+id = "SM-SUBSTRATE-006"
+property = "N2"
+threat = "a file is written with its content but not its owner, group, or mode, so a credential is readable by everyone"
+wrong_behavior = "the Linux adapter replaces a file without setting its metadata before the rename"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-006.diff"
+test = "the_linux_adapter_passes_the_suite_for_files_and_directories"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-007"
+property = "N12"
+threat = "Nomos deletes what it did not describe"
+wrong_behavior = "the Linux adapter does not look for entries before removing a directory"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-007.diff"
+test = "the_linux_adapter_passes_the_suite_for_files_and_directories"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-008"
+property = "N12"
+threat = "a symbolic link planted in place of a directory redirects a change outside it (ADR 0013 §2)"
+wrong_behavior = "the Linux adapter examines a resource's leaf following a symbolic link"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-008.diff"
+test = "a_symbolic_link_in_place_of_a_directory_is_not_followed"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-001"
+property = "N12"
+threat = "bytes changed on the Cell's disk are written to a host as if the Canon named them"
+wrong_behavior = "the content store returns stored bytes without checking their digest"
+crate = "nomos-store-fs"
+patch = "patches/SM-STORE-001.diff"
+test = "tests::a_changed_blob_is_corruption"
+status = "active"

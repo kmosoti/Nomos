@@ -423,6 +423,8 @@ pub struct LinuxSubject {
     pub host: LinuxHost,
     pub root: PathBuf,
     unknown: Digest,
+    /// The bytes the per-family suite's contents name, by digest.
+    pub blobs: BTreeMap<Digest, Vec<u8>>,
 }
 
 impl LinuxSubject {
@@ -431,11 +433,14 @@ impl LinuxSubject {
         let root =
             std::env::temp_dir().join(format!("nomos-conformance-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(root.join("etc")).unwrap();
+        std::fs::write(root.join("etc/passwd"), families::PASSWD).unwrap();
+        std::fs::write(root.join("etc/group"), families::GROUP).unwrap();
         LinuxSubject {
             host: LinuxHost::open(&root).unwrap(),
             root,
             unknown: sha(b"content nobody supplied"),
+            blobs: BTreeMap::new(),
         }
     }
 

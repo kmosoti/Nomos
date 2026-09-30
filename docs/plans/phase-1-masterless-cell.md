@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` and `09-file-and-directory` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -58,6 +58,8 @@ Landed 2026-09-30: [family-truth-tables](results/family-truth-tables.md), [admis
 Files gain metadata (owner, group, mode) and directories become a family: presence, metadata, and whether unmanaged entries are tolerated. Metadata is set before the rename, as spec §11 draws it. Content comes from the content store of decision 3.
 
 Exit: the Linux adapter passes the file and directory suites on Debian, with failure injection for a directory replaced by a file, a symbolic link in place of a directory, and a foreign change of mode between execution and verification.
+
+Landed 2026-09-30: [linux-files-and-directories](results/linux-files-and-directories.md), on Debian 12 and 13 in containers run by `cargo xtask debian`, which CI now runs for both releases; [ADR 0017](../adr/0017-local-store.md) gives the content store, `nomos-store-fs`.
 
 ### 10-durable-cell
 

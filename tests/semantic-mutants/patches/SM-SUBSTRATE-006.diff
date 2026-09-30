@@ -1,0 +1,16 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -557,8 +557,10 @@ fn write_atomically(
+     let written = file
+         .write_all(bytes)
+         .map_err(errno)
+-        .and_then(|()| apply_metadata(file.as_fd(), target))
+-        .and_then(|()| rustix::fs::fsync(file.as_fd()));
++        .and_then(|()| {
++            let _ = target;
++            rustix::fs::fsync(file.as_fd())
++        });
+     drop(file);
+     let renamed = written.and_then(|()| rustix::fs::renameat(dir, temp.as_str(), dir, name));
+     match renamed {

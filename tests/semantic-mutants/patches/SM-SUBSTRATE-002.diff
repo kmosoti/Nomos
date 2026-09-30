@@ -1,11 +1,14 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -37,7 +37,6 @@
+@@ -46,9 +46,7 @@ use rustix::time::{ClockId, clock_gettim
+ use accounts::Accounts;
  
  /// The resolve flags of every path resolution (ADR 0013 §2).
- const RESOLVE: ResolveFlags = ResolveFlags::BENEATH
+-const RESOLVE: ResolveFlags = ResolveFlags::BENEATH
 -    .union(ResolveFlags::NO_SYMLINKS)
-     .union(ResolveFlags::NO_MAGICLINKS);
+-    .union(ResolveFlags::NO_MAGICLINKS);
++const RESOLVE: ResolveFlags = ResolveFlags::BENEATH.union(ResolveFlags::NO_MAGICLINKS);
  
- /// The mode a replaced file is given.
+ /// The mode a new file gets when its requirement states none.
+ const FILE_MODE: u16 = 0o644;

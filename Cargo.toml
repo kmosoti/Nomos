@@ -16,6 +16,7 @@ members = [
     # Driven adapters: concrete implementations of ports.
     "crates/adapters/nomos-substrate-linux",
     "crates/adapters/nomos-substrate-mock",
+    "crates/adapters/nomos-store-fs",
     "crates/adapters/nomos-cipher-vault",
     "crates/adapters/nomos-mesh-headscale",
     # Driving adapters and composition roots.
@@ -58,6 +59,7 @@ nomos-app = { path = "crates/app/nomos-app" }
 # Adapters
 nomos-substrate-linux = { path = "crates/adapters/nomos-substrate-linux" }
 nomos-substrate-mock = { path = "crates/adapters/nomos-substrate-mock" }
+nomos-store-fs = { path = "crates/adapters/nomos-store-fs" }
 nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
 nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
 # Tooling. Used by nomos-xtask; never as a normal dependency of a domain, port,

@@ -62,11 +62,18 @@
 //!   exhaustive bounded and generated inputs. Prints the record as JSON; fails
 //!   only when the negative control is not reported as own-tests-accepted and
 //!   oracle-rejected, or a step cannot run. A candidate's outcome never fails it.
+//! - `debian --release <12|13> [--test <package>/<test>] [--out <file>]`:
+//!   the Linux suites on a disposable Debian container with systemd as PID 1
+//!   (Phase 1 plan, decision 4). Builds the tests as static binaries, runs
+//!   each in the container as root, and prints the record as JSON; fails
+//!   when the harness cannot run or any test fails. Needs Docker and the
+//!   `x86_64-unknown-linux-musl` target.
 //!
 //! The tool checks artifact integrity and workspace policy. It establishes
 //! nothing about Nomos semantics.
 
 mod counterexamples;
+mod debian;
 mod error;
 mod freeze;
 mod generator_variance;
@@ -97,7 +104,8 @@ const USAGE: &str = "usage:
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
   cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]
-  cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]";
+  cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]
+  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -114,6 +122,7 @@ fn main() -> ExitCode {
         ["mutants", "semantic", rest @ ..] => mutants_semantic(rest),
         ["hermeticity", rest @ ..] => hermeticity(rest),
         ["generator-variance", rest @ ..] => generator_variance(rest),
+        ["debian", rest @ ..] => debian(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
         _ => Err(USAGE.to_string()),
@@ -191,6 +200,35 @@ fn frozen(rest: &[&str]) -> Result<(), String> {
         "{} change(s) to accepted research snapshots; a revision is a new dated snapshot",
         violations.len()
     ))
+}
+
+fn debian(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let release =
+        option(rest, "--release")?.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
+    let tests: Vec<(String, String)> = match option(rest, "--test")? {
+        Some(t) => {
+            let (package, test) = t
+                .split_once('/')
+                .ok_or_else(|| format!("--test {t}: expected <package>/<test>"))?;
+            vec![(package.to_string(), test.to_string())]
+        }
+        None => debian::DEFAULT_TESTS
+            .iter()
+            .map(|(p, t)| (p.to_string(), t.to_string()))
+            .collect(),
+    };
+    let record = debian::run_suites(&root, release, &tests)?;
+    let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
+    if let Some(out) = option(rest, "--out")? {
+        std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
+    }
+    print!("{rendered}");
+    if record.passed() {
+        Ok(())
+    } else {
+        Err(format!("the suites failed on {}", record.os_release))
+    }
 }
 
 fn hermeticity(rest: &[&str]) -> Result<(), String> {

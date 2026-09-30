@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -393,7 +393,7 @@ fn observed(accounts: &Accounts, stat: &
+ 
+ /// What is at `name` in `dir`, without following a link.
+ fn examine(dir: BorrowedFd<'_>, name: &str) -> Result<Leaf, Errno> {
+-    match rustix::fs::statat(dir, name, AtFlags::SYMLINK_NOFOLLOW) {
++    match rustix::fs::statat(dir, name, AtFlags::empty()) {
+         Ok(stat) => Ok(match FileType::from_raw_mode(stat.st_mode) {
+             FileType::RegularFile => Leaf::File,
+             FileType::Directory => Leaf::Directory(stat),
