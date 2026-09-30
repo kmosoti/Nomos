@@ -1,6 +1,6 @@
 # Contributing to Nomos
 
-Thanks for being here. Nomos is at the skeleton stage, so the most valuable contributions are careful ones: sharper semantics, cleaner boundaries, and tests that pin invariants down.
+Thanks for being here. Nomos is at its first alpha, so the most valuable contributions are careful ones: sharper semantics, cleaner boundaries, and tests that pin invariants down.
 
 ## Before You Start
 

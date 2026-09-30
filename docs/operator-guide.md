@@ -99,7 +99,7 @@ It plans Actions for every Variance, applies them in the order the relations req
 | `non-convergent` | 3 | Still differing after eight rounds, or changing back and forth |
 | `failed` | 4 | An Action failed; the resources are named |
 
-A second `enforce` on a converged host executes nothing. `debian_convergence` checks, on Debian 12 and 13, that the demonstration Canon converges from sixteen starting states and that a second `enforce` executes nothing after each.
+A second `enforce` on a converged host executes nothing. `debian_convergence` checks, on Debian 12 and 13, that the demonstration Canon converges from sixteen starting states and that a second `enforce` executes nothing after each. `package_install` converges the same sixteen through the installed service.
 
 If the Cell stops partway, the next run recovers from its journal: a refresh it owed is still owed, and it happens. `systemd_units` checks this with the Cell killed after every step of a configuration change.
 
