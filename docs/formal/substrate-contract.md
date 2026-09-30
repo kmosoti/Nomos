@@ -24,6 +24,17 @@ Every adapter, the mock and Linux alike, satisfies these. The conformance suite 
 
 The suite also checks one property of the kernel at the port: **an unresolved effect keeps its reservation**. When an adapter's receipts for an execution carry no settlement evidence, the kernel keeps the Action's reservation, and the run does not end `Converged` (N10). This is the kernel's rule, checked at the port because the port is where settlement evidence goes missing.
 
+## The Clauses per Family
+
+The clauses name files, as the first operation did; from milestone `08-resource-families` they hold for every family of [resource-families.md](resource-families.md), read this way:
+
+- **S2.** Absence is family-specific evidence: no file or directory at the path, no account of the name, a package dpkg records as not installed. A unit systemd does not know and a sysctl the kernel does not have are failed collections, `unavailable`, never absence.
+- **S3.** A family reports the evidence its table lists, and nothing that judges it.
+- **S5.** `changed` is true exactly when the family's evidence would differ from before: a unit started, a value written that was not there, a package installed.
+- **S7.** Each family's refusals are part of its contract: removing a directory with entries, changing a user's class, and any operation on a family the adapter does not serve.
+
+The conformance suite runs every clause for every family an adapter serves. The mock serves all seven; the Linux adapter serves a family from the milestone that implements it.
+
 ## The Conformance Suite
 
 The suite is one set of tests, generic over the adapter under test, at the composition boundary `crates/bin/nomos-cell/tests/`. Each adapter supplies a test subject: the adapter, plus a way to arrange the world outside it, as a foreign writer would. The subject can write a file's content, remove a file, deny reads of a file, and read the ground truth of a file without going through `observe`.
