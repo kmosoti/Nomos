@@ -9,7 +9,8 @@
 # directories' and the content store's (`09-file-and-directory`), the
 # durable log's (`10-durable-cell`), the systemd units' on Debian
 # (`11-systemd-unit`), the kernel parameters' and users'
-# (`12-sysctl-and-user`), and the packages' (`13-package`). A patch is regenerated
+# (`12-sysctl-and-user`), the packages' (`13-package`), and the Cell
+# commands' (`14-cell-commands`). A patch is regenerated
 # against the code it mutates when that code moves, with the same wrong
 # behavior; the 08 regenerations are named in the milestone's record.
 
@@ -625,3 +626,47 @@ crate = "nomos-substrate-linux"
 patch = "patches/SM-SUBSTRATE-021.diff"
 test = "packages::tests::the_status_database_reads_as_the_table_says"
 status = "active"
+
+[[mutant]]
+id = "SM-CELL-001"
+property = "N13"
+threat = "trace shows an Action for a resource the kernel planned nothing for, so an operator acts on an unknown"
+wrong_behavior = "trace prints converge for a resource without a planned Action"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-001.diff"
+test = "trace_plans_nothing_for_an_indeterminate_resource_and_executes_nothing"
+status = "active"
+
+[[mutant]]
+id = "SM-CELL-002"
+property = "N5"
+threat = "every enforce after the first is fenced out, so a Cell converges once and never again"
+wrong_behavior = "enforce gives every Plan generation 1, whatever the journal's fence accepted"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-002.diff"
+test = "trace_changes_nothing_and_enforce_converges_to_a_fixed_point"
+status = "active"
+host = "debian"
+target = "cell_commands"
+
+[[mutant]]
+id = "SM-CELL-003"
+property = "N13"
+threat = "a run that could not see what it manages reports success to the timer or operator that started it"
+wrong_behavior = "an Indeterminate outcome exits with status 0"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-003.diff"
+test = "render::tests::each_outcome_exits_with_the_status_the_table_names"
+status = "active"
+
+[[mutant]]
+id = "SM-CELL-004"
+property = "N2"
+threat = "the kernel's clock stays at zero, so every settle-by instant is already past and every unit job is cancelled"
+wrong_behavior = "enforce steps the Enforce input without a Tick of the host's clock"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-004.diff"
+test = "trace_changes_nothing_and_enforce_converges_to_a_fixed_point"
+status = "active"
+host = "debian"
+target = "cell_commands"

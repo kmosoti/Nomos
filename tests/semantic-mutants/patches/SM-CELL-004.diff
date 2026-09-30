@@ -1,0 +1,12 @@
+diff --git a/crates/bin/nomos-cell/src/cli.rs b/crates/bin/nomos-cell/src/cli.rs
+--- a/crates/bin/nomos-cell/src/cli.rs
++++ b/crates/bin/nomos-cell/src/cli.rs
+@@ -289,8 +289,6 @@ fn enforce(args: &Args, out: &mut impl W
+     if recovered {
+         cell.settle(Input::Recovered, &mut host).map_err(full)?;
+     }
+-    cell.settle(Input::Tick(nomos_substrate_linux::now()), &mut host)
+-        .map_err(full)?;
+     let plan = plan(cell.snapshot(), canon)?;
+     let generation = plan.generation;
+     cell.settle(Input::Enforce(plan), &mut host).map_err(full)?;

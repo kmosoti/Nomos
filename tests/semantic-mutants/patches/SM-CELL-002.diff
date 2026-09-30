@@ -1,0 +1,12 @@
+diff --git a/crates/bin/nomos-cell/src/cli.rs b/crates/bin/nomos-cell/src/cli.rs
+--- a/crates/bin/nomos-cell/src/cli.rs
++++ b/crates/bin/nomos-cell/src/cli.rs
+@@ -163,7 +163,7 @@ fn journal(state: &Path) -> Result<(File
+ 
+ /// The Plan the Cell enforces after `snapshot` (cell-commands.md, Enforce).
+ pub fn plan(snapshot: &KernelSnapshot, canon: Canon) -> Result<Plan, String> {
+-    let generation = snapshot.fence().accepted().map_or(1, |(g, _)| g.0 + 1);
++    let generation = 1;
+     Ok(Plan {
+         id: PlanId::new("cell").ok_or("the plan id")?,
+         generation: Generation(generation),
