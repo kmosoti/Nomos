@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-store-fs/src/log.rs b/crates/adapters/nomos-store-fs/src/log.rs
+--- a/crates/adapters/nomos-store-fs/src/log.rs
++++ b/crates/adapters/nomos-store-fs/src/log.rs
+@@ -168,7 +168,7 @@ fn scan<E: Record>(bytes: &[u8]) -> Resu
+         }
+         let vals = values(payload).ok_or(LogError::Corrupt { offset })?;
+         for v in vals {
+-            out.push(E::decode(v).ok_or(LogError::Undecodable { offset })?);
++            out.extend(E::decode(v));
+         }
+         records += 1;
+         at += end;

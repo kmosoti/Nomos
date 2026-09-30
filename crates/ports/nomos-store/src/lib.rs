@@ -70,3 +70,14 @@ pub trait ContentStore {
     /// `Err(Corrupt)` when what is stored does not have that digest.
     fn get(&self, digest: &Digest) -> Result<Option<Vec<u8>>, ContentError>;
 }
+
+/// A value an Event Log can hold on disk: bytes out and bytes in (ADR 0017
+/// §3). The application implements it for what it journals; an adapter
+/// stores the bytes without interpreting them.
+pub trait Record: Sized {
+    /// The value's bytes.
+    fn encode(&self) -> Vec<u8>;
+
+    /// The value `bytes` encode, or `None` when they encode none.
+    fn decode(bytes: &[u8]) -> Option<Self>;
+}

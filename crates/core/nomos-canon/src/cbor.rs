@@ -79,10 +79,22 @@ fn write(value: &Value, out: &mut Vec<u8>) {
 /// Decodes one value of the data model from `bytes`, which must hold
 /// exactly that value.
 pub fn decode(bytes: &[u8]) -> Result<Value, SyntaxError> {
+    decode_nested(bytes, MAX_DEPTH)
+}
+
+/// [`decode`] with arrays and maps nested at most `max_depth` deep instead
+/// of the IR's [`MAX_DEPTH`]: for data that is not a Canon artifact, such
+/// as the Cell's journal of kernel inputs, whose Plans nest a Canon inside
+/// an input. Every other limit is the IR's.
+pub fn decode_nested(bytes: &[u8], max_depth: usize) -> Result<Value, SyntaxError> {
     if bytes.len() > MAX_ARTIFACT {
         return Err(SyntaxError::LimitExceeded);
     }
-    let mut reader = Reader { bytes, at: 0 };
+    let mut reader = Reader {
+        bytes,
+        at: 0,
+        max_depth,
+    };
     let value = reader.value(0)?;
     if reader.at != bytes.len() {
         return Err(SyntaxError::TrailingBytes);
@@ -93,6 +105,7 @@ pub fn decode(bytes: &[u8]) -> Result<Value, SyntaxError> {
 struct Reader<'a> {
     bytes: &'a [u8],
     at: usize,
+    max_depth: usize,
 }
 
 impl Reader<'_> {
@@ -151,7 +164,7 @@ impl Reader<'_> {
             }
             TEXT => Ok(Value::Text(self.text(n)?)),
             ARRAY => {
-                if depth >= MAX_DEPTH {
+                if depth >= self.max_depth {
                     return Err(SyntaxError::LimitExceeded);
                 }
                 if n > MAX_ARRAY as u64 {
@@ -168,7 +181,7 @@ impl Reader<'_> {
                 Ok(Value::Array(items))
             }
             MAP => {
-                if depth >= MAX_DEPTH {
+                if depth >= self.max_depth {
                     return Err(SyntaxError::LimitExceeded);
                 }
                 if n > MAX_MAP as u64 {

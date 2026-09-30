@@ -21,5 +21,6 @@
 extern crate alloc;
 
 pub mod driver;
+pub mod journal;
 pub mod kernel;
 pub mod trace;

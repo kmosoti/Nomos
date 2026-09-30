@@ -1,6 +1,6 @@
 # Plan: Phase 1, the Masterless Cell
 
-- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families` and `09-file-and-directory` landed 2026-09-30; the four decisions below are settled.
+- **Status.** Accepted 2026-09-30, with the alpha release added the same day. `08-resource-families`, `09-file-and-directory`, and `10-durable-cell` landed 2026-09-30; the four decisions below are settled.
 - **Goal.** Spec §55, Phase 1: the Linux Substrate on Debian with `file`, `directory`, `system_user`, `systemd_unit`, `sysctl`, and `package`, and the commands `traits`, `trace`, and `enforce`. Done when a Debian machine converges locally from any supported starting state.
 - **Then.** An alpha release, `0.1.0-alpha.1`, that an operator can install on any Debian 12 or 13 host on amd64 and use to converge it locally.
 - **Not the goal.** Crash testing at every lifecycle boundary (the rest of Phase 2), Loom (Phase 3), the privileged helper (Phase 5), and Cipher providers (Phase 6).
@@ -66,6 +66,8 @@ Landed 2026-09-30: [linux-files-and-directories](results/linux-files-and-directo
 The Cell's Event Log on disk, so that what the kernel owes survives a crash or a reboot: a refresh Obligation recorded before a configuration change must still be there when the Cell starts again. An adapter of the `nomos-store` port, append-only, with a checksum per record and a sync before an append is acknowledged; the snapshot is a fold of the log, as in `05-transition-kernel`. [ADR 0012](../adr/0012-event-history.md) records the storage choice for the Cell. Physical crash testing at every lifecycle boundary stays in Phase 2.
 
 Exit: a Cell killed after appending an Obligation and before discharging it recovers the Obligation from disk; a torn final record is detected and refused, never folded; a corrupted record fails the whole recovery loudly rather than being skipped.
+
+Landed 2026-09-30: [durable-log](results/durable-log.md). The Cell journals the kernel's inputs rather than its Events, as [ADR 0017](../adr/0017-local-store.md) §3 now states, and recomputes its snapshot and Event Log from them; a torn final record is truncated and reported, since its batch was never acknowledged, and any other damage fails the open.
 
 ### 11-systemd-unit
 
