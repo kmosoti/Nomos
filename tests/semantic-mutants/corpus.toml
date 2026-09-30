@@ -4,8 +4,10 @@
 # fail against it before the milestone is complete. Every mutant here is
 # active: the Assessment, Warp, and Transition Kernels', the Canon
 # artifact's (`06-canon-artifact`), the controller-composition
-# experiment's, the Substrate adapter's (`07-substrate-conformance`), and
-# the resource families' (`08-resource-families`). A patch is regenerated
+# experiment's, the Substrate adapter's (`07-substrate-conformance`), the
+# resource families' (`08-resource-families`), the Linux files and
+# directories' and the content store's (`09-file-and-directory`), and the
+# durable log's (`10-durable-cell`). A patch is regenerated
 # against the code it mutates when that code moves, with the same wrong
 # behavior; the 08 regenerations are named in the milestone's record.
 
@@ -434,4 +436,44 @@ wrong_behavior = "the content store returns stored bytes without checking their 
 crate = "nomos-store-fs"
 patch = "patches/SM-STORE-001.diff"
 test = "tests::a_changed_blob_is_corruption"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-002"
+property = "N7"
+threat = "a damaged length makes whole, acknowledged records look like a torn tail, and recovery truncates them away"
+wrong_behavior = "the durable log does not check a record's length before reading its payload"
+crate = "nomos-store-fs"
+patch = "patches/SM-STORE-002.diff"
+test = "log::tests::a_corrupted_record_fails_the_open"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-003"
+property = "N7"
+threat = "a Cell starts having forgotten an input it acknowledged, and with it an Obligation"
+wrong_behavior = "the durable log skips a value the application cannot decode"
+crate = "nomos-store-fs"
+patch = "patches/SM-STORE-003.diff"
+test = "log::tests::a_corrupted_record_fails_the_open"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-004"
+property = "N7"
+threat = "a Cell that restarts forgets the Obligations and Actions its journal recorded"
+wrong_behavior = "a journaled Cell recomputes its snapshot from the last journaled input only"
+crate = "nomos-cell"
+patch = "patches/SM-STORE-004.diff"
+test = "a_cell_killed_after_every_input_recovers_its_snapshot"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-010"
+property = "N10"
+threat = "an effect is issued for a Decision the journal never recorded, so a crash forgets that the effect may have happened (ADR 0012 §1)"
+wrong_behavior = "a journaled Cell performs a Decision's effects before journaling its input"
+crate = "nomos-cell"
+patch = "patches/SM-TRANSITION-010.diff"
+test = "a_journal_that_refuses_stops_mutation"
 status = "active"

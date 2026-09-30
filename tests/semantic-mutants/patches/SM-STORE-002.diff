@@ -1,0 +1,13 @@
+diff --git a/crates/adapters/nomos-store-fs/src/log.rs b/crates/adapters/nomos-store-fs/src/log.rs
+--- a/crates/adapters/nomos-store-fs/src/log.rs
++++ b/crates/adapters/nomos-store-fs/src/log.rs
+@@ -148,9 +148,6 @@ fn scan<E: Record>(bytes: &[u8]) -> Resu
+         if rest.len() < HEADER {
+             return Ok((out, records, Tail::Torn(offset)));
+         }
+-        if rest[4..HEADER] != length_check(&rest[..4]) {
+-            return Err(LogError::Corrupt { offset });
+-        }
+         let len = le32(rest).ok_or(LogError::Corrupt { offset })?;
+         let Some(end) = len.checked_add(OVERHEAD) else {
+             return Err(LogError::Corrupt { offset });

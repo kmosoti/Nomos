@@ -1,0 +1,19 @@
+diff --git a/crates/app/nomos-app/src/driver.rs b/crates/app/nomos-app/src/driver.rs
+--- a/crates/app/nomos-app/src/driver.rs
++++ b/crates/app/nomos-app/src/driver.rs
+@@ -140,7 +140,6 @@ impl<J: EventLog<Input>> JournaledCell<J
+         substrate: &mut S,
+     ) -> Result<Vec<Input>, Full> {
+         let decision = step(&self.snapshot, input.clone());
+-        self.journal.append(&[input])?;
+         self.snapshot = decision.snapshot;
+         let mut next = Vec::new();
+         for effect in decision.effects {
+@@ -155,6 +154,7 @@ impl<J: EventLog<Input>> JournaledCell<J
+                 }
+             }
+         }
++        self.journal.append(&[input])?;
+         Ok(next)
+     }
+ 
