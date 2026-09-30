@@ -7,21 +7,25 @@
 //! canonical encoding of what they decode to are rejected, so one Canon has
 //! one encoding per profile and schema.
 
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
 use crate::cbor;
 use crate::jcs;
-use crate::model::{Canon, CanonError, Kind, RawCanon, RawRelation, RawResource, RawSpec};
+use crate::model::{
+    Canon, CanonError, Kind, RawCanon, RawCanon3, RawRelation, RawResource, RawResource3, RawSpec,
+};
 use crate::sha256;
 use crate::value::{SyntaxError, Value};
 
 /// The first schema: files only.
 pub const SCHEMA_V1: u64 = 1;
-/// The current schema.
+/// The second schema: files and services, with conflict keys and nodes.
 pub const SCHEMA_V2: u64 = 2;
+/// The current schema: every resource family.
+pub const SCHEMA_V3: u64 = 3;
 
 /// An encoding profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -69,9 +73,30 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// The current reader: versions 1 and 2, files and services.
+    /// The current reader: versions 1, 2, and 3, and every kind.
     pub fn current() -> Self {
+        Reader::new(&[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3], &Kind::ALL)
+    }
+
+    /// The version 2 reader of `06-canon-artifact`: versions 1 and 2, files
+    /// and services. The compatibility tests use it as an old reader.
+    pub fn v2() -> Self {
         Reader::new(&[SCHEMA_V1, SCHEMA_V2], &[Kind::File, Kind::Service])
+    }
+
+    /// A host reader: every version, and every kind but the legacy
+    /// `service`, which no host adapter serves.
+    pub fn host() -> Self {
+        let kinds: Vec<Kind> = Kind::ALL
+            .into_iter()
+            .filter(|k| *k != Kind::Service)
+            .collect();
+        Reader::new(&[SCHEMA_V1, SCHEMA_V2, SCHEMA_V3], &kinds)
+    }
+
+    /// Whether the reader executes `kind`.
+    pub fn reads(&self, kind: Kind) -> bool {
+        self.kinds.contains(&kind)
     }
 
     /// The version 1 reader: version 1, files only. The compatibility tests
@@ -247,10 +272,45 @@ fn relations_value(relations: &[RawRelation]) -> Value {
     )
 }
 
-/// The schema-2 value of a `RawCanon`, as given: no validation, no
+fn text_map(fields: &BTreeMap<String, String>) -> Value {
+    Value::Map(
+        fields
+            .iter()
+            .map(|(k, v)| (k.clone(), Value::Text(v.clone())))
+            .collect(),
+    )
+}
+
+/// The schema-3 value of a `RawCanon3`, as given: no validation, no
 /// normalization. For writing fixtures and adversarial inputs; decoding
 /// validates whatever this produces.
-pub fn raw_value(raw: &RawCanon) -> Value {
+pub fn raw_value(raw: &RawCanon3) -> Value {
+    Value::Map(alloc::vec![
+        (String::from("schema"), Value::Uint(SCHEMA_V3)),
+        (String::from("name"), Value::Text(raw.name.clone())),
+        (
+            String::from("resources"),
+            Value::Array(
+                raw.resources
+                    .iter()
+                    .map(|r| {
+                        Value::Map(alloc::vec![
+                            (String::from("kind"), Value::Text(r.kind.clone())),
+                            (String::from("name"), Value::Text(r.name.clone())),
+                            (String::from("spec"), text_map(&r.spec)),
+                            (String::from("keys"), text_array(&r.keys)),
+                            (String::from("disrupts"), text_array(&r.disrupts)),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (String::from("relations"), relations_value(&raw.relations)),
+    ])
+}
+
+/// The schema-2 value of a `RawCanon`, as given, like [`raw_value`].
+pub fn raw_value_v2(raw: &RawCanon) -> Value {
     Value::Map(alloc::vec![
         (String::from("schema"), Value::Uint(SCHEMA_V2)),
         (String::from("name"), Value::Text(raw.name.clone())),
@@ -299,14 +359,24 @@ pub fn raw_value_v1(raw: &RawCanon) -> Option<Value> {
     ]))
 }
 
-/// The canonical schema-2 artifact of `canon`.
+/// The canonical schema-3 artifact of `canon`.
 pub fn encode(canon: &Canon, profile: Profile) -> Vec<u8> {
     profile.encode_value(&raw_value(&canon.to_raw()))
 }
 
+/// The canonical schema-2 artifact of `canon`, if schema 2 can say it.
+pub fn encode_v2(canon: &Canon, profile: Profile) -> Option<Vec<u8>> {
+    canon
+        .to_raw_v2()
+        .map(|raw| profile.encode_value(&raw_value_v2(&raw)))
+}
+
 /// The canonical schema-1 artifact of `canon`, if schema 1 can say it.
 pub fn encode_v1(canon: &Canon, profile: Profile) -> Option<Vec<u8>> {
-    raw_value_v1(&canon.to_raw()).map(|v| profile.encode_value(&v))
+    canon
+        .to_raw_v2()
+        .and_then(|raw| raw_value_v1(&raw))
+        .map(|v| profile.encode_value(&v))
 }
 
 fn id(profile: Profile, schema: u64, bytes: &[u8]) -> CanonId {
@@ -319,9 +389,16 @@ fn id(profile: Profile, schema: u64, bytes: &[u8]) -> CanonId {
 }
 
 /// The `CanonID` of `canon` under `profile`: SHA-256 over the profile's tag,
-/// a zero byte, the schema version, and the canonical encoding.
+/// a zero byte, the schema version, and the canonical encoding, in the
+/// current schema.
 pub fn canon_id(canon: &Canon, profile: Profile) -> CanonId {
-    id(profile, SCHEMA_V2, &encode(canon, profile))
+    id(profile, SCHEMA_V3, &encode(canon, profile))
+}
+
+/// The `CanonID` `canon` had in schema 2, if schema 2 can say it: the
+/// identity a `06-canon-artifact` reader gave it.
+pub fn canon_id_v2(canon: &Canon, profile: Profile) -> Option<CanonId> {
+    encode_v2(canon, profile).map(|bytes| id(profile, SCHEMA_V2, &bytes))
 }
 
 // ---------------------------------------------------------------------------
@@ -399,11 +476,27 @@ fn schema_of(value: &Value) -> Result<u64, DecodeError> {
     }
 }
 
-fn kind_of(text: &str) -> Option<Kind> {
+/// The kinds schema 2 defines. A later family's name in a schema-2
+/// artifact is a kind schema 2 does not have.
+fn kind_of_v2(text: &str) -> Option<Kind> {
     match text {
         "file" => Some(Kind::File),
         "service" => Some(Kind::Service),
         _ => None,
+    }
+}
+
+/// The `spec` fields schema 3 defines for `kind`, in any state. Which of
+/// them a state allows, and which it requires, is the validator's.
+fn spec_fields_v3(kind: Kind) -> &'static [&'static str] {
+    match kind {
+        Kind::File => &["state", "content", "owner", "group", "mode"],
+        Kind::Directory => &["state", "owner", "group", "mode"],
+        Kind::Service => &["state", "digest"],
+        Kind::Unit => &["active", "enabled"],
+        Kind::Sysctl => &["value"],
+        Kind::User => &["state", "class", "home", "shell"],
+        Kind::Package => &["state", "version"],
     }
 }
 
@@ -441,7 +534,7 @@ fn raw_v2(value: &Value, reader: &Reader) -> Result<RawCanon, DecodeError> {
             &["kind", "state", "digest"],
         )?;
         let kind = s.text("kind")?;
-        match kind_of(&kind) {
+        match kind_of_v2(&kind) {
             Some(k) if reader.kinds.contains(&k) => {}
             _ => return Err(DecodeError::UnsupportedKind { resource: i }),
         }
@@ -463,7 +556,51 @@ fn raw_v2(value: &Value, reader: &Reader) -> Result<RawCanon, DecodeError> {
     })
 }
 
-/// Schema 1 into the current DTO: each file becomes a `file` resource with
+fn raw_v3(value: &Value, reader: &Reader) -> Result<RawCanon3, DecodeError> {
+    let top = Fields::of(
+        value,
+        place("canon", None),
+        &["schema", "name", "resources", "relations"],
+    )?;
+    let mut resources = Vec::new();
+    for (i, v) in top.array("resources")?.iter().enumerate() {
+        let f = Fields::of(
+            v,
+            place("resource", Some(i)),
+            &["kind", "name", "spec", "keys", "disrupts"],
+        )?;
+        let kind = f.text("kind")?;
+        let family = match Kind::from_name(&kind) {
+            Some(k) if reader.kinds.contains(&k) => k,
+            _ => return Err(DecodeError::UnsupportedKind { resource: i }),
+        };
+        let spec_place = place("spec", Some(i));
+        let s = Fields::of(f.required("spec")?, spec_place, spec_fields_v3(family))?;
+        let mut spec = BTreeMap::new();
+        for (k, v) in s.entries {
+            let Value::Text(t) = v else {
+                return Err(DecodeError::WrongType(spec_place));
+            };
+            if spec.insert(k.clone(), t.clone()).is_some() {
+                return Err(DecodeError::NonCanonical);
+            }
+        }
+        resources.push(RawResource3 {
+            kind,
+            name: f.text("name")?,
+            spec,
+            keys: f.texts("keys")?,
+            disrupts: f.texts("disrupts")?,
+        });
+    }
+    Ok(RawCanon3 {
+        name: top.text("name")?,
+        resources,
+        relations: relations(&top)?,
+    })
+}
+
+/// Schema 1 into the schema-2 DTO: each file becomes a `file` resource with
 /// no conflict keys and no disruption, and nothing else is added.
 fn raw_v1(value: &Value, reader: &Reader) -> Result<RawCanon, DecodeError> {
     let top = Fields::of(
@@ -496,7 +633,8 @@ fn raw_v1(value: &Value, reader: &Reader) -> Result<RawCanon, DecodeError> {
 }
 
 /// Decodes an artifact for execution by `reader`, in the four stages of
-/// canon-ir.md. A schema-1 artifact is migrated and carries its lineage.
+/// canon-ir.md. A schema-1 or schema-2 artifact is migrated to the current
+/// schema and carries its lineage.
 pub fn decode(bytes: &[u8], profile: Profile, reader: &Reader) -> Result<Decoded, DecodeError> {
     // Stage 1: syntax.
     let value = profile.decode_value(bytes).map_err(DecodeError::Syntax)?;
@@ -509,24 +647,26 @@ pub fn decode(bytes: &[u8], profile: Profile, reader: &Reader) -> Result<Decoded
     if !reader.schemas.contains(&schema) {
         return Err(DecodeError::UnsupportedSchema);
     }
-    let raw = match schema {
-        SCHEMA_V1 => raw_v1(&value, reader)?,
-        SCHEMA_V2 => raw_v2(&value, reader)?,
+    // Stage 4: the validator, in the reading of the schema.
+    let canon = match schema {
+        SCHEMA_V1 => Canon::try_from(raw_v1(&value, reader)?),
+        SCHEMA_V2 => Canon::try_from(raw_v2(&value, reader)?),
+        SCHEMA_V3 => Canon::try_from(raw_v3(&value, reader)?),
         _ => return Err(DecodeError::UnsupportedSchema),
-    };
-    // Stage 4: the validator.
-    let canon = Canon::try_from(raw).map_err(DecodeError::Invalid)?;
+    }
+    .map_err(DecodeError::Invalid)?;
     // The Canon, re-encoded in the schema it was read from, is the input:
     // bytes that differ only in what normalization removes are rejected.
     let again = match schema {
         SCHEMA_V1 => encode_v1(&canon, profile),
+        SCHEMA_V2 => encode_v2(&canon, profile),
         _ => Some(encode(&canon, profile)),
     };
     if again.as_deref() != Some(bytes) {
         return Err(DecodeError::NonCanonical);
     }
-    let lineage = (schema == SCHEMA_V1).then(|| Lineage {
-        from_schema: SCHEMA_V1,
+    let lineage = (schema != SCHEMA_V3).then(|| Lineage {
+        from_schema: schema,
         from_digest: sha256::digest(bytes),
         to: canon_id(&canon, profile),
     });

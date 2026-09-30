@@ -40,27 +40,15 @@ use nomos_core::condition::Condition;
 use nomos_core::effect::{EffectKey, EffectRequest, Operation, Receipt, SettledBy, Settlement};
 use nomos_core::observation::{Collection, Instant, Observation};
 use nomos_core::plan::{Fence, FenceError, Generation, PlanId};
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::{Family, ResourceKey};
 use nomos_warp::budget::{Budget, Node};
 use nomos_warp::graph::{ConflictKey, Edge, Graph};
-
-/// What kind of resource a managed resource is, which fixes what its Action
-/// does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Kind {
-    /// A file: the Action replaces it to satisfy its Condition.
-    File,
-    /// A service, observed through its status: the Action refreshes it.
-    Service,
-}
 
 /// One resource the Canon manages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Managed {
     /// The Condition on the resource.
     pub condition: Condition,
-    /// What kind of resource it is.
-    pub kind: Kind,
     /// The conflict keys its Action holds.
     pub keys: BTreeSet<ConflictKey>,
     /// The nodes its Action would make unavailable.
@@ -69,15 +57,20 @@ pub struct Managed {
 
 impl Managed {
     /// The resource.
-    pub fn path(&self) -> &ResourcePath {
-        self.condition.path()
+    pub fn key(&self) -> &ResourceKey {
+        self.condition.key()
     }
 
-    /// What the Action on this resource does.
-    pub fn operation(&self) -> Operation {
-        match self.kind {
-            Kind::File => Operation::Replace(*self.condition.requirement()),
-            Kind::Service => Operation::Refresh,
+    /// What the Action on this resource does, given whether an `on_change`
+    /// relation or a pending Obligation asks it to refresh. A unit refreshes
+    /// only when asked; the legacy service always does, as it did in
+    /// `05-transition-kernel`; every other family converges.
+    pub fn operation(&self, refresh: bool) -> Operation {
+        let requirement = self.condition.requirement().clone();
+        match self.key().family() {
+            Family::Service => Operation::Refresh(requirement),
+            Family::Unit if refresh => Operation::Refresh(requirement),
+            _ => Operation::Converge(requirement),
         }
     }
 }
@@ -87,12 +80,12 @@ impl Managed {
 /// `TryFrom<&nomos_canon::model::Canon>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Canon {
-    resources: BTreeMap<ResourcePath, Managed>,
+    resources: BTreeMap<ResourceKey, Managed>,
     edges: Vec<Edge>,
 }
 
 impl Canon {
-    /// A Canon of `resources` and `edges`. A later resource with the path of
+    /// A Canon of `resources` and `edges`. A later resource with the key of
     /// an earlier one replaces it; the order of either list does not matter.
     pub fn new(resources: Vec<Managed>, edges: Vec<Edge>) -> Self {
         let mut edges = edges;
@@ -101,14 +94,14 @@ impl Canon {
         Canon {
             resources: resources
                 .into_iter()
-                .map(|m| (m.path().clone(), m))
+                .map(|m| (m.key().clone(), m))
                 .collect(),
             edges,
         }
     }
 
-    /// The managed resources, by path.
-    pub fn resources(&self) -> &BTreeMap<ResourcePath, Managed> {
+    /// The managed resources, by key.
+    pub fn resources(&self) -> &BTreeMap<ResourceKey, Managed> {
         &self.resources
     }
 
@@ -117,12 +110,12 @@ impl Canon {
         &self.edges
     }
 
-    /// Every managed path, in order.
-    pub fn paths(&self) -> Vec<ResourcePath> {
+    /// Every managed resource's key, in order.
+    pub fn keys(&self) -> Vec<ResourceKey> {
         self.resources.keys().cloned().collect()
     }
 
-    /// Every Condition, in path order.
+    /// Every Condition, in key order.
     pub fn conditions(&self) -> Vec<Condition> {
         self.resources
             .values()
@@ -239,14 +232,14 @@ pub enum RunOutcome {
     /// Stopped at the bound or on a repeated observation.
     NonConvergent(Nonconvergence),
     /// Only unknowns remain, with every reason.
-    Indeterminate(Vec<(ResourcePath, Reason)>),
+    Indeterminate(Vec<(ResourceKey, Reason)>),
     /// Something failed. Known failures and unknown outcomes are kept apart:
     /// a Failed or Rejected Action is known, a TimedOut one is unknown.
     Failed {
         /// Actions whose failure is known.
-        failed: Vec<ResourcePath>,
+        failed: Vec<ResourceKey>,
         /// Actions whose outcome is unknown (N10).
-        unknown: Vec<ResourcePath>,
+        unknown: Vec<ResourceKey>,
     },
     /// A newer Plan replaced the run. Not an Enforce outcome.
     Superseded,
@@ -256,7 +249,7 @@ pub enum RunOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Obligation {
     /// The resource to refresh.
-    pub target: ResourcePath,
+    pub target: ResourceKey,
     /// The execution whose change may require it.
     pub cause: EffectKey,
 }
@@ -298,14 +291,14 @@ pub struct Round {
     /// The compiled graph.
     pub graph: Graph,
     /// Every Action vertex's record, by resource.
-    pub actions: BTreeMap<ResourcePath, ActionRecord>,
+    pub actions: BTreeMap<ResourceKey, ActionRecord>,
     /// The Indeterminate Assessments the round was planned with.
-    pub indeterminate: Vec<(ResourcePath, Reason)>,
+    pub indeterminate: Vec<(ResourceKey, Reason)>,
 }
 
 /// An observation reduced to what the Canon expresses: the collections of
 /// the managed resources, sorted. Telemetry outside the Canon never enters.
-pub type Fingerprint = BTreeMap<ResourcePath, Vec<Collection>>;
+pub type Fingerprint = BTreeMap<ResourceKey, Vec<Collection>>;
 
 /// Where a run is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -394,7 +387,7 @@ pub enum Event {
     /// An Action was dispatched.
     ActionDispatched {
         /// The resource.
-        resource: ResourcePath,
+        resource: ResourceKey,
         /// When a receipt is due.
         deadline: Instant,
         /// The Obligations its success will discharge.
@@ -403,7 +396,7 @@ pub enum Event {
     /// An Action moved to `stage`.
     ActionAdvanced {
         /// The resource.
-        resource: ResourcePath,
+        resource: ResourceKey,
         /// The new stage.
         stage: Stage,
         /// The new deadline, if the stage is live.

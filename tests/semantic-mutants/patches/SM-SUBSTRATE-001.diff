@@ -1,12 +1,12 @@
 diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
 --- a/crates/adapters/nomos-substrate-linux/src/lib.rs
 +++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
-@@ -199,7 +199,7 @@
+@@ -221,7 +221,7 @@ fn now() -> Instant {
  fn failure(e: Errno) -> Collection {
      match e {
-         Errno::NOENT | Errno::NOTDIR => Collection::Collected(FileEvidence::Absent),
+         Errno::NOENT | Errno::NOTDIR => Collection::Collected(Evidence::File(FileEvidence::Absent)),
 -        Errno::ACCESS | Errno::PERM => Collection::Failed(CollectionFailure::PermissionDenied),
-+        Errno::ACCESS | Errno::PERM => Collection::Collected(FileEvidence::Absent),
++        Errno::ACCESS | Errno::PERM => Collection::Collected(Evidence::File(FileEvidence::Absent)),
          Errno::LOOP | Errno::XDEV => Collection::Failed(CollectionFailure::Unsupported),
          _ => Collection::Failed(CollectionFailure::Io),
      }

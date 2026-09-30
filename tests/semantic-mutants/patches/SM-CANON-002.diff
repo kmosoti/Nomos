@@ -1,9 +1,9 @@
 diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
 --- a/crates/core/nomos-canon/src/artifact.rs
 +++ b/crates/core/nomos-canon/src/artifact.rs
-@@ -443,7 +443,7 @@
+@@ -536,7 +536,7 @@ fn raw_v2(value: &Value, reader: &Reader
          let kind = s.text("kind")?;
-         match kind_of(&kind) {
+         match kind_of_v2(&kind) {
              Some(k) if reader.kinds.contains(&k) => {}
 -            _ => return Err(DecodeError::UnsupportedKind { resource: i }),
 +            _ => continue,

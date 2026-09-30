@@ -3,13 +3,13 @@
 //! does not compile.
 use nomos_core::action::{Stage, Verified};
 use nomos_core::observation::Instant;
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::{ResourceKey, ResourcePath};
 
 fn main() {
     let _ = Stage::Succeeded {
         changed: true,
         verified: Verified {
-            resource: ResourcePath::new("/etc/hosts").unwrap(),
+            resource: ResourceKey::File(ResourcePath::new("/etc/hosts").unwrap()),
             since: Instant(0),
         },
     };

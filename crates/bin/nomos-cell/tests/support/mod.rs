@@ -23,14 +23,13 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use nomos_app::kernel::{
-    Canon, Decision, Event, Input, KernelSnapshot, Kind, Managed, Plan, Policy, RunOutcome, replay,
-    step,
+    Canon, Decision, Event, Input, KernelSnapshot, Managed, Plan, Policy, RunOutcome, replay, step,
 };
-use nomos_core::condition::{Condition, Content, FileCondition};
+use nomos_core::condition::{Condition, Content, FileCondition, Requirement};
 use nomos_core::effect::{Apply, EffectKey, EffectRequest};
 use nomos_core::observation::Instant;
 use nomos_core::plan::{Generation, PlanId};
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::resource::{Digest, ResourceKey, ResourcePath};
 use nomos_store::{EventLog, Full};
 use nomos_substrate::{Mutate, Observe};
 use nomos_substrate_mock::{MockHost, Service};
@@ -38,6 +37,29 @@ use nomos_warp::graph::{ConflictKey, Edge, EdgeKind};
 
 pub fn p(text: &str) -> ResourcePath {
     ResourcePath::new(text).unwrap()
+}
+
+/// The resource at `text`: the legacy service under `/run/`, a file
+/// anywhere else, as the scenarios of `05-transition-kernel` drew them.
+pub fn k(text: &str) -> ResourceKey {
+    if text.starts_with("/run/") {
+        ResourceKey::Service(p(text))
+    } else {
+        ResourceKey::File(p(text))
+    }
+}
+
+fn managed(path: &str, requirement: FileCondition, conflict: &[&str]) -> Managed {
+    let key = k(path);
+    let requirement = match key {
+        ResourceKey::Service(_) => Requirement::Service(requirement),
+        _ => Requirement::File(requirement),
+    };
+    Managed {
+        condition: Condition::new(key, requirement).unwrap(),
+        keys: keys(conflict),
+        disrupts: BTreeSet::new(),
+    }
 }
 
 pub fn d(n: u8) -> Digest {
@@ -50,44 +72,29 @@ pub fn keys(names: &[&str]) -> BTreeSet<ConflictKey> {
 
 /// A file that must hold `digest`.
 pub fn file(path: &str, digest: Digest, conflict: &[&str]) -> Managed {
-    Managed {
-        condition: Condition::file(
-            p(path),
-            FileCondition::Present {
-                content: Content::Exactly(digest),
-            },
-        ),
-        kind: Kind::File,
-        keys: keys(conflict),
-        disrupts: BTreeSet::new(),
-    }
+    managed(
+        path,
+        FileCondition::present(Content::Exactly(digest)),
+        conflict,
+    )
 }
 
 /// A service that must run, observed through its status path.
 pub fn service(path: &str, conflict: &[&str]) -> Managed {
-    Managed {
-        condition: Condition::file(
-            p(path),
-            FileCondition::Present {
-                content: Content::Any,
-            },
-        ),
-        kind: Kind::Service,
-        keys: keys(conflict),
-        disrupts: BTreeSet::new(),
-    }
+    managed(path, FileCondition::present(Content::Any), conflict)
 }
 
 /// A service whose loaded configuration revision must be `digest`.
 pub fn loaded(path: &str, digest: Digest, conflict: &[&str]) -> Managed {
-    Managed {
-        kind: Kind::Service,
-        ..file(path, digest, conflict)
-    }
+    managed(
+        path,
+        FileCondition::present(Content::Exactly(digest)),
+        conflict,
+    )
 }
 
 pub fn edge(from: &str, to: &str, kind: EdgeKind) -> Edge {
-    Edge::new(p(from), p(to), kind)
+    Edge::new(k(from), k(to), kind)
 }
 
 /// Receipts due within 5, verification within 5, effects settled by 20.
@@ -197,10 +204,7 @@ pub enum Item {
     /// Work handed to the host by the process of `epoch`.
     Execute { request: Apply, epoch: u32 },
     /// A read requested by the process of `epoch`.
-    Read {
-        paths: Vec<ResourcePath>,
-        epoch: u32,
-    },
+    Read { paths: Vec<ResourceKey>, epoch: u32 },
 }
 
 pub struct Sim {
@@ -300,7 +304,7 @@ impl Sim {
                     if let Some(path) = self.telemetry.clone() {
                         self.host
                             .write(&path, Digest::from_bytes([(self.now % 250) as u8; 32]));
-                        observed.extend(self.host.observe(&[path]));
+                        observed.extend(self.host.observe(&[ResourceKey::File(path)]));
                     }
                     self.queue
                         .push_back(Item::Deliver(Input::Observed(observed)));

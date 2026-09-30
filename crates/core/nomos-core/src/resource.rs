@@ -1,11 +1,15 @@
-//! Resource identity for the file family: a validated absolute path and a
-//! content digest.
+//! Resource identity: a validated absolute path, a content digest, the
+//! validated names of the other families, and the [`ResourceKey`] that
+//! names one resource of any family ([resource-families.md]).
 //!
-//! Both types have private fields and fallible constructors. A `ResourcePath`
-//! that exists is absolute, has no empty, `.`, or `..` component, and has no
-//! trailing separator except for the root itself. A `Digest` is exactly 32
-//! bytes. Nothing else can be built, so nothing downstream checks again
-//! (ADR 0004 §4).
+//! Every type here has private fields and a fallible constructor. A
+//! `ResourcePath` that exists is absolute, has no empty, `.`, or `..`
+//! component, and has no trailing separator except for the root itself. A
+//! `Digest` is exactly 32 bytes. A unit, sysctl, account, or package name
+//! that exists is valid for its family. Nothing else can be built, so
+//! nothing downstream checks again (ADR 0004 §4).
+//!
+//! [resource-families.md]: ../../../../docs/formal/resource-families.md
 
 use alloc::string::String;
 use core::fmt;
@@ -166,6 +170,420 @@ impl fmt::Debug for Digest {
             write!(f, "{byte:02x}")?;
         }
         f.write_str(")")
+    }
+}
+
+/// Why text is not a valid name for its family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NameError {
+    /// The name is empty.
+    Empty,
+    /// The name is longer than its family allows.
+    TooLong,
+    /// The name has a character its family does not allow.
+    Character,
+    /// The characters are allowed but the shape is not: a unit without a
+    /// known suffix, a sysctl with one segment, a package name too short.
+    Shape,
+}
+
+impl fmt::Display for NameError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            NameError::Empty => "name is empty",
+            NameError::TooLong => "name is too long",
+            NameError::Character => "name has a character its family does not allow",
+            NameError::Shape => "name does not have its family's shape",
+        })
+    }
+}
+
+fn check_length(text: &str, max: usize) -> Result<(), NameError> {
+    if text.is_empty() {
+        return Err(NameError::Empty);
+    }
+    if text.len() > max {
+        return Err(NameError::TooLong);
+    }
+    Ok(())
+}
+
+/// The suffixes a managed unit may have.
+pub const UNIT_SUFFIXES: [&str; 6] = [
+    ".service", ".socket", ".timer", ".target", ".path", ".mount",
+];
+
+/// A systemd unit name: `[A-Za-z0-9:_.\\@-]`, a known suffix, a stem.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnitName(String);
+
+impl UnitName {
+    /// Validates `text` as a unit name.
+    pub fn new(text: &str) -> Result<Self, NameError> {
+        check_length(text, 255)?;
+        if !text.bytes().all(|b| {
+            b.is_ascii_alphanumeric() || matches!(b, b':' | b'_' | b'.' | b'\\' | b'@' | b'-')
+        }) {
+            return Err(NameError::Character);
+        }
+        let known = UNIT_SUFFIXES
+            .iter()
+            .any(|suffix| text.len() > suffix.len() && text.ends_with(suffix));
+        if !known {
+            return Err(NameError::Shape);
+        }
+        Ok(UnitName(String::from(text)))
+    }
+
+    /// The name as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A kernel parameter name: dot-separated segments of `[a-z0-9_-]`, at
+/// least two, so it cannot name a path outside `/proc/sys`.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SysctlKey(String);
+
+impl SysctlKey {
+    /// Validates `text` as a sysctl name.
+    pub fn new(text: &str) -> Result<Self, NameError> {
+        check_length(text, 255)?;
+        if !text.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-' | b'.')
+        }) {
+            return Err(NameError::Character);
+        }
+        let mut segments = 0usize;
+        for segment in text.split('.') {
+            if segment.is_empty() {
+                return Err(NameError::Shape);
+            }
+            segments += 1;
+        }
+        if segments < 2 {
+            return Err(NameError::Shape);
+        }
+        Ok(SysctlKey(String::from(text)))
+    }
+
+    /// The name as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// An account name, of a user or a group: Debian's default,
+/// `[a-z_][a-z0-9_-]*`, optionally ending in `$`, at most 32 bytes.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccountName(String);
+
+impl AccountName {
+    /// Validates `text` as an account name.
+    pub fn new(text: &str) -> Result<Self, NameError> {
+        check_length(text, 32)?;
+        let body = text.strip_suffix('$').unwrap_or(text);
+        let mut bytes = body.bytes();
+        match bytes.next() {
+            Some(b) if b.is_ascii_lowercase() || b == b'_' => {}
+            Some(_) => return Err(NameError::Character),
+            None => return Err(NameError::Shape),
+        }
+        if !bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-'))
+        {
+            return Err(NameError::Character);
+        }
+        Ok(AccountName(String::from(text)))
+    }
+
+    /// The name as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A Debian package name: `[a-z0-9][a-z0-9+.-]+`, 2 to 128 bytes.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageName(String);
+
+impl PackageName {
+    /// Validates `text` as a package name.
+    pub fn new(text: &str) -> Result<Self, NameError> {
+        check_length(text, 128)?;
+        let mut bytes = text.bytes();
+        match bytes.next() {
+            Some(b) if b.is_ascii_lowercase() || b.is_ascii_digit() => {}
+            _ => return Err(NameError::Character),
+        }
+        if !bytes.all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'+' | b'.' | b'-')
+        }) {
+            return Err(NameError::Character);
+        }
+        if text.len() < 2 {
+            return Err(NameError::Shape);
+        }
+        Ok(PackageName(String::from(text)))
+    }
+
+    /// The name as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+macro_rules! name_formatting {
+    ($($ty:ident),*) => {$(
+        impl fmt::Debug for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, concat!(stringify!($ty), "({:?})"), self.0)
+            }
+        }
+        impl fmt::Display for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(&self.0)
+            }
+        }
+    )*};
+}
+name_formatting!(UnitName, SysctlKey, AccountName, PackageName);
+
+/// A resource family ([resource-families.md]). The order is the order of
+/// the family's name as text, so that ordering keys by family agrees with
+/// sorting their text.
+///
+/// [resource-families.md]: ../../../../docs/formal/resource-families.md
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
+pub enum Family {
+    /// Directories.
+    Directory,
+    /// Regular files.
+    File,
+    /// Debian packages.
+    Package,
+    /// The abstract service of the transition kernel, served by the mock.
+    Service,
+    /// Kernel parameters.
+    Sysctl,
+    /// systemd units.
+    Unit,
+    /// Accounts.
+    User,
+}
+
+impl Family {
+    /// Every family, in order.
+    pub const ALL: [Family; 7] = [
+        Family::Directory,
+        Family::File,
+        Family::Package,
+        Family::Service,
+        Family::Sysctl,
+        Family::Unit,
+        Family::User,
+    ];
+
+    /// The family's name, as the IR and a key's text form write it.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Family::Directory => "directory",
+            Family::File => "file",
+            Family::Package => "package",
+            Family::Service => "service",
+            Family::Sysctl => "sysctl",
+            Family::Unit => "unit",
+            Family::User => "user",
+        }
+    }
+
+    /// The family with this name.
+    pub fn from_name(text: &str) -> Option<Family> {
+        Family::ALL.into_iter().find(|f| f.as_str() == text)
+    }
+
+    /// Whether resources of the family are named by a path.
+    pub fn is_path(&self) -> bool {
+        matches!(self, Family::Directory | Family::File | Family::Service)
+    }
+}
+
+/// Why text is not a resource key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyError {
+    /// No `:` separates a family from a name.
+    NoFamily,
+    /// The family is not one of the seven.
+    UnknownFamily,
+    /// The path is not valid.
+    Path(PathError),
+    /// The name is not valid for the family.
+    Name(NameError),
+}
+
+impl fmt::Display for KeyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            KeyError::NoFamily => f.write_str("key has no `<family>:` prefix"),
+            KeyError::UnknownFamily => f.write_str("key names an unknown family"),
+            KeyError::Path(e) => write!(f, "key's {e}"),
+            KeyError::Name(e) => write!(f, "key's {e}"),
+        }
+    }
+}
+
+/// One resource of any family: its family and its name. Keys order by
+/// name, then family: a path begins with `/` and sorts before every other
+/// name, so the resources named by paths keep the order of their paths,
+/// the order of schema 2 and of the transition kernel's scenarios
+/// (resource-families.md).
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum ResourceKey {
+    /// A directory at a path.
+    Directory(ResourcePath),
+    /// A regular file at a path.
+    File(ResourcePath),
+    /// A package by name.
+    Package(PackageName),
+    /// The abstract service at a path.
+    Service(ResourcePath),
+    /// A kernel parameter.
+    Sysctl(SysctlKey),
+    /// A systemd unit.
+    Unit(UnitName),
+    /// An account.
+    User(AccountName),
+}
+
+impl Ord for ResourceKey {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.name()
+            .cmp(other.name())
+            .then_with(|| self.family().cmp(&other.family()))
+    }
+}
+
+impl PartialOrd for ResourceKey {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl ResourceKey {
+    /// The key's family.
+    pub fn family(&self) -> Family {
+        match self {
+            ResourceKey::Directory(_) => Family::Directory,
+            ResourceKey::File(_) => Family::File,
+            ResourceKey::Package(_) => Family::Package,
+            ResourceKey::Service(_) => Family::Service,
+            ResourceKey::Sysctl(_) => Family::Sysctl,
+            ResourceKey::Unit(_) => Family::Unit,
+            ResourceKey::User(_) => Family::User,
+        }
+    }
+
+    /// The name within the family, as text.
+    pub fn name(&self) -> &str {
+        match self {
+            ResourceKey::Directory(p) | ResourceKey::File(p) | ResourceKey::Service(p) => {
+                p.as_str()
+            }
+            ResourceKey::Package(n) => n.as_str(),
+            ResourceKey::Sysctl(n) => n.as_str(),
+            ResourceKey::Unit(n) => n.as_str(),
+            ResourceKey::User(n) => n.as_str(),
+        }
+    }
+
+    /// The path, for a family named by one.
+    pub fn path(&self) -> Option<&ResourcePath> {
+        match self {
+            ResourceKey::Directory(p) | ResourceKey::File(p) | ResourceKey::Service(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// A key of `family` named `name`.
+    pub fn from_parts(family: Family, name: &str) -> Result<Self, KeyError> {
+        let path = || ResourcePath::new(name).map_err(KeyError::Path);
+        Ok(match family {
+            Family::Directory => ResourceKey::Directory(path()?),
+            Family::File => ResourceKey::File(path()?),
+            Family::Service => ResourceKey::Service(path()?),
+            Family::Package => {
+                ResourceKey::Package(PackageName::new(name).map_err(KeyError::Name)?)
+            }
+            Family::Sysctl => ResourceKey::Sysctl(SysctlKey::new(name).map_err(KeyError::Name)?),
+            Family::Unit => ResourceKey::Unit(UnitName::new(name).map_err(KeyError::Name)?),
+            Family::User => ResourceKey::User(AccountName::new(name).map_err(KeyError::Name)?),
+        })
+    }
+
+    /// Parses the text form, `<family>:<name>`.
+    pub fn parse(text: &str) -> Result<Self, KeyError> {
+        let (family, name) = text.split_once(':').ok_or(KeyError::NoFamily)?;
+        let family = Family::from_name(family).ok_or(KeyError::UnknownFamily)?;
+        ResourceKey::from_parts(family, name)
+    }
+}
+
+impl fmt::Display for ResourceKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.family().as_str(), self.name())
+    }
+}
+
+impl fmt::Debug for ResourceKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ResourceKey({self})")
+    }
+}
+
+/// Permission bits: at most `0o7777`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Mode(u16);
+
+impl Mode {
+    /// The mode with these bits, when they fit in `0o7777`.
+    pub fn new(bits: u16) -> Option<Self> {
+        (bits <= 0o7777).then_some(Mode(bits))
+    }
+
+    /// `0644`, a file's mode under the default umask.
+    pub const DEFAULT_FILE: Mode = Mode(0o644);
+
+    /// `0755`, a directory's mode under the default umask.
+    pub const DEFAULT_DIRECTORY: Mode = Mode(0o755);
+
+    /// The mode from exactly four octal digits, as the IR writes it.
+    pub fn from_octal(text: &str) -> Option<Self> {
+        if text.len() != 4 || !text.bytes().all(|b| (b'0'..=b'7').contains(&b)) {
+            return None;
+        }
+        text.bytes()
+            .try_fold(0u16, |acc, b| {
+                acc.checked_mul(8)?.checked_add(u16::from(b - b'0'))
+            })
+            .and_then(Mode::new)
+    }
+
+    /// The bits.
+    pub fn bits(&self) -> u16 {
+        self.0
+    }
+}
+
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:04o}", self.0)
+    }
+}
+
+impl fmt::Debug for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Mode({:04o})", self.0)
     }
 }
 

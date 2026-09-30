@@ -22,7 +22,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use nomos_core::assessment::Assessment;
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::ResourceKey;
 
 use crate::budget::Node;
 
@@ -42,14 +42,14 @@ pub enum EdgeKind {
 /// One dependency edge.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Edge {
-    source: ResourcePath,
-    target: ResourcePath,
+    source: ResourceKey,
+    target: ResourceKey,
     kind: EdgeKind,
 }
 
 impl Edge {
     /// An edge from `source` to `target`: the source constrains the target.
-    pub fn new(source: ResourcePath, target: ResourcePath, kind: EdgeKind) -> Self {
+    pub fn new(source: ResourceKey, target: ResourceKey, kind: EdgeKind) -> Self {
         Edge {
             source,
             target,
@@ -58,12 +58,12 @@ impl Edge {
     }
 
     /// The constraining resource.
-    pub fn source(&self) -> &ResourcePath {
+    pub fn source(&self) -> &ResourceKey {
         &self.source
     }
 
     /// The constrained resource.
-    pub fn target(&self) -> &ResourcePath {
+    pub fn target(&self) -> &ResourceKey {
         &self.target
     }
 
@@ -103,24 +103,27 @@ pub enum VertexKind {
 }
 
 /// One vertex: a resource, what it is, the keys its Action holds, whether
-/// an Obligation is owed on it, and the nodes its Action would disrupt.
+/// an Obligation is owed on it, whether it has a Variance of its own, and
+/// the nodes its Action would disrupt.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Vertex {
-    resource: ResourcePath,
+    resource: ResourceKey,
     kind: VertexKind,
     keys: BTreeSet<ConflictKey>,
     owed: bool,
+    varies: bool,
     disrupts: BTreeSet<Node>,
 }
 
 impl Vertex {
     /// An Action vertex holding `keys`.
-    pub fn action(resource: ResourcePath, keys: BTreeSet<ConflictKey>) -> Self {
+    pub fn action(resource: ResourceKey, keys: BTreeSet<ConflictKey>) -> Self {
         Vertex {
             resource,
             kind: VertexKind::Action,
             keys,
             owed: false,
+            varies: false,
             disrupts: BTreeSet::new(),
         }
     }
@@ -129,31 +132,45 @@ impl Vertex {
     /// the Action runs even when its `on_change` group is Disabled
     /// (ADR 0009 note). It still waits for its triggers and is still
     /// Blocked by one that is not met.
-    pub fn owed(resource: ResourcePath, keys: BTreeSet<ConflictKey>) -> Self {
+    pub fn owed(resource: ResourceKey, keys: BTreeSet<ConflictKey>) -> Self {
         Vertex {
             owed: true,
             ..Vertex::action(resource, keys)
         }
     }
 
+    /// An Action vertex for a resource with a Variance of its own. Like an
+    /// owed vertex, it has a reason to run that is not its `on_change`
+    /// sources, so a Disabled group makes it Ready (warp.md, owed and
+    /// varying vertices). It still waits for its triggers and is still
+    /// Blocked by one that is not met.
+    pub fn varying(resource: ResourceKey, keys: BTreeSet<ConflictKey>) -> Self {
+        Vertex {
+            varies: true,
+            ..Vertex::action(resource, keys)
+        }
+    }
+
     /// A satisfaction anchor. Anchors hold no keys: they mutate nothing.
-    pub fn anchor(resource: ResourcePath) -> Self {
+    pub fn anchor(resource: ResourceKey) -> Self {
         Vertex {
             resource,
             kind: VertexKind::Anchor,
             keys: BTreeSet::new(),
             owed: false,
+            varies: false,
             disrupts: BTreeSet::new(),
         }
     }
 
     /// An Indeterminate anchor.
-    pub fn indeterminate_anchor(resource: ResourcePath) -> Self {
+    pub fn indeterminate_anchor(resource: ResourceKey) -> Self {
         Vertex {
             resource,
             kind: VertexKind::IndeterminateAnchor,
             keys: BTreeSet::new(),
             owed: false,
+            varies: false,
             disrupts: BTreeSet::new(),
         }
     }
@@ -167,22 +184,22 @@ impl Vertex {
         self
     }
 
-    /// The vertex a resource gets from its Assessment: an Action for a
-    /// Variance, an anchor for Satisfied, an Indeterminate anchor otherwise.
+    /// The vertex a resource gets from its Assessment: a varying Action for
+    /// a Variance, an anchor for Satisfied, an Indeterminate anchor otherwise.
     pub fn from_assessment(
-        resource: ResourcePath,
+        resource: ResourceKey,
         assessment: &Assessment,
         keys: BTreeSet<ConflictKey>,
     ) -> Self {
         match assessment {
-            Assessment::Variance(_) => Vertex::action(resource, keys),
+            Assessment::Variance(_) => Vertex::varying(resource, keys),
             Assessment::Satisfied => Vertex::anchor(resource),
             Assessment::Indeterminate(_) => Vertex::indeterminate_anchor(resource),
         }
     }
 
     /// The resource.
-    pub fn resource(&self) -> &ResourcePath {
+    pub fn resource(&self) -> &ResourceKey {
         &self.resource
     }
 
@@ -201,6 +218,17 @@ impl Vertex {
         self.owed
     }
 
+    /// Whether the resource has a Variance of its own.
+    pub fn varies(&self) -> bool {
+        self.varies
+    }
+
+    /// Whether the Action has a reason to run besides its `on_change`
+    /// sources: an owed Obligation or a Variance of its own.
+    pub fn has_own_reason(&self) -> bool {
+        self.owed || self.varies
+    }
+
     /// The nodes the Action would make unavailable; empty for an anchor.
     pub fn disrupts(&self) -> &BTreeSet<Node> {
         &self.disrupts
@@ -211,22 +239,22 @@ impl Vertex {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompileError {
     /// Two vertices name one resource.
-    DuplicateVertex(ResourcePath),
+    DuplicateVertex(ResourceKey),
     /// An edge names a resource with no vertex.
     UnknownResource {
         /// The edge that names it.
         edge: Edge,
         /// The resource with no vertex.
-        missing: ResourcePath,
+        missing: ResourceKey,
     },
     /// The edges contain a cycle.
     Cycle {
         /// One closed walk per cyclic component, each starting at the
         /// component's smallest resource; every listed vertex has an edge to
         /// the next and the last has an edge back to the first.
-        witnesses: Vec<Vec<ResourcePath>>,
+        witnesses: Vec<Vec<ResourceKey>>,
         /// Acyclic vertices downstream of a cycle, which can never be ordered.
-        blocked: Vec<ResourcePath>,
+        blocked: Vec<ResourceKey>,
     },
 }
 
@@ -252,15 +280,15 @@ impl fmt::Display for CompileError {
 /// A compiled Plan graph: acyclic, with one topological order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Graph {
-    vertices: BTreeMap<ResourcePath, Vertex>,
+    vertices: BTreeMap<ResourceKey, Vertex>,
     edges: Vec<Edge>,
-    order: Vec<ResourcePath>,
+    order: Vec<ResourceKey>,
 }
 
 impl Graph {
     /// Compiles vertices and edges into a graph, or says why it cannot.
     pub fn compile(vertices: Vec<Vertex>, edges: Vec<Edge>) -> Result<Self, CompileError> {
-        let mut by_resource: BTreeMap<ResourcePath, Vertex> = BTreeMap::new();
+        let mut by_resource: BTreeMap<ResourceKey, Vertex> = BTreeMap::new();
         for vertex in vertices {
             let resource = vertex.resource.clone();
             if by_resource.insert(resource.clone(), vertex).is_some() {
@@ -282,7 +310,7 @@ impl Graph {
         let edges: Vec<Edge> = edges.into_iter().collect();
         let order = kahn(&by_resource, &edges);
         if order.len() < by_resource.len() {
-            let remainder: BTreeSet<&ResourcePath> =
+            let remainder: BTreeSet<&ResourceKey> =
                 by_resource.keys().filter(|r| !order.contains(r)).collect();
             return Err(cycle_diagnostic(&remainder, &edges));
         }
@@ -294,12 +322,12 @@ impl Graph {
     }
 
     /// The topological order: every edge's source precedes its target.
-    pub fn order(&self) -> &[ResourcePath] {
+    pub fn order(&self) -> &[ResourceKey] {
         &self.order
     }
 
     /// The vertex for a resource.
-    pub fn vertex(&self, resource: &ResourcePath) -> Option<&Vertex> {
+    pub fn vertex(&self, resource: &ResourceKey) -> Option<&Vertex> {
         self.vertices.get(resource)
     }
 
@@ -314,22 +342,22 @@ impl Graph {
     }
 
     /// The edges into `target`.
-    pub fn edges_into<'a>(&'a self, target: &'a ResourcePath) -> impl Iterator<Item = &'a Edge> {
+    pub fn edges_into<'a>(&'a self, target: &'a ResourceKey) -> impl Iterator<Item = &'a Edge> {
         self.edges.iter().filter(move |e| &e.target == target)
     }
 }
 
 /// Kahn's algorithm with an ordered queue: the output is a function of the
 /// graph alone. Returns the vertices ordered; fewer than all means a cycle.
-fn kahn(vertices: &BTreeMap<ResourcePath, Vertex>, edges: &[Edge]) -> Vec<ResourcePath> {
-    let mut indegree: BTreeMap<&ResourcePath, usize> =
+fn kahn(vertices: &BTreeMap<ResourceKey, Vertex>, edges: &[Edge]) -> Vec<ResourceKey> {
+    let mut indegree: BTreeMap<&ResourceKey, usize> =
         vertices.keys().map(|r| (r, 0usize)).collect();
     for edge in edges {
         if let Some(n) = indegree.get_mut(&edge.target) {
             *n += 1;
         }
     }
-    let mut queue: BTreeSet<&ResourcePath> = indegree
+    let mut queue: BTreeSet<&ResourceKey> = indegree
         .iter()
         .filter(|(_, n)| **n == 0)
         .map(|(r, _)| *r)
@@ -351,8 +379,8 @@ fn kahn(vertices: &BTreeMap<ResourcePath, Vertex>, edges: &[Edge]) -> Vec<Resour
 
 /// Strongly connected components of the remainder, one witness per cyclic
 /// component, and the acyclic remainder as blocked.
-fn cycle_diagnostic(remainder: &BTreeSet<&ResourcePath>, edges: &[Edge]) -> CompileError {
-    let successors = |r: &ResourcePath| -> Vec<&ResourcePath> {
+fn cycle_diagnostic(remainder: &BTreeSet<&ResourceKey>, edges: &[Edge]) -> CompileError {
+    let successors = |r: &ResourceKey| -> Vec<&ResourceKey> {
         edges
             .iter()
             .filter(|e| &e.source == r && remainder.contains(&e.target))
@@ -380,25 +408,25 @@ fn cycle_diagnostic(remainder: &BTreeSet<&ResourcePath>, edges: &[Edge]) -> Comp
 /// Kosaraju's algorithm over the remainder. Components are returned as
 /// sorted sets, in order of their smallest vertex.
 fn strongly_connected<'a>(
-    vertices: &BTreeSet<&'a ResourcePath>,
-    successors: &dyn Fn(&ResourcePath) -> Vec<&'a ResourcePath>,
-) -> Vec<BTreeSet<&'a ResourcePath>> {
+    vertices: &BTreeSet<&'a ResourceKey>,
+    successors: &dyn Fn(&ResourceKey) -> Vec<&'a ResourceKey>,
+) -> Vec<BTreeSet<&'a ResourceKey>> {
     // First pass: finishing order.
-    let mut finished: Vec<&ResourcePath> = Vec::new();
-    let mut seen: BTreeSet<&ResourcePath> = BTreeSet::new();
+    let mut finished: Vec<&ResourceKey> = Vec::new();
+    let mut seen: BTreeSet<&ResourceKey> = BTreeSet::new();
     for start in vertices {
         finish_order(start, successors, &mut seen, &mut finished);
     }
     // Second pass: on the transposed graph, in reverse finishing order.
-    let predecessors = |r: &ResourcePath| -> Vec<&'a ResourcePath> {
+    let predecessors = |r: &ResourceKey| -> Vec<&'a ResourceKey> {
         vertices
             .iter()
             .filter(|v| successors(v).contains(&r))
             .copied()
             .collect()
     };
-    let mut assigned: BTreeSet<&ResourcePath> = BTreeSet::new();
-    let mut components: Vec<BTreeSet<&ResourcePath>> = Vec::new();
+    let mut assigned: BTreeSet<&ResourceKey> = BTreeSet::new();
+    let mut components: Vec<BTreeSet<&ResourceKey>> = Vec::new();
     for start in finished.iter().rev() {
         if assigned.contains(start) {
             continue;
@@ -423,10 +451,10 @@ fn strongly_connected<'a>(
 }
 
 fn finish_order<'a>(
-    start: &'a ResourcePath,
-    successors: &dyn Fn(&ResourcePath) -> Vec<&'a ResourcePath>,
-    seen: &mut BTreeSet<&'a ResourcePath>,
-    finished: &mut Vec<&'a ResourcePath>,
+    start: &'a ResourceKey,
+    successors: &dyn Fn(&ResourceKey) -> Vec<&'a ResourceKey>,
+    seen: &mut BTreeSet<&'a ResourceKey>,
+    finished: &mut Vec<&'a ResourceKey>,
 ) {
     if !seen.insert(start) {
         return;
@@ -440,13 +468,13 @@ fn finish_order<'a>(
 /// The shortest cycle through the component's smallest vertex, by
 /// breadth-first search inside the component.
 fn witness<'a>(
-    component: &BTreeSet<&'a ResourcePath>,
-    successors: &dyn Fn(&ResourcePath) -> Vec<&'a ResourcePath>,
-) -> Option<Vec<ResourcePath>> {
+    component: &BTreeSet<&'a ResourceKey>,
+    successors: &dyn Fn(&ResourceKey) -> Vec<&'a ResourceKey>,
+) -> Option<Vec<ResourceKey>> {
     let start = *component.iter().next()?;
-    let mut parent: BTreeMap<&ResourcePath, &ResourcePath> = BTreeMap::new();
-    let mut queue: VecDeque<&ResourcePath> = VecDeque::from([start]);
-    let mut closing: Option<&ResourcePath> = None;
+    let mut parent: BTreeMap<&ResourceKey, &ResourceKey> = BTreeMap::new();
+    let mut queue: VecDeque<&ResourceKey> = VecDeque::from([start]);
+    let mut closing: Option<&ResourceKey> = None;
     'search: while let Some(v) = queue.pop_front() {
         for next in successors(v) {
             if !component.contains(next) {
@@ -481,10 +509,10 @@ mod tests {
 
     use super::{CompileError, Edge, EdgeKind, Graph, Vertex, VertexKind};
     use nomos_core::assessment::{Assessment, Reason, Variance};
-    use nomos_core::resource::ResourcePath;
+    use nomos_core::resource::ResourceKey;
 
-    fn r(text: &str) -> ResourcePath {
-        ResourcePath::new(text).unwrap()
+    fn r(text: &str) -> ResourceKey {
+        ResourceKey::File(nomos_core::resource::ResourcePath::new(text).unwrap())
     }
 
     fn action(text: &str) -> Vertex {
@@ -495,8 +523,8 @@ mod tests {
         Edge::new(r(from), r(to), kind)
     }
 
-    fn names(paths: &[ResourcePath]) -> Vec<&str> {
-        paths.iter().map(ResourcePath::as_str).collect()
+    fn names(paths: &[ResourceKey]) -> Vec<&str> {
+        paths.iter().map(ResourceKey::name).collect()
     }
 
     #[test]

@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::{ResourceKey, ResourcePath};
 use nomos_warp::budget::{Budget, Budgets, Node};
 use nomos_warp::frontier::{Outcome, Progress, Resolution, frontier};
 use nomos_warp::graph::{CompileError, ConflictKey, Edge, EdgeKind, Graph, Vertex, VertexKind};
@@ -55,8 +55,8 @@ fn runner(seed: [u8; 32]) -> TestRunner {
     TestRunner::new_with_rng(config, TestRng::from_seed(RngAlgorithm::ChaCha, &seed))
 }
 
-fn path(n: usize) -> ResourcePath {
-    ResourcePath::new(&format!("/r/{n}")).unwrap()
+fn path(n: usize) -> ResourceKey {
+    ResourceKey::File(ResourcePath::new(&format!("/r/{n}")).unwrap())
 }
 
 fn key(n: u8) -> ConflictKey {
@@ -71,8 +71,9 @@ fn nodes() -> impl Strategy<Value = BTreeSet<Node>> {
     prop::collection::btree_set(0u8..4, 0..3).prop_map(|ns| ns.into_iter().map(node).collect())
 }
 
-/// A vertex's kind, keys, whether it is owed, and the nodes it disrupts.
-type RawVertex = (VertexKind, BTreeSet<ConflictKey>, bool, BTreeSet<Node>);
+/// A vertex's kind, keys, its reason of its own to run (0 none, 1 an owed
+/// Obligation, 2 its own Variance), and the nodes it disrupts.
+type RawVertex = (VertexKind, BTreeSet<ConflictKey>, u8, BTreeSet<Node>);
 
 fn vertex() -> impl Strategy<Value = RawVertex> {
     (
@@ -82,7 +83,7 @@ fn vertex() -> impl Strategy<Value = RawVertex> {
             1 => Just(VertexKind::IndeterminateAnchor),
         ],
         prop::collection::btree_set(0u8..3, 0..3).prop_map(|ks| ks.into_iter().map(key).collect()),
-        prop::bool::weighted(0.3),
+        prop_oneof![4 => Just(0u8), 1 => Just(1u8), 2 => Just(2u8)],
         nodes(),
     )
 }
@@ -125,15 +126,16 @@ fn raw() -> impl Strategy<Value = Raw> {
     )
 }
 
-fn build(raw: &Raw) -> (Vec<Vertex>, Vec<Edge>, BTreeMap<ResourcePath, Progress>) {
+fn build(raw: &Raw) -> (Vec<Vertex>, Vec<Edge>, BTreeMap<ResourceKey, Progress>) {
     let vertices = raw
         .0
         .iter()
         .enumerate()
         .map(|(i, (kind, keys, owed, disrupts))| {
             match (kind, owed) {
-                (VertexKind::Action, false) => Vertex::action(path(i), keys.clone()),
-                (VertexKind::Action, true) => Vertex::owed(path(i), keys.clone()),
+                (VertexKind::Action, 1) => Vertex::owed(path(i), keys.clone()),
+                (VertexKind::Action, 2) => Vertex::varying(path(i), keys.clone()),
+                (VertexKind::Action, _) => Vertex::action(path(i), keys.clone()),
                 (VertexKind::Anchor, _) => Vertex::anchor(path(i)),
                 (VertexKind::IndeterminateAnchor, _) => Vertex::indeterminate_anchor(path(i)),
             }
@@ -177,8 +179,8 @@ fn reference_has_cycle(n: usize, edges: &[(usize, usize, EdgeKind)]) -> bool {
 /// formulas of warp.md directly.
 fn reference_frontier(
     graph: &Graph,
-    progress: &BTreeMap<ResourcePath, Progress>,
-) -> BTreeMap<ResourcePath, Resolution> {
+    progress: &BTreeMap<ResourceKey, Progress>,
+) -> BTreeMap<ResourceKey, Resolution> {
     #[derive(Clone, Copy, PartialEq)]
     enum S {
         Open,
@@ -187,8 +189,8 @@ fn reference_frontier(
         Changed,
     }
     // Each vertex's view to its dependents, and the resolution of pending ones.
-    let mut view: BTreeMap<ResourcePath, S> = BTreeMap::new();
-    let mut resolution: BTreeMap<ResourcePath, Resolution> = BTreeMap::new();
+    let mut view: BTreeMap<ResourceKey, S> = BTreeMap::new();
+    let mut resolution: BTreeMap<ResourceKey, Resolution> = BTreeMap::new();
     for v in graph.vertices() {
         let s = match v.kind() {
             VertexKind::Anchor => S::Met,
@@ -244,9 +246,11 @@ fn reference_frontier(
                 .chain(&group)
                 .any(|s| *s == S::Open);
             // Reached only when every group source is met: Disabled when none
-            // changed. A pending Obligation is a reason to run without a change
-            // (ADR 0009 note), so an owed vertex is not Skipped.
-            let disabled = !group.is_empty() && !group.contains(&S::Changed) && !v.is_owed();
+            // changed. A pending Obligation and a Variance of its own are each
+            // a reason to run without a change (ADR 0009 notes), so an owed or
+            // varying vertex is not Skipped.
+            let own = v.is_owed() || v.varies();
+            let disabled = !group.is_empty() && !group.contains(&S::Changed) && !own;
             let res = if blocked {
                 Resolution::Blocked
             } else if waiting {
@@ -289,7 +293,7 @@ fn compilation_agrees_with_the_reference_on_cycles() {
             match Graph::compile(vertices, edges.clone()) {
                 Ok(graph) => {
                     prop_assert!(!cyclic, "reference found a cycle the compiler missed");
-                    let index: BTreeMap<&ResourcePath, usize> = graph
+                    let index: BTreeMap<&ResourceKey, usize> = graph
                         .order()
                         .iter()
                         .enumerate()
@@ -303,7 +307,7 @@ fn compilation_agrees_with_the_reference_on_cycles() {
                 Err(CompileError::Cycle { witnesses, blocked }) => {
                     prop_assert!(cyclic, "compiler found a cycle the reference missed");
                     prop_assert!(!witnesses.is_empty());
-                    let has = |s: &ResourcePath, t: &ResourcePath| {
+                    let has = |s: &ResourceKey, t: &ResourceKey| {
                         edges.iter().any(|e| e.source() == s && e.target() == t)
                     };
                     for w in &witnesses {
@@ -314,7 +318,7 @@ fn compilation_agrees_with_the_reference_on_cycles() {
                             );
                         }
                     }
-                    let cyclic_vertices: BTreeSet<&ResourcePath> =
+                    let cyclic_vertices: BTreeSet<&ResourceKey> =
                         witnesses.iter().flatten().collect();
                     for b in &blocked {
                         prop_assert!(!cyclic_vertices.contains(b));
@@ -366,7 +370,7 @@ fn the_frontier_agrees_with_the_reference() {
             };
             let f = frontier(&graph, &progress);
             prop_assert_eq!(f.resolutions(), &reference_frontier(&graph, &progress));
-            let index: BTreeMap<&ResourcePath, usize> = graph
+            let index: BTreeMap<&ResourceKey, usize> = graph
                 .order()
                 .iter()
                 .enumerate()

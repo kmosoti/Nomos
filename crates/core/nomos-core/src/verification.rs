@@ -8,35 +8,132 @@
 //! harnessed function under Kani's model of Rust, and nothing about the
 //! callers of that function.
 
-use crate::assessment::{Assessment, Reason, assess_collection, assess_evidence};
-use crate::condition::{Content, FileCondition};
-use crate::observation::{Collection, CollectionFailure, FileEvidence};
+use crate::assessment::{Assessment, Reason, assess_collection, assess_file, assess_unit};
+use crate::condition::{
+    Activity, Content, Enablement, FileCondition, Metadata, Requirement, UnitCondition,
+};
+use crate::observation::{
+    Account, ActiveState, Collection, CollectionFailure, FileEvidence, ObservedMetadata,
+    UnitEvidence, UnitFileState,
+};
+use crate::resource::Mode;
 
-/// The reference predicate: does the evidence satisfy the requirement?
-/// Written as a direct reading of spec §3, independently of the match in
-/// `assess_evidence`.
-fn holds(requirement: &FileCondition, evidence: &FileEvidence) -> bool {
-    match requirement {
-        FileCondition::Absent => matches!(evidence, FileEvidence::Absent),
-        FileCondition::Present {
-            content: Content::Any,
-        } => matches!(evidence, FileEvidence::Present { .. }),
-        FileCondition::Present {
-            content: Content::Exactly(expected),
-        } => matches!(evidence, FileEvidence::Present { digest, .. } if digest == expected),
+/// Any mode: every value of the twelve permission bits.
+fn any_mode() -> Mode {
+    match Mode::new(kani::any::<u16>() & 0o7777) {
+        Some(m) => m,
+        None => Mode::DEFAULT_FILE,
     }
 }
 
-/// Soundness of `assess_evidence`: Satisfied exactly when the evidence
+/// Any file requirement whose metadata names no account: an account name
+/// allocates, and the owner and group are compared by the same equality as
+/// the mode, which this states over every value.
+fn any_file_condition() -> FileCondition {
+    if kani::any() {
+        FileCondition::Absent
+    } else {
+        FileCondition::Present {
+            content: kani::any(),
+            metadata: Metadata {
+                owner: None,
+                group: None,
+                mode: if kani::any() { Some(any_mode()) } else { None },
+            },
+        }
+    }
+}
+
+/// Any file evidence whose owner and group are reported by number.
+fn any_file_evidence() -> FileEvidence {
+    if kani::any() {
+        FileEvidence::Absent
+    } else {
+        FileEvidence::Present {
+            digest: kani::any(),
+            size: kani::any(),
+            metadata: ObservedMetadata {
+                owner: Account::Id(kani::any()),
+                group: Account::Id(kani::any()),
+                mode: any_mode(),
+            },
+        }
+    }
+}
+
+/// The reference predicate: does the evidence satisfy the requirement?
+/// Written as a direct reading of the file table of resource-families.md,
+/// independently of the match in `assess_file`.
+fn holds(requirement: &FileCondition, evidence: &FileEvidence) -> bool {
+    match (requirement, evidence) {
+        (FileCondition::Absent, FileEvidence::Absent) => true,
+        (
+            FileCondition::Present { content, metadata },
+            FileEvidence::Present {
+                digest,
+                metadata: observed,
+                ..
+            },
+        ) => {
+            let bytes = match content {
+                Content::Any => true,
+                Content::Exactly(expected) => expected == digest,
+            };
+            bytes && metadata.mode.is_none_or(|m| m == observed.mode)
+        }
+        _ => false,
+    }
+}
+
+/// Soundness of `assess_file`: Satisfied exactly when the evidence
 /// satisfies the requirement, a Variance otherwise, and never Indeterminate.
+/// The unwinding bound covers a comparison of two account names, at most
+/// 32 bytes each; Kani checks that it suffices.
 #[kani::proof]
+#[kani::unwind(34)]
 fn evidence_assessment_is_sound() {
-    let requirement: FileCondition = kani::any();
-    let evidence: FileEvidence = kani::any();
-    let assessment = assess_evidence(&requirement, &evidence);
+    let requirement = any_file_condition();
+    let evidence = any_file_evidence();
+    let assessment = assess_file(&requirement, &evidence);
     assert_eq!(
         matches!(assessment, Assessment::Satisfied),
         holds(&requirement, &evidence)
+    );
+    assert!(!matches!(assessment, Assessment::Indeterminate(_)));
+    kani::cover!(matches!(assessment, Assessment::Satisfied));
+    kani::cover!(matches!(assessment, Assessment::Variance(_)));
+}
+
+/// The reference predicate for units: the unit table of
+/// resource-families.md, one axis at a time.
+fn unit_holds(requirement: &UnitCondition, evidence: &UnitEvidence) -> bool {
+    let running = matches!(
+        evidence.active,
+        ActiveState::Active | ActiveState::Reloading
+    );
+    let stopped = matches!(evidence.active, ActiveState::Inactive | ActiveState::Failed);
+    let activity = match requirement.activity {
+        Activity::Active => running,
+        Activity::Inactive => stopped,
+        Activity::Any => true,
+    };
+    let enablement = match requirement.enablement {
+        Enablement::Enabled => evidence.file_state == UnitFileState::Enabled,
+        Enablement::Disabled => evidence.file_state == UnitFileState::Disabled,
+        Enablement::Any => true,
+    };
+    activity && enablement
+}
+
+/// Soundness of `assess_unit` over every requirement and every evidence.
+#[kani::proof]
+fn unit_assessment_is_sound() {
+    let requirement: UnitCondition = kani::any();
+    let evidence: UnitEvidence = kani::any();
+    let assessment = assess_unit(&requirement, &evidence);
+    assert_eq!(
+        matches!(assessment, Assessment::Satisfied),
+        unit_holds(&requirement, &evidence)
     );
     assert!(!matches!(assessment, Assessment::Indeterminate(_)));
     kani::cover!(matches!(assessment, Assessment::Satisfied));
@@ -47,15 +144,19 @@ fn evidence_assessment_is_sound() {
 /// that failure, whatever the requirement.
 #[kani::proof]
 fn a_failed_collection_is_indeterminate() {
-    let requirement: FileCondition = kani::any();
+    let requirement = if kani::any() {
+        Requirement::File(any_file_condition())
+    } else {
+        Requirement::Unit(kani::any())
+    };
     let failure: CollectionFailure = kani::any();
     let assessment = assess_collection(&requirement, &Collection::Failed(failure));
     assert!(matches!(
         assessment,
         Assessment::Indeterminate(Reason::CollectionFailed(f)) if f == failure
     ));
-    kani::cover!(matches!(failure, CollectionFailure::PermissionDenied));
-    kani::cover!(matches!(requirement, FileCondition::Present { .. }));
+    kani::cover!(matches!(failure, CollectionFailure::Unavailable));
+    kani::cover!(matches!(requirement, Requirement::Unit(_)));
 }
 
 mod transition {

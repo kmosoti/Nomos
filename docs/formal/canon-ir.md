@@ -29,9 +29,34 @@ Both candidate encodings carry the same restricted data model:
 
 No floating point, no negative integers, no byte strings, no booleans, no null, no tags, no indefinite lengths. A digest is text: 64 lowercase hexadecimal characters. The integer bound is the largest range both encodings represent exactly; the IR uses integers only for the schema version.
 
+## Schema Version 3
+
+The current IR, from milestone `08-resource-families`: every family of [resource-families.md](resource-families.md). A map with exactly these keys:
+
+| Key | Value |
+| --- | --- |
+| `schema` | `3` |
+| `name` | The Canon's name, as in version 2 |
+| `resources` | An array of resource maps, sorted by `name`, then `kind`, no key twice |
+| `relations` | An array of relation maps, sorted by source, then target, then kind, no relation twice |
+
+A resource map has exactly `kind`, `name`, `spec`, `keys`, and `disrupts`. `kind` is one of `file`, `directory`, `service`, `unit`, `sysctl`, `user`, and `package`; `name` is valid for the family; `keys` and `disrupts` are as in version 2. `spec` is a map whose fields depend on the kind, and an optional field is present exactly when the requirement states it, so a requirement has one encoding:
+
+| Kind | `spec` fields |
+| --- | --- |
+| `file` | `state`, `absent` or `present`; when present, `content`, `any` or a digest, and optionally `owner`, `group`, `mode` |
+| `directory` | `state`, `absent` or `present`; when present, optionally `owner`, `group`, `mode` |
+| `service` | `state`, `running` or `loaded`; `digest` when loaded |
+| `unit` | `active`, one of `active`, `inactive`, `any`; `enabled`, one of `enabled`, `disabled`, `any` |
+| `sysctl` | `value`, normalized: tokens joined by one space, no leading or trailing space, not empty |
+| `user` | `state`, `absent` or `present`; when present, `class`, `system` or `regular`, and optionally `home`, `shell`, each an absolute path |
+| `package` | `state`, `absent` or `installed`; when installed, optionally `version` |
+
+`owner` and `group` are account names as the `user` family validates them. `mode` is exactly four octal digits, at most `7777`. A relation's `source` and `target` are resource keys in their text form, `<kind>:<name>`, and relations are sorted in the order of keys: by name, then kind. Two resources that write one property are rejected by the validator ([resource-families.md](resource-families.md#admission)).
+
 ## Schema Version 2
 
-The current IR. A map with exactly these keys:
+The IR of `06-canon-artifact`, now read and migrated. A map with exactly these keys:
 
 | Key | Value |
 | --- | --- |
@@ -79,13 +104,13 @@ A consumer decodes in four stages, and any failure rejects the artifact before a
 3. **Schema.** The schema version is one the reader supports; every map has exactly its fields; every `kind` is one the reader supports. An unknown field or kind is rejected, never skipped: skipping a resource a newer writer meant would silently change executable intent.
 4. **Validation.** The untrusted data-transfer object is converted into the validated `Canon` by the one validator the authoring API also uses. The validator rejects a `state` its kind does not have, so the table of requirements exists once. The validated `Canon`, encoded again in the schema the artifact was written in, must reproduce the input, or the artifact is rejected as non-canonical. Stage 2 cannot see this: resources out of path order, or a key listed twice, are canonical as values, and the validator collapses a duplicate into one set member.
 
-**Readers.** A reader names the schema versions and resource kinds it supports. The current reader supports versions 1 and 2 and both kinds; the version 1 reader, which the compatibility tests use as an old reader, supports version 1 and files only.
+**Readers.** A reader names the schema versions and resource kinds it supports. The current reader supports versions 1, 2, and 3 and every kind; a host reader supports only the kinds its adapter serves, so the Linux Cell refuses a Canon with a `service`. The compatibility tests keep two old readers: the version 2 reader, the current reader of `06-canon-artifact`, supports versions 1 and 2 with files and services, and the version 1 reader supports version 1 and files only. A schema-2 artifact names only the kinds schema 2 has; a later family's name in it is an unknown kind, whatever the reader supports.
 
 **Archival inspection.** A separate function reports the schema version, the name, and the digest of any artifact that passes stages 1 and 2, whatever its version or kinds. It returns no `Canon`, so nothing it accepts can reach the kernel. Preserving an artifact never implies permission to execute it.
 
 ## Migration
 
-A version 1 artifact read by the current reader is migrated to version 2: each file becomes a `file` resource with no conflict keys and no disruption, and relations are unchanged. The migrated Canon has its own `CanonID`, and the migration returns a lineage record: the version 1 artifact's digest and schema version, and the version 2 `CanonID`. The original bytes are the caller's to keep. A migration never adds a requirement, a key, a node, or a relation that the original did not state.
+A version 1 artifact read by the current reader is migrated to version 2: each file becomes a `file` resource with no conflict keys and no disruption, and relations are unchanged. A version 2 artifact is migrated to version 3: a `file` resource keeps its path as its name, `present-any` becomes `present` with `content` `any`, `present-exact` becomes `present` with the digest, a `service` keeps its state, and a relation's ends become the keys of the resources at those paths. A version 1 artifact migrates through version 2. The migrated Canon has its own `CanonID`, and the migration returns a lineage record: the original artifact's digest and schema version, and the `CanonID` of the Canon in the current schema. The original bytes are the caller's to keep. A migration never adds a requirement, a key, a node, or a relation that the original did not state.
 
 ## Identity
 
@@ -93,7 +118,7 @@ $$
 \mathit{CanonID} = \mathrm{SHA256}(\mathit{tag}_P \mathbin{\Vert} \texttt{0x00} \mathbin{\Vert} \mathrm{be}_{64}(v) \mathbin{\Vert} \mathrm{enc}_P(c))
 $$
 
-$\mathit{tag}_P$ is the ASCII text `nomos.canon-id` followed by `.cbor` or `.jcs`, so that the two profiles never share an identity; $v$ is the schema version as a 64-bit big-endian integer; $\mathrm{enc}_P(c)$ is the canonical encoding of the normalized Canon. Provenance is not hashed (ADR 0011 §1). SHA-256, from the Secure Hash Algorithm (SHA) 2 family, is a working definition: ADR 0011 leaves the hash algorithm open. It is implemented in `nomos-canon` without a dependency, because the audited `sha2` crate reaches `libc` through `cpufeatures`, which the core purity policy denies, and it is checked against the examples of Federal Information Processing Standards (FIPS) 180-4 and, differentially, against `sha2` as a test-only dependency.
+$\mathit{tag}_P$ is the ASCII text `nomos.canon-id` followed by `.cbor` or `.jcs`, so that the two profiles never share an identity; $v$ is the schema version as a 64-bit big-endian integer, the current schema's, so one Canon has one identity whatever schema it was written in, and the identity an older reader gave it is recorded, not recomputed; $\mathrm{enc}_P(c)$ is the canonical encoding of the normalized Canon. Provenance is not hashed (ADR 0011 §1). SHA-256, from the Secure Hash Algorithm (SHA) 2 family, is a working definition: ADR 0011 leaves the hash algorithm open. It is implemented in `nomos-canon` without a dependency, because the audited `sha2` crate reaches `libc` through `cpufeatures`, which the core purity policy denies, and it is checked against the examples of Federal Information Processing Standards (FIPS) 180-4 and, differentially, against `sha2` as a test-only dependency.
 
 ## Provenance
 

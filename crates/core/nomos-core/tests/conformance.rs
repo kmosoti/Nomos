@@ -178,18 +178,10 @@ fn effect_name(settlement: &Option<Settlement>) -> &'static str {
 /// fresh Observation that satisfies the Condition.
 fn holding() -> Verdict {
     let path = ResourcePath::new("/etc/model").unwrap();
-    let condition = Condition::file(
-        path.clone(),
-        FileCondition::Present {
-            content: Content::Any,
-        },
-    );
+    let condition = Condition::file(path.clone(), FileCondition::present(Content::Any));
     let observation = Observation::file(
         path,
-        Collection::Collected(FileEvidence::Present {
-            digest: Digest::from_bytes([0; 32]),
-            size: 0,
-        }),
+        Collection::Collected(FileEvidence::present(Digest::from_bytes([0; 32]), 0)),
         Provenance::new(
             CollectorId::new("model").unwrap(),
             Window::new(Instant(0), Instant(0)).unwrap(),

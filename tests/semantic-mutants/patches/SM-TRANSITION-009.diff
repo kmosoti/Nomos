@@ -1,0 +1,12 @@
+diff --git a/crates/app/nomos-app/src/kernel/mod.rs b/crates/app/nomos-app/src/kernel/mod.rs
+--- a/crates/app/nomos-app/src/kernel/mod.rs
++++ b/crates/app/nomos-app/src/kernel/mod.rs
+@@ -69,7 +69,7 @@ impl Managed {
+         let requirement = self.condition.requirement().clone();
+         match self.key().family() {
+             Family::Service => Operation::Refresh(requirement),
+-            Family::Unit if refresh => Operation::Refresh(requirement),
++            Family::Unit if refresh && false => Operation::Refresh(requirement),
+             _ => Operation::Converge(requirement),
+         }
+     }

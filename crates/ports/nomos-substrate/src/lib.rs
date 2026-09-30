@@ -16,14 +16,16 @@
 
 use nomos_core::effect::{Apply, Receipt};
 use nomos_core::observation::Observation;
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::ResourceKey;
 
 /// The observe capability: evidence about resources, never a verdict.
 pub trait Observe {
-    /// One Observation or more per resource in `resources`. A resource that
-    /// cannot be read yields an Observation whose collection failed, never
-    /// an absent file.
-    fn observe(&mut self, resources: &[ResourcePath]) -> Vec<Observation>;
+    /// One Observation or more per resource in `resources`, each of the
+    /// resource's family. A resource that cannot be read yields an
+    /// Observation whose collection failed, never an absent resource; a
+    /// family the adapter does not serve yields one whose collection failed
+    /// as `Unsupported`.
+    fn observe(&mut self, resources: &[ResourceKey]) -> Vec<Observation>;
 }
 
 /// The mutate capability: performs one execution and reports on it.

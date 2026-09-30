@@ -22,6 +22,8 @@ $G$ is a directed acyclic graph (DAG). $V$ is the set of Actions produced from A
 
 **Owed vertices.** A resource with a pending Obligation ([ADR 0009](../adr/0009-warp-activation-semantics.md) §4) gets an Action vertex marked owed, $v \in \mathrm{Owed}$. The Obligation is the reason to run, so an owed vertex does not need its `on_change` group Activated: a Disabled group makes it Ready. Everything else applies to it unchanged, so an owed refresh still waits for its triggers and is still Blocked by one that is not met. A resource that is the `on_change` target of an Action in the same Plan gets an Action vertex too, not owed, because its source records the Obligation when it is dispatched; if the source changes nothing, the Obligation is withdrawn and the vertex is Skipped.
 
+**Varying vertices.** A resource with a Variance of its own gets an Action vertex marked varying, $v \in \mathrm{Varying}$ ([ADR 0009](../adr/0009-warp-activation-semantics.md), note of 2026-09-30). Its Variance is a reason to run, as an Obligation is, so it resolves as an owed vertex does: a Disabled group makes it Ready, and Blocked and Waiting still apply. Without this, a unit that must run and is stopped, whose configuration file is Satisfied, would be Skipped by its unchanged `on_change` source in every run, and never started. $\mathrm{Own}(v) \iff v \in \mathrm{Owed} \cup \mathrm{Varying}$.
+
 ## Satisfaction Anchors
 
 $V$ is produced from Assessments, so a resource whose Assessment is Satisfied produces no Action. Read literally, that leaves `cell-config requires config-directory` with a dangling edge whenever the directory already exists, and the file Action either never starts or starts without its prerequisite being represented at all.
@@ -121,7 +123,7 @@ $\mathrm{Startable}$ alone was the earlier definition of readiness. It let a ser
 | `on_change` group | Activated | Every source is met, and some source succeeded and changed |
 | `on_change` group | Disabled | Every source is met and none changed |
 
-$v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. Otherwise it is Waiting while any unit is Waiting, Skipped when its group is Disabled and it is not owed, and Ready otherwise: every `requires` and `after` edge Satisfied, and its group Activated or empty, or Disabled with $v$ owed.
+$v$ is Blocked when any `requires` edge is Blocked or its `on_change` group is. Otherwise it is Waiting while any unit is Waiting, Skipped when its group is Disabled and $\neg\mathrm{Own}(v)$, and Ready otherwise: every `requires` and `after` edge Satisfied, and its group Activated or empty, or Disabled with $\mathrm{Own}(v)$.
 
 Skipped means $v$ had no reason to run and every one of its triggers ended well, so it is met, and its dependents see it as they see a satisfaction anchor: a met prerequisite for `requires`, a terminal source for `after`, and an unchanged source for `on_change`. Blocked means $v$ will never run; it is terminal and not met, so it blocks its `requires` and `on_change` dependents and satisfies its `after` dependents.
 

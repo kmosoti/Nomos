@@ -801,8 +801,8 @@ pub fn run(root: &Path, scratch: &Path, subject: Subject) -> Result<Record, Stri
             );
             rec.identical.insert(profile.to_string(), a == b);
             if *generator == "telemetry" {
-                let committed = fs::read(golden.join(format!("telemetry.v2.{ext}")))
-                    .map_err(|e| format!("golden telemetry.v2.{ext}: {e}"))?;
+                let committed = fs::read(golden.join(format!("telemetry.v3.{ext}")))
+                    .map_err(|e| format!("golden telemetry.v3.{ext}: {e}"))?;
                 rec.golden.insert(profile.to_string(), *a == committed);
             }
         }

@@ -108,7 +108,7 @@ impl Replay {
     /// Delivers the host work for `path`; false if there is none.
     fn execute(&mut self, path: &str) -> bool {
         let at = self.sim.queue.iter().position(
-            |i| matches!(i, Item::Execute { request, .. } if request.key.resource() == &p(path)),
+            |i| matches!(i, Item::Execute { request, .. } if request.key.resource() == &k(path)),
         );
         match at {
             Some(i) => {
@@ -124,7 +124,7 @@ impl Replay {
     fn receipts(&mut self, path: &str) -> bool {
         let mut any = false;
         while let Some(i) = self.sim.queue.iter().position(|i| {
-            matches!(i, Item::Deliver(nomos_app::kernel::Input::Receipt(k, _)) if k.resource() == &p(path))
+            matches!(i, Item::Deliver(nomos_app::kernel::Input::Receipt(e, _)) if e.resource() == &k(path))
         }) {
             let item = self.sim.queue.remove(i).unwrap();
             self.sim.deliver(item);
@@ -315,7 +315,7 @@ fn the_release_on_timeout_counterexample_admits_nothing_conflicting() {
     let labels = labels(&text);
     assert_eq!(labels.last().map(String::as_str), Some("DispatchOther"));
     let (r, _) = replay(&labels).expect("the properties hold on the kernel");
-    assert!(r.sim.issued.iter().all(|k| k.resource() != &p(OTHER)));
+    assert!(r.sim.issued.iter().all(|e| e.resource() != &k(OTHER)));
 }
 
 /// `discharge-on-dispatch`: the model clears the Obligation when the refresh
@@ -328,7 +328,7 @@ fn the_discharge_on_dispatch_counterexample_keeps_the_obligation() {
     assert_eq!(labels.last().map(String::as_str), Some("DispatchRefresh"));
     let (r, _) = replay(&labels).expect("the properties hold on the kernel");
     assert!(
-        r.sim.issued.iter().any(|k| k.resource() == &p(SVC)),
+        r.sim.issued.iter().any(|e| e.resource() == &k(SVC)),
         "dispatched"
     );
     assert_eq!(r.sim.snapshot.obligations().len(), 1, "and still owed");

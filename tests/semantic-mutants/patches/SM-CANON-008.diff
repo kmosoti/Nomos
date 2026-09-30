@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-canon/src/artifact.rs b/crates/core/nomos-canon/src/artifact.rs
+--- a/crates/core/nomos-canon/src/artifact.rs
++++ b/crates/core/nomos-canon/src/artifact.rs
+@@ -572,7 +572,7 @@ fn raw_v3(value: &Value, reader: &Reader
+         let kind = f.text("kind")?;
+         let family = match Kind::from_name(&kind) {
+             Some(k) if reader.kinds.contains(&k) => k,
+-            _ => return Err(DecodeError::UnsupportedKind { resource: i }),
++            _ => continue,
+         };
+         let spec_place = place("spec", Some(i));
+         let s = Fields::of(f.required("spec")?, spec_place, spec_fields_v3(family))?;

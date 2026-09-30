@@ -23,15 +23,15 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use nomos_app::kernel::{
-    Canon, Event, Input, KernelSnapshot, Kind, Managed, Plan, Policy, RunOutcome, replay, step,
+    Canon, Event, Input, KernelSnapshot, Managed, Plan, Policy, RunOutcome, replay, step,
 };
 use nomos_core::action::{Failure, Stage};
-use nomos_core::condition::{Condition, Content, FileCondition};
-use nomos_core::effect::{Apply, EffectRequest, Operation};
+use nomos_core::condition::{Condition, Content, FileCondition, Requirement};
+use nomos_core::effect::{Apply, EffectRequest};
 use nomos_core::footprint::{ControllerId, Footprint, Interference, Property, compose};
 use nomos_core::observation::{Collection, Instant};
 use nomos_core::plan::{Generation, PlanId};
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::resource::{Digest, ResourceKey, ResourcePath};
 use nomos_substrate::{Mutate, Observe};
 use nomos_substrate_mock::{MockHost, Service};
 
@@ -67,13 +67,7 @@ fn id(name: &str) -> ControllerId {
 /// A file that must hold `digest`.
 fn file(path: &str, digest: u8) -> Managed {
     Managed {
-        condition: Condition::file(
-            p(path),
-            FileCondition::Present {
-                content: Content::Exactly(d(digest)),
-            },
-        ),
-        kind: Kind::File,
+        condition: Condition::file(p(path), FileCondition::present(Content::Exactly(d(digest)))),
         keys: BTreeSet::new(),
         disrupts: BTreeSet::new(),
     }
@@ -83,33 +77,28 @@ fn file(path: &str, digest: u8) -> Managed {
 /// starts it, which loads its configuration file.
 fn running(path: &str) -> Managed {
     Managed {
-        condition: Condition::file(
-            p(path),
-            FileCondition::Present {
-                content: Content::Any,
-            },
-        ),
-        kind: Kind::Service,
+        condition: Condition::new(
+            ResourceKey::Service(p(path)),
+            Requirement::Service(FileCondition::present(Content::Any)),
+        )
+        .unwrap(),
         keys: BTreeSet::new(),
         disrupts: BTreeSet::new(),
     }
 }
 
-/// The property an Action on `path` of `kind` writes.
-fn written(path: &ResourcePath, kind: Kind) -> Property {
-    match kind {
-        Kind::File => Property::file_content(path),
-        Kind::Service => Property::new(&format!("service:{path}")).unwrap(),
+/// The property an Action on `resource` writes: a file's content, or a
+/// service's run state.
+fn written(resource: &ResourceKey) -> Property {
+    match resource {
+        ResourceKey::Service(path) => Property::new(&format!("service:{path}")).unwrap(),
+        other => Property::file_content(other.path().expect("files and services have paths")),
     }
 }
 
 /// The property an execution wrote, from what the mock performed.
 fn executed(apply: &Apply) -> Property {
-    let kind = match apply.operation {
-        Operation::Replace(_) => Kind::File,
-        Operation::Refresh => Kind::Service,
-    };
-    written(apply.key.resource(), kind)
+    written(apply.key.resource())
 }
 
 /// The host every configuration starts from: three files at the old
@@ -138,7 +127,7 @@ fn controller(name: &str, resources: Vec<Managed>, reads: &[&str], relies: &[&st
     let canon = Canon::new(resources, vec![]);
     let mut footprint = Footprint::new(id(name));
     for managed in canon.resources().values() {
-        footprint = footprint.writing(written(managed.path(), managed.kind));
+        footprint = footprint.writing(written(managed.key()));
     }
     for path in reads {
         footprint = footprint.reading(Property::file_content(&p(path)));
@@ -194,7 +183,7 @@ fn footprints(controllers: &[Controller]) -> Vec<Footprint> {
 enum Item {
     Deliver(Input),
     Execute(Apply),
-    Read(Vec<ResourcePath>),
+    Read(Vec<ResourceKey>),
 }
 
 struct Controller {
@@ -383,17 +372,17 @@ impl Composition {
 
     /// Every composed Canon's resources, observed: the fingerprint across
     /// controllers.
-    fn projection(&mut self) -> Vec<(ResourcePath, Collection)> {
-        let paths: BTreeSet<ResourcePath> = self
+    fn projection(&mut self) -> Vec<(ResourceKey, Collection)> {
+        let keys: BTreeSet<ResourceKey> = self
             .controllers
             .iter()
-            .flat_map(|c| c.canon.paths())
+            .flat_map(|c| c.canon.keys())
             .collect();
-        let paths: Vec<ResourcePath> = paths.into_iter().collect();
+        let keys: Vec<ResourceKey> = keys.into_iter().collect();
         self.host
-            .observe(&paths)
+            .observe(&keys)
             .iter()
-            .map(|o| (o.path().clone(), *o.collection()))
+            .map(|o| (o.key().clone(), o.collection().clone()))
             .collect()
     }
 
@@ -637,7 +626,11 @@ fn shared_runs_oscillate_at_every_start_offset() {
             match outcome {
                 RunOutcome::Converged => {}
                 RunOutcome::Failed { failed, unknown } => {
-                    assert_eq!(failed, &vec![p(SHARED)], "offset {offset}");
+                    assert_eq!(
+                        failed,
+                        &vec![ResourceKey::File(p(SHARED))],
+                        "offset {offset}"
+                    );
                     assert!(unknown.is_empty(), "offset {offset}");
                     assert!(failed_on_postcondition(&together, c), "offset {offset}");
                 }

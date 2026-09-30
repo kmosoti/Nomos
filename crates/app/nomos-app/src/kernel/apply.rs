@@ -107,7 +107,7 @@ pub fn apply(mut snapshot: KernelSnapshot, event: &Event) -> KernelSnapshot {
 
 fn action_mut<'a>(
     snapshot: &'a mut KernelSnapshot,
-    resource: &nomos_core::resource::ResourcePath,
+    resource: &nomos_core::resource::ResourceKey,
 ) -> Option<&'a mut super::ActionRecord> {
     match &mut snapshot.run.as_mut()?.phase {
         Phase::Executing(round) => round.actions.get_mut(resource),

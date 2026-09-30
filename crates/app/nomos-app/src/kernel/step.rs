@@ -16,7 +16,7 @@ use nomos_core::assessment::{Assessment, Report};
 use nomos_core::effect::{Apply, EffectKey, EffectRequest, Receipt, SettledBy, Settlement};
 use nomos_core::observation::{Instant, Observation};
 use nomos_core::plan::Acceptance;
-use nomos_core::resource::ResourcePath;
+use nomos_core::resource::ResourceKey;
 use nomos_warp::budget::Budgets;
 use nomos_warp::frontier::{Frontier, Outcome, Progress, Resolution, frontier};
 use nomos_warp::graph::{ConflictKey, EdgeKind, Graph, Vertex};
@@ -91,7 +91,7 @@ fn tick(draft: &mut Draft, now: Instant) {
         draft.emit(Event::Clock(now));
     }
     let now = draft.now();
-    let expired: Vec<(ResourcePath, Stage)> = draft
+    let expired: Vec<(ResourceKey, Stage)> = draft
         .round()
         .map(|round| {
             round
@@ -140,7 +140,7 @@ fn enforce(draft: &mut Draft, plan: Plan) {
     }
     let vertices: Vec<Vertex> = plan
         .canon
-        .paths()
+        .keys()
         .into_iter()
         .map(|p| Vertex::action(p, BTreeSet::new()))
         .collect();
@@ -166,7 +166,7 @@ fn supersede(draft: &mut Draft) {
     if matches!(run.phase, Phase::Ended(_)) {
         return;
     }
-    let prepared: Vec<ResourcePath> = draft
+    let prepared: Vec<ResourceKey> = draft
         .round()
         .map(|round| {
             round
@@ -193,13 +193,13 @@ fn observed(draft: &mut Draft, observations: &[Observation]) {
     let Phase::Observing { since } = run.phase else {
         return;
     };
-    let paths = run.plan.canon.paths();
+    let paths = run.plan.canon.keys();
     let fresh: Vec<Observation> = observations
         .iter()
-        .filter(|o| o.provenance().window().start() >= since && paths.contains(o.path()))
+        .filter(|o| o.provenance().window().start() >= since && paths.contains(o.key()))
         .cloned()
         .collect();
-    if paths.iter().all(|p| fresh.iter().any(|o| o.path() == p)) {
+    if paths.iter().all(|p| fresh.iter().any(|o| o.key() == p)) {
         decide(draft, &fresh);
     }
 }
@@ -217,7 +217,7 @@ fn verify_actions(draft: &mut Draft, observations: &[Observation]) {
         };
         let fresh = observations
             .iter()
-            .any(|o| o.path() == resource && o.provenance().window().start() >= since);
+            .any(|o| o.key() == resource && o.provenance().window().start() >= since);
         let Some(managed) = run.plan.canon.resources().get(resource) else {
             continue;
         };
@@ -342,7 +342,7 @@ fn received(draft: &mut Draft, key: &EffectKey, receipt: Receipt) {
 /// lost its verification, so it is observed again.
 fn recovered(draft: &mut Draft) {
     draft.emit(Event::Recovered);
-    let actions: Vec<(ResourcePath, Stage)> = draft
+    let actions: Vec<(ResourceKey, Stage)> = draft
         .round()
         .map(|round| {
             round
@@ -372,7 +372,7 @@ fn recovered(draft: &mut Draft) {
     if let Some(run) = draft.run()
         && matches!(run.phase, Phase::Observing { .. })
     {
-        let paths = run.plan.canon.paths();
+        let paths = run.plan.canon.keys();
         draft.request(EffectRequest::Observe(paths));
     }
 }
@@ -387,20 +387,20 @@ fn decide(draft: &mut Draft, fresh: &[Observation]) {
     let canon = &run.plan.canon;
     let report = Report::assess(&canon.conditions(), fresh);
     let fingerprint: Fingerprint = canon
-        .paths()
+        .keys()
         .into_iter()
         .map(|p| {
             let mut collections: Vec<_> = fresh
                 .iter()
-                .filter(|o| o.path() == &p)
-                .map(|o| *o.collection())
+                .filter(|o| o.key() == &p)
+                .map(|o| o.collection().clone())
                 .collect();
             collections.sort();
             collections.dedup();
             (p, collections)
         })
         .collect();
-    let owed: BTreeSet<ResourcePath> = draft
+    let owed: BTreeSet<ResourceKey> = draft
         .snapshot
         .obligations
         .iter()
@@ -420,7 +420,7 @@ fn decide(draft: &mut Draft, fresh: &[Observation]) {
         Some(RunOutcome::Indeterminate(
             report
                 .indeterminate()
-                .map(|(c, r)| (c.path().clone(), *r))
+                .map(|(c, r)| (c.key().clone(), *r))
                 .collect(),
         ))
     } else if run.history.contains(&fingerprint) {
@@ -443,23 +443,20 @@ fn decide(draft: &mut Draft, fresh: &[Observation]) {
 /// Plans one round: an Action for every resource with a Variance or a
 /// pending Obligation, and for every `on_change` target of an Action; an
 /// anchor for everything else (ADR 0009 note).
-fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Option<Round> {
+fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourceKey>) -> Option<Round> {
     let canon = &run.plan.canon;
-    let assessment: BTreeMap<&ResourcePath, &Assessment> = report
-        .entries()
-        .iter()
-        .map(|(c, a)| (c.path(), a))
-        .collect();
+    let assessment: BTreeMap<&ResourceKey, &Assessment> =
+        report.entries().iter().map(|(c, a)| (c.key(), a)).collect();
     let indeterminate =
-        |r: &ResourcePath| matches!(assessment.get(r), Some(Assessment::Indeterminate(_)) | None);
-    let mut acting: BTreeSet<ResourcePath> = canon
-        .paths()
+        |r: &ResourceKey| matches!(assessment.get(r), Some(Assessment::Indeterminate(_)) | None);
+    let mut acting: BTreeSet<ResourceKey> = canon
+        .keys()
         .into_iter()
         .filter(|r| !indeterminate(r))
         .filter(|r| owed.contains(r) || matches!(assessment.get(r), Some(Assessment::Variance(_))))
         .collect();
     loop {
-        let anticipated: Vec<ResourcePath> = canon
+        let anticipated: Vec<ResourceKey> = canon
             .edges()
             .iter()
             .filter(|e| e.kind() == EdgeKind::OnChange)
@@ -472,6 +469,14 @@ fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Opti
         }
         acting.extend(anticipated);
     }
+    // A resource refreshes when it owes an Obligation or an `on_change`
+    // source of it acts this round.
+    let refreshing = |r: &ResourceKey| {
+        owed.contains(r)
+            || canon.edges().iter().any(|e| {
+                e.kind() == EdgeKind::OnChange && e.target() == r && acting.contains(e.source())
+            })
+    };
     let mut vertices = Vec::new();
     let mut actions = BTreeMap::new();
     for (path, managed) in canon.resources() {
@@ -498,7 +503,7 @@ fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Opti
                         run.iteration,
                         path.clone(),
                     ),
-                    operation: managed.operation(),
+                    operation: managed.operation(refreshing(path)),
                     stage: Stage::Prepared,
                     deadline: None,
                     completed_at: None,
@@ -507,6 +512,8 @@ fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Opti
             );
             let vertex = if owed.contains(path) {
                 Vertex::owed(path.clone(), keys)
+            } else if matches!(assessment.get(path), Some(Assessment::Variance(_))) {
+                Vertex::varying(path.clone(), keys)
             } else {
                 Vertex::action(path.clone(), keys)
             };
@@ -523,7 +530,7 @@ fn plan_round(run: &Run, report: &Report, owed: &BTreeSet<ResourcePath>) -> Opti
         actions,
         indeterminate: report
             .indeterminate()
-            .map(|(c, r)| (c.path().clone(), *r))
+            .map(|(c, r)| (c.key().clone(), *r))
             .collect(),
     })
 }
@@ -541,7 +548,7 @@ fn progress(draft: &mut Draft) {
                     .values()
                     .all(|e| e.settlement.is_settled());
                 if settled {
-                    let paths = run.plan.canon.paths();
+                    let paths = run.plan.canon.keys();
                     let since = draft.now();
                     draft.emit(Event::ObservationRequested { since });
                     draft.request(EffectRequest::Observe(paths));
@@ -596,7 +603,7 @@ fn outcome_of(stage: &Stage) -> Option<Outcome> {
 }
 
 fn round_frontier(round: &Round) -> Frontier {
-    let progress: BTreeMap<ResourcePath, Progress> = round
+    let progress: BTreeMap<ResourceKey, Progress> = round
         .actions
         .iter()
         .filter(|(_, a)| a.stage != Stage::Prepared)
@@ -652,7 +659,7 @@ fn admit(draft: &mut Draft) {
         if action.stage != Stage::Prepared {
             continue;
         }
-        let targets: Vec<ResourcePath> = run
+        let targets: Vec<ResourceKey> = run
             .plan
             .canon
             .edges()
@@ -725,13 +732,13 @@ fn finish_round(draft: &mut Draft) -> bool {
     if open {
         return false;
     }
-    let failed: Vec<ResourcePath> = round
+    let failed: Vec<ResourceKey> = round
         .actions
         .iter()
         .filter(|(_, a)| matches!(a.stage, Stage::Failed(_) | Stage::Rejected))
         .map(|(r, _)| r.clone())
         .collect();
-    let unknown: Vec<ResourcePath> = round
+    let unknown: Vec<ResourceKey> = round
         .actions
         .iter()
         .filter(|(_, a)| a.stage == Stage::TimedOut)

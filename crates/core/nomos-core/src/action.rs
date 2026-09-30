@@ -25,13 +25,15 @@ use crate::assessment::{Assessment, Reason, Variance, assess};
 use crate::condition::Condition;
 use crate::effect::{Receipt, Settlement};
 use crate::observation::{Instant, Observation};
+use crate::resource::ResourceKey;
+#[cfg(kani)]
 use crate::resource::ResourcePath;
 
 /// Evidence that a postcondition held on a fresh Observation. Only
 /// [`verify`] builds one.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Verified {
-    resource: ResourcePath,
+    resource: ResourceKey,
     since: Instant,
 }
 
@@ -42,13 +44,13 @@ impl Verified {
     #[cfg(kani)]
     pub(crate) fn for_harness() -> Self {
         Verified {
-            resource: ResourcePath::for_harness(),
+            resource: ResourceKey::File(ResourcePath::for_harness()),
             since: Instant(0),
         }
     }
 
     /// The resource whose Condition held.
-    pub fn resource(&self) -> &ResourcePath {
+    pub fn resource(&self) -> &ResourceKey {
         &self.resource
     }
 
@@ -76,12 +78,12 @@ pub enum Verdict {
 pub fn verify(condition: &Condition, observations: &[Observation], since: Instant) -> Verdict {
     let fresh: Vec<Observation> = observations
         .iter()
-        .filter(|o| o.path() == condition.path() && o.provenance().window().start() >= since)
+        .filter(|o| o.key() == condition.key() && o.provenance().window().start() >= since)
         .cloned()
         .collect();
     match assess(condition, &fresh) {
         Assessment::Satisfied => Verdict::Holds(Verified {
-            resource: condition.path().clone(),
+            resource: condition.key().clone(),
             since,
         }),
         Assessment::Variance(variance) => Verdict::Fails(variance),
@@ -270,7 +272,7 @@ mod tests {
     use super::*;
     use crate::condition::{Content, FileCondition};
     use crate::observation::{Collection, CollectorId, FileEvidence, Provenance, Window};
-    use crate::resource::Digest;
+    use crate::resource::{Digest, ResourcePath};
     use alloc::vec;
 
     fn path() -> ResourcePath {
@@ -280,13 +282,11 @@ mod tests {
     fn condition() -> Condition {
         Condition::file(
             path(),
-            FileCondition::Present {
-                content: Content::Exactly(Digest::from_bytes([7; 32])),
-            },
+            FileCondition::present(Content::Exactly(Digest::from_bytes([7; 32]))),
         )
     }
 
-    fn observed(evidence: Collection, start: u64) -> Observation {
+    fn observed(evidence: Collection<FileEvidence>, start: u64) -> Observation {
         Observation::file(
             path(),
             evidence,
@@ -299,10 +299,7 @@ mod tests {
 
     fn matching(start: u64) -> Observation {
         observed(
-            Collection::Collected(FileEvidence::Present {
-                digest: Digest::from_bytes([7; 32]),
-                size: 1,
-            }),
+            Collection::Collected(FileEvidence::present(Digest::from_bytes([7; 32]), 1)),
             start,
         )
     }
@@ -531,7 +528,7 @@ mod tests {
     #[test]
     fn verified_names_its_resource_and_instant() {
         let v = verified();
-        assert_eq!(v.resource(), &path());
+        assert_eq!(v.resource(), &ResourceKey::File(path()));
         assert_eq!(v.since(), Instant(5));
     }
 

@@ -11,8 +11,13 @@
 //! written, synced, renamed over the target, and the directory synced (spec
 //! §11). Native system calls only; no shell (AGENTS.md rule 5).
 //!
-//! Later resources: `directory`, `system_user`, `package`, `systemd_unit`
-//! (via D-Bus), `sysctl`.
+//! It serves the `file` family and no other: a key of another family is
+//! observed as a failed collection (`Unsupported`), and an operation on one
+//! is refused, as is a file requirement that states owner, group, or mode,
+//! until milestone `09-file-and-directory` manages metadata. The evidence of
+//! a file carries its numeric owner and group and its mode, as `fstat`
+//! reports them. Later families: `directory`, `unit` (via D-Bus), `sysctl`,
+//! `user`, `package`.
 //!
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
@@ -23,13 +28,13 @@ use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::Path;
 
 use nomos_canon::sha256::Sha256;
-use nomos_core::condition::{Content, FileCondition};
+use nomos_core::condition::{Content, FileCondition, Metadata, Requirement};
 use nomos_core::effect::{Apply, EffectKey, Operation, Receipt};
 use nomos_core::observation::{
-    Collection, CollectionFailure, CollectorId, FileEvidence, Instant, Observation, Provenance,
-    Window,
+    Account, Collection, CollectionFailure, CollectorId, Evidence, FileEvidence, Instant,
+    Observation, ObservedMetadata, Provenance, Window,
 };
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::resource::{Digest, ResourceKey, ResourcePath};
 use nomos_substrate::{Mutate, Observe};
 use rustix::fs::{AtFlags, FileType, Mode, OFlags, ResolveFlags};
 use rustix::io::Errno;
@@ -91,7 +96,10 @@ impl LinuxHost {
         self.executions
     }
 
-    fn collect(&self, path: &ResourcePath) -> Collection {
+    fn collect(&self, key: &ResourceKey) -> Collection {
+        let ResourceKey::File(path) = key else {
+            return Collection::Failed(CollectionFailure::Unsupported);
+        };
         let file = match rustix::fs::openat2(
             self.root.as_fd(),
             relative(path),
@@ -105,8 +113,12 @@ impl LinuxHost {
             Err(e) => return failure(e),
         };
         match read_regular(file) {
-            Ok(Some((digest, size))) => {
-                Collection::Collected(FileEvidence::Present { digest, size })
+            Ok(Some((digest, size, metadata))) => {
+                Collection::Collected(Evidence::File(FileEvidence::Present {
+                    digest,
+                    size,
+                    metadata,
+                }))
             }
             Ok(None) => Collection::Failed(CollectionFailure::Unsupported),
             Err(e) => failure(e),
@@ -120,10 +132,16 @@ impl LinuxHost {
     }
 
     fn execute(&self, request: &Apply) -> Receipt {
-        let Operation::Replace(requirement) = &request.operation else {
+        let (ResourceKey::File(path), Operation::Converge(Requirement::File(requirement))) =
+            (request.key.resource(), &request.operation)
+        else {
             return Receipt::Refused;
         };
-        let path = request.key.resource();
+        if let FileCondition::Present { metadata, .. } = requirement
+            && *metadata != Metadata::any()
+        {
+            return Receipt::Refused;
+        }
         let (parent, name) = match self.parent(path) {
             Ok(split) => split,
             Err(_) => return Receipt::Refused,
@@ -144,12 +162,14 @@ impl LinuxHost {
             },
             FileCondition::Present {
                 content: Content::Any,
+                ..
             } => match before {
                 Some(_) => Receipt::Completed { changed: false },
                 None => write_atomically(parent.as_fd(), &name, &[], &request.key),
             },
             FileCondition::Present {
                 content: Content::Exactly(digest),
+                ..
             } => {
                 let Some(bytes) = self.content.get(digest) else {
                     return Receipt::Refused;
@@ -200,20 +220,28 @@ fn now() -> Instant {
 /// The collection a failed open or read maps to (substrate-contract.md).
 fn failure(e: Errno) -> Collection {
     match e {
-        Errno::NOENT | Errno::NOTDIR => Collection::Collected(FileEvidence::Absent),
+        Errno::NOENT | Errno::NOTDIR => Collection::Collected(Evidence::File(FileEvidence::Absent)),
         Errno::ACCESS | Errno::PERM => Collection::Failed(CollectionFailure::PermissionDenied),
         Errno::LOOP | Errno::XDEV => Collection::Failed(CollectionFailure::Unsupported),
         _ => Collection::Failed(CollectionFailure::Io),
     }
 }
 
-/// The digest and size of an open file, or `None` if it is not a regular
-/// file.
-fn read_regular(mut file: File) -> Result<Option<(Digest, u64)>, Errno> {
+/// The digest, size, and metadata of an open file, or `None` if it is not
+/// a regular file. Owner and group are reported by number; naming them is
+/// `09-file-and-directory`'s.
+fn read_regular(mut file: File) -> Result<Option<(Digest, u64, ObservedMetadata)>, Errno> {
     let stat = rustix::fs::fstat(file.as_fd())?;
     if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile {
         return Ok(None);
     }
+    let bits = u16::try_from(stat.st_mode & 0o7777).unwrap_or(0);
+    let metadata = ObservedMetadata {
+        owner: Account::Id(stat.st_uid),
+        group: Account::Id(stat.st_gid),
+        mode: nomos_core::resource::Mode::new(bits)
+            .unwrap_or(nomos_core::resource::Mode::DEFAULT_FILE),
+    };
     let mut hash = Sha256::new();
     let mut size = 0u64;
     let mut buf = [0u8; 64 * 1024];
@@ -225,7 +253,7 @@ fn read_regular(mut file: File) -> Result<Option<(Digest, u64)>, Errno> {
         hash.update(&buf[..n]);
         size += n as u64;
     }
-    Ok(Some((Digest::from_bytes(hash.finish()), size)))
+    Ok(Some((Digest::from_bytes(hash.finish()), size, metadata)))
 }
 
 fn errno(e: std::io::Error) -> Errno {
@@ -242,7 +270,7 @@ fn current(dir: BorrowedFd<'_>, name: &str) -> Result<Option<Digest>, Errno> {
         Mode::empty(),
     ) {
         Ok(fd) => match read_regular(File::from(fd))? {
-            Some((digest, _)) => Ok(Some(digest)),
+            Some((digest, _, _)) => Ok(Some(digest)),
             None => Err(Errno::ISDIR),
         },
         Err(Errno::NOENT) => Ok(None),
@@ -299,16 +327,16 @@ fn write_atomically(dir: BorrowedFd<'_>, name: &str, bytes: &[u8], key: &EffectK
 }
 
 impl Observe for LinuxHost {
-    fn observe(&mut self, resources: &[ResourcePath]) -> Vec<Observation> {
+    fn observe(&mut self, resources: &[ResourceKey]) -> Vec<Observation> {
         resources
             .iter()
-            .map(|path| {
+            .filter_map(|key| {
                 let start = now();
-                let collection = self.collect(path);
+                let collection = self.collect(key);
                 // The monotonic clock does not go backwards; `max` makes the
                 // window valid by construction rather than by that promise.
                 let end = now().max(start);
-                Observation::file(path.clone(), collection, self.provenance(start, end))
+                Observation::new(key.clone(), collection, self.provenance(start, end))
             })
             .collect()
     }

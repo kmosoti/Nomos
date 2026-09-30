@@ -10,18 +10,11 @@ fn main() -> std::process::ExitCode {
     let canon = CanonBuilder::new("telemetry-node")
         .resource(
             "/etc/nomos/cell.conf",
-            Requirement::File(FileCondition::Present {
-                content: Content::Exactly(config),
-            }),
+            Requirement::File(FileCondition::present(Content::Exactly(config))),
             &["file:/etc/nomos/cell.conf"],
             &[],
         )
-        .file(
-            "/etc/nomos/ca.pem",
-            FileCondition::Present {
-                content: Content::Any,
-            },
-        )
+        .file("/etc/nomos/ca.pem", FileCondition::present(Content::Any))
         .resource(
             "/run/nomos-cell",
             Requirement::Service(ServiceRequirement::Running),

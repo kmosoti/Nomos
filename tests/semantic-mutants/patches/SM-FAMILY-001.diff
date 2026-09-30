@@ -1,0 +1,12 @@
+diff --git a/crates/core/nomos-core/src/assessment.rs b/crates/core/nomos-core/src/assessment.rs
+--- a/crates/core/nomos-core/src/assessment.rs
++++ b/crates/core/nomos-core/src/assessment.rs
+@@ -152,7 +152,7 @@ fn metadata_differs(required: &Metadata,
+     if !account_is(&required.group, &observed.group) {
+         return Some(Variance::MetadataDiffers(MetadataField::Group));
+     }
+-    if required.mode.is_some_and(|m| m != observed.mode) {
++    if required.mode.unwrap_or(crate::resource::Mode::DEFAULT_FILE) != observed.mode {
+         return Some(Variance::MetadataDiffers(MetadataField::Mode));
+     }
+     None

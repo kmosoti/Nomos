@@ -4,7 +4,10 @@
 # fail against it before the milestone is complete. Every mutant here is
 # active: the Assessment, Warp, and Transition Kernels', the Canon
 # artifact's (`06-canon-artifact`), the controller-composition
-# experiment's, and the Substrate adapter's (`07-substrate-conformance`).
+# experiment's, the Substrate adapter's (`07-substrate-conformance`), and
+# the resource families' (`08-resource-families`). A patch is regenerated
+# against the code it mutates when that code moves, with the same wrong
+# behavior; the 08 regenerations are named in the milestone's record.
 
 [[mutant]]
 id = "SM-ASSESS-001"
@@ -294,4 +297,98 @@ wrong_behavior = "removing an already absent file reports changed = true"
 crate = "nomos-cell"
 patch = "patches/SM-SUBSTRATE-004.diff"
 test = "the_linux_adapter_passes_the_suite"
+status = "active"
+
+# Milestone `08-resource-families`: the family truth tables, admission,
+# schema 3, the per-family Substrate suite, and the kernel's choice of
+# operation and vertex.
+
+[[mutant]]
+id = "SM-CANON-008"
+property = "N12"
+threat = "a schema-3 artifact with a family the reader does not know is executed without it"
+wrong_behavior = "the schema-3 decoder skips a resource of an unknown kind instead of refusing the artifact"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-008.diff"
+test = "every_reader_does_what_the_matrix_says"
+status = "active"
+
+[[mutant]]
+id = "SM-CANON-009"
+property = "N12"
+threat = "a schema-3 Canon relates a resource it does not manage"
+wrong_behavior = "the schema-3 reading accepts a relation end that is a valid key of no resource of the Canon"
+crate = "nomos-canon"
+patch = "patches/SM-CANON-009.diff"
+test = "relation_ends_are_keys"
+status = "active"
+
+[[mutant]]
+id = "SM-ADMIT-001"
+property = "N12"
+threat = "two resources of one Canon write one property, so enforcing it oscillates"
+wrong_behavior = "admission checks keys only, so a file and a directory at one path are admitted"
+crate = "nomos-canon"
+patch = "patches/SM-ADMIT-001.diff"
+test = "admission_rejects_exactly_the_overlapping_properties"
+status = "active"
+
+[[mutant]]
+id = "SM-FAMILY-001"
+property = "N13"
+threat = "a metadata field the Canon does not state is enforced"
+wrong_behavior = "an unstated mode is judged against 0644"
+crate = "nomos-core"
+patch = "patches/SM-FAMILY-001.diff"
+test = "metadata_rows_of_the_file_and_directory_tables"
+status = "active"
+
+[[mutant]]
+id = "SM-FAMILY-002"
+property = "N3"
+threat = "a unit in a state the requirement does not name is reported Satisfied"
+wrong_behavior = "a static unit satisfies the requirement disabled"
+crate = "nomos-core"
+patch = "patches/SM-FAMILY-002.diff"
+test = "the_unit_table_is_exhaustive"
+status = "active"
+
+[[mutant]]
+id = "SM-FAMILY-003"
+property = "N3"
+threat = "a half-installed package is reported installed and never repaired"
+wrong_behavior = "a broken package satisfies the requirement installed"
+crate = "nomos-core"
+patch = "patches/SM-FAMILY-003.diff"
+test = "the_package_table_is_exhaustive"
+status = "active"
+
+[[mutant]]
+id = "SM-SUBSTRATE-005"
+property = "N12"
+threat = "Nomos deletes what it did not describe"
+wrong_behavior = "the mock removes a directory that has entries instead of refusing"
+crate = "nomos-cell"
+patch = "patches/SM-SUBSTRATE-005.diff"
+test = "the_mock_passes_the_suite_for_every_family"
+status = "active"
+
+[[mutant]]
+id = "SM-TRANSITION-009"
+property = "N2"
+threat = "a unit whose configuration changed keeps running the old configuration"
+wrong_behavior = "a unit asked to refresh by an on_change relation is converged, not restarted"
+crate = "nomos-app"
+patch = "patches/SM-TRANSITION-009.diff"
+test = "kernel::tests::a_unit_refreshes_exactly_when_its_source_acts"
+status = "active"
+
+[[mutant]]
+id = "SM-WARP-007"
+property = "N3"
+threat = "a stopped unit whose configuration is Satisfied is never started"
+wrong_behavior = "a resource with its own Variance is planned as a plain Action, so an unchanged on_change group Skips it"
+crate = "nomos-app"
+patch = "patches/SM-WARP-007.diff"
+test = "kernel::tests::a_unit_refreshes_exactly_when_its_source_acts"
 status = "active"

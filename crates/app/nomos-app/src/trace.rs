@@ -10,6 +10,6 @@ use crate::kernel::Canon;
 
 /// Observes every resource of `canon` once and assesses it.
 pub fn trace(substrate: &mut impl Observe, canon: &Canon) -> Report {
-    let observations = substrate.observe(&canon.paths());
+    let observations = substrate.observe(&canon.keys());
     Report::assess(&canon.conditions(), &observations)
 }

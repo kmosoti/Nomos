@@ -15,10 +15,10 @@
 
 use alloc::vec::Vec;
 
-use crate::condition::FileCondition;
+use crate::condition::Requirement;
 use crate::observation::Instant;
 use crate::plan::{Generation, PlanId};
-use crate::resource::ResourcePath;
+use crate::resource::ResourceKey;
 
 /// The idempotency key: one execution of one Action, within one iteration of
 /// one Plan. Retries of the same delivery share it; the next iteration or
@@ -28,7 +28,7 @@ pub struct EffectKey {
     plan: PlanId,
     generation: Generation,
     iteration: u32,
-    resource: ResourcePath,
+    resource: ResourceKey,
 }
 
 impl EffectKey {
@@ -37,7 +37,7 @@ impl EffectKey {
         plan: PlanId,
         generation: Generation,
         iteration: u32,
-        resource: ResourcePath,
+        resource: ResourceKey,
     ) -> Self {
         EffectKey {
             plan,
@@ -63,7 +63,7 @@ impl EffectKey {
     }
 
     /// The resource the Action changes.
-    pub fn resource(&self) -> &ResourcePath {
+    pub fn resource(&self) -> &ResourceKey {
         &self.resource
     }
 }
@@ -71,11 +71,22 @@ impl EffectKey {
 /// What an Action does to its resource.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Operation {
-    /// Make the file satisfy this requirement.
-    Replace(FileCondition),
-    /// Restart the service the resource stands for, so that it loads its
-    /// configuration again.
-    Refresh,
+    /// Make the resource satisfy this requirement, of its family.
+    Converge(Requirement),
+    /// Make the resource satisfy this requirement, and restart what it
+    /// runs so that it loads its configuration again: the Action an
+    /// `on_change` relation asks of a unit, and every Action on the legacy
+    /// service (resource-families.md).
+    Refresh(Requirement),
+}
+
+impl Operation {
+    /// The requirement the operation makes the resource satisfy.
+    pub fn requirement(&self) -> &Requirement {
+        match self {
+            Operation::Converge(r) | Operation::Refresh(r) => r,
+        }
+    }
 }
 
 /// A request to change one resource.
@@ -93,7 +104,7 @@ pub struct Apply {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EffectRequest {
     /// Observe these resources.
-    Observe(Vec<ResourcePath>),
+    Observe(Vec<ResourceKey>),
     /// Change one resource.
     Apply(Apply),
 }
@@ -233,7 +244,7 @@ mod tests {
     /// resource are two executions.
     #[test]
     fn a_key_names_an_execution_not_a_content() {
-        let path = ResourcePath::new("/etc/app.conf").unwrap();
+        let path = ResourceKey::File(crate::resource::ResourcePath::new("/etc/app.conf").unwrap());
         let plan = PlanId::new("p").unwrap();
         let first = EffectKey::new(plan.clone(), Generation(1), 0, path.clone());
         let second = EffectKey::new(plan.clone(), Generation(1), 1, path.clone());
@@ -244,6 +255,6 @@ mod tests {
         assert_eq!(first.generation(), Generation(1));
         assert_eq!(first.iteration(), 0);
         assert_eq!(second.iteration(), 1);
-        assert_eq!(first.resource().as_str(), "/etc/app.conf");
+        assert_eq!(first.resource().name(), "/etc/app.conf");
     }
 }

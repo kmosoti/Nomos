@@ -4,22 +4,24 @@
 //! is a change of representation and nothing else: every resource, key,
 //! node, and relation carries over, and nothing is added or dropped. The
 //! conversion is fallible only because Warp's key and node types refuse
-//! empty text, which a validated Canon never holds; it reports that case
-//! rather than dropping the label.
+//! empty text, and a core Condition refuses a requirement of another family
+//! than its key, neither of which a validated Canon holds; it reports those
+//! cases rather than dropping what it cannot convert.
 
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
 
 use nomos_canon::model::{Canon as Validated, Name, RelationKind, Requirement, ServiceRequirement};
-use nomos_core::condition::{Condition, Content, FileCondition};
+use nomos_core::condition::{Condition, Content, FileCondition, Requirement as Core};
 use nomos_warp::budget::Node;
 use nomos_warp::graph::{ConflictKey, Edge, EdgeKind};
 
-use super::{Canon, Kind, Managed};
+use super::{Canon, Managed};
 
 /// Why a validated Canon has no kernel form. Unreachable from a Canon
 /// `nomos-canon` accepted; present so that the conversion cannot drop a
-/// label silently.
+/// label, or a resource whose requirement is of another family than its
+/// key, silently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EmptyLabel;
 
@@ -38,27 +40,26 @@ impl TryFrom<&Validated> for Canon {
 
     fn try_from(canon: &Validated) -> Result<Self, EmptyLabel> {
         let mut resources = Vec::new();
-        for (path, r) in canon.resources() {
-            let (requirement, kind) = match r.requirement() {
-                Requirement::File(f) => (*f, Kind::File),
+        for (key, r) in canon.resources() {
+            let requirement = match r.requirement() {
+                Requirement::Directory(c) => Core::Directory(c.clone()),
+                Requirement::File(c) => Core::File(c.clone()),
+                Requirement::Package(c) => Core::Package(c.clone()),
                 // A service is observed through its status path: running is
                 // a status that exists, loaded is one that names a revision.
-                Requirement::Service(ServiceRequirement::Running) => (
-                    FileCondition::Present {
-                        content: Content::Any,
-                    },
-                    Kind::Service,
-                ),
-                Requirement::Service(ServiceRequirement::Loaded(d)) => (
-                    FileCondition::Present {
-                        content: Content::Exactly(*d),
-                    },
-                    Kind::Service,
-                ),
+                Requirement::Service(ServiceRequirement::Running) => {
+                    Core::Service(FileCondition::present(Content::Any))
+                }
+                Requirement::Service(ServiceRequirement::Loaded(d)) => {
+                    Core::Service(FileCondition::present(Content::Exactly(*d)))
+                }
+                Requirement::Sysctl(c) => Core::Sysctl(c.clone()),
+                Requirement::Unit(c) => Core::Unit(*c),
+                Requirement::User(c) => Core::User(c.clone()),
             };
+            let condition = Condition::new(key.clone(), requirement).ok_or(EmptyLabel)?;
             resources.push(Managed {
-                condition: Condition::file(path.clone(), requirement),
-                kind,
+                condition,
                 keys: labels(r.keys(), ConflictKey::new)?,
                 disrupts: labels(r.disrupts(), Node::new)?,
             });

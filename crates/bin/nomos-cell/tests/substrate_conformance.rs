@@ -14,11 +14,11 @@ mod support;
 
 use conformance::*;
 use nomos_app::driver::Cell;
-use nomos_app::kernel::{Canon, Input, Kind, Managed, RunOutcome};
+use nomos_app::kernel::{Canon, Input, Managed, RunOutcome};
 use nomos_core::assessment::{Assessment, Reason, assess};
 use nomos_core::condition::{Condition, Content, FileCondition};
 use nomos_core::effect::Receipt;
-use nomos_core::observation::{Collection, CollectionFailure, FileEvidence};
+use nomos_core::observation::{Collection, CollectionFailure, Evidence, FileEvidence};
 use nomos_substrate::{Mutate, Observe};
 use std::collections::BTreeSet;
 
@@ -41,6 +41,46 @@ fn the_mock_passes_the_suite() {
 #[test]
 fn the_linux_adapter_passes_the_suite() {
     passes(all(&mut LinuxSubject::new("suite")));
+}
+
+/// Milestone `08-resource-families`: the mock passes every clause for each
+/// of the six Phase 1 families.
+#[test]
+fn the_mock_passes_the_suite_for_every_family() {
+    let mut s = MockSubject::new();
+    for family in families::World::families(&s) {
+        let results = families::all(&mut s, family);
+        println!("{family:?}: {:?}", report(&results));
+        passes(results);
+    }
+}
+
+/// A family the Linux adapter does not serve yet is a failed collection
+/// when observed, never absence, and refused when changed (S7).
+#[test]
+fn the_linux_adapter_refuses_the_families_it_does_not_serve() {
+    use nomos_core::resource::Family;
+    let mut s = LinuxSubject::new("unserved");
+    for family in families::PHASE_1 {
+        if family == Family::File {
+            continue;
+        }
+        let key = families::resource(family, "unserved", 0);
+        let observed = s.observe(std::slice::from_ref(&key));
+        assert_eq!(
+            observed
+                .iter()
+                .map(|o| o.collection().clone())
+                .collect::<Vec<_>>(),
+            vec![Collection::Failed(CollectionFailure::Unsupported)],
+            "{key}"
+        );
+        for (i, requirement) in families::requirements(family).into_iter().enumerate() {
+            let receipts = s.apply(&families::converge(&key, i as u32, requirement));
+            assert_eq!(receipts, vec![Receipt::Refused], "{key}");
+        }
+    }
+    assert_eq!(s.executions(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -77,13 +117,7 @@ fn a_denied_read_reported_as_absence_fails_the_suite_on_linux() {
 fn one_file(path: &str, digest: nomos_core::resource::Digest) -> Canon {
     Canon::new(
         vec![Managed {
-            condition: Condition::file(
-                p(path),
-                FileCondition::Present {
-                    content: Content::Exactly(digest),
-                },
-            ),
-            kind: Kind::File,
+            condition: Condition::file(p(path), FileCondition::present(Content::Exactly(digest))),
             keys: BTreeSet::new(),
             disrupts: BTreeSet::new(),
         }],
@@ -123,7 +157,7 @@ fn end_to_end(s: &mut impl Subject) {
     assert_eq!(
         cell.snapshot().outcome(),
         Some(&RunOutcome::Indeterminate(vec![(
-            p("/etc/app/app.conf"),
+            f("/etc/app/app.conf"),
             Reason::CollectionFailed(CollectionFailure::PermissionDenied)
         )]))
     );
@@ -148,7 +182,7 @@ struct Unsettled<S>(S);
 impl<S: Subject> nomos_substrate::Observe for Unsettled<S> {
     fn observe(
         &mut self,
-        resources: &[nomos_core::resource::ResourcePath],
+        resources: &[nomos_core::resource::ResourceKey],
     ) -> Vec<nomos_core::observation::Observation> {
         self.0.observe(resources)
     }
@@ -198,7 +232,7 @@ fn an_unresolved_effect_keeps_its_reservation_on_linux() {
 // What a real file system does (Linux only)
 
 fn observe_one(s: &mut LinuxSubject, path: &str) -> Collection {
-    *s.observe(&[p(path)])[0].collection()
+    s.observe(&[f(path)])[0].collection().clone()
 }
 
 /// A symbolic link at the resource is not followed: it is unsupported, not
@@ -217,9 +251,7 @@ fn a_symbolic_link_at_the_resource_is_not_followed() {
     let receipts = s.apply(&replace(
         "/etc/link",
         0,
-        FileCondition::Present {
-            content: Content::Exactly(wanted),
-        },
+        FileCondition::present(Content::Exactly(wanted)),
     ));
     assert_eq!(receipts, vec![Receipt::Refused]);
     assert_eq!(s.truth(&p("/etc/target")), Truth::File(sha(b"secret")));
@@ -288,7 +320,7 @@ fn a_path_under_a_file_is_absent() {
     s.put(&p("/etc/plain"), b"x");
     assert_eq!(
         observe_one(&mut s, "/etc/plain/child"),
-        Collection::Collected(FileEvidence::Absent)
+        Collection::Collected(Evidence::File(FileEvidence::Absent))
     );
 }
 
@@ -299,15 +331,13 @@ fn verification_sees_a_foreign_write() {
     let mut s = LinuxSubject::new("foreign");
     s.put(&p("/etc/app.conf"), b"old");
     let wanted = s.content(b"new");
-    let requirement = FileCondition::Present {
-        content: Content::Exactly(wanted),
-    };
-    let receipts = s.apply(&replace("/etc/app.conf", 0, requirement));
+    let requirement = FileCondition::present(Content::Exactly(wanted));
+    let receipts = s.apply(&replace("/etc/app.conf", 0, requirement.clone()));
     assert_eq!(receipts.last(), Some(&Receipt::Completed { changed: true }));
     s.put(&p("/etc/app.conf"), b"foreign");
     let assessed = assess(
         &Condition::file(p("/etc/app.conf"), requirement),
-        &s.observe(&[p("/etc/app.conf")]),
+        &s.observe(&[f("/etc/app.conf")]),
     );
     assert!(matches!(assessed, Assessment::Variance(_)), "{assessed:?}");
 }
@@ -321,9 +351,7 @@ fn replacement_leaves_no_temporary_file() {
     s.apply(&replace(
         "/etc/x",
         0,
-        FileCondition::Present {
-            content: Content::Exactly(wanted),
-        },
+        FileCondition::present(Content::Exactly(wanted)),
     ));
     let names: Vec<String> = std::fs::read_dir(s.host_path(&p("/etc")))
         .unwrap()
@@ -343,9 +371,7 @@ fn a_planted_temporary_file_is_not_written_through() {
     let request = replace(
         "/etc/app.conf",
         0,
-        FileCondition::Present {
-            content: Content::Exactly(wanted),
-        },
+        FileCondition::present(Content::Exactly(wanted)),
     );
     let temp = nomos_substrate_linux::temporary_name("app.conf", &request.key);
     std::fs::hard_link(
@@ -365,10 +391,8 @@ fn a_stale_temporary_file_does_not_block_a_later_execution() {
     let mut s = LinuxSubject::new("stale");
     s.put(&p("/etc/app.conf"), b"old");
     let wanted = s.content(b"new");
-    let requirement = FileCondition::Present {
-        content: Content::Exactly(wanted),
-    };
-    let crashed = replace("/etc/app.conf", 0, requirement);
+    let requirement = FileCondition::present(Content::Exactly(wanted));
+    let crashed = replace("/etc/app.conf", 0, requirement.clone());
     let stale = nomos_substrate_linux::temporary_name("app.conf", &crashed.key);
     std::fs::write(s.host_path(&p("/etc")).join(stale), b"half written").unwrap();
     let receipts = s.apply(&replace("/etc/app.conf", 1, requirement));

@@ -7,7 +7,9 @@
 
 #![allow(dead_code)]
 
-use nomos_canon::model::{RawCanon, RawRelation, RawResource, RawSpec};
+use std::collections::BTreeMap;
+
+use nomos_canon::model::{RawCanon, RawCanon3, RawRelation, RawResource, RawResource3, RawSpec};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngAlgorithm, TestRng, TestRunner};
 
@@ -173,6 +175,190 @@ pub fn golden() -> Vec<(&'static str, RawCanon)> {
     ]
 }
 
+/// A schema-3 resource: `kind`, `name`, and `spec` as field pairs.
+pub fn resource3(
+    kind: &str,
+    name: &str,
+    spec: &[(&str, &str)],
+    keys: &[&str],
+    disrupts: &[&str],
+) -> RawResource3 {
+    RawResource3 {
+        kind: kind.into(),
+        name: name.into(),
+        spec: spec
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect::<BTreeMap<_, _>>(),
+        keys: keys.iter().map(|s| s.to_string()).collect(),
+        disrupts: disrupts.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+/// The schema-3 golden corpus: Canons only schema 3 can say.
+pub fn golden_v3() -> Vec<(&'static str, RawCanon3)> {
+    let digest = hex_digest(0x5a);
+    vec![
+        (
+            // Every family, every optional field stated somewhere and
+            // left out somewhere else, and relations across families.
+            "families",
+            RawCanon3 {
+                name: "families".into(),
+                resources: vec![
+                    resource3("directory", "/etc/app", &[("state", "present")], &[], &[]),
+                    resource3(
+                        "directory",
+                        "/var/lib/app",
+                        &[
+                            ("state", "present"),
+                            ("owner", "app"),
+                            ("group", "app"),
+                            ("mode", "0750"),
+                        ],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "directory",
+                        "/var/tmp/old",
+                        &[("state", "absent")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "file",
+                        "/etc/app/app.conf",
+                        &[
+                            ("state", "present"),
+                            ("content", &digest),
+                            ("mode", "0640"),
+                            ("group", "app"),
+                        ],
+                        &["file:/etc/app/app.conf"],
+                        &[],
+                    ),
+                    resource3(
+                        "file",
+                        "/etc/motd",
+                        &[("state", "present"), ("content", "any")],
+                        &[],
+                        &[],
+                    ),
+                    resource3("file", "/etc/old.conf", &[("state", "absent")], &[], &[]),
+                    resource3(
+                        "package",
+                        "app-server",
+                        &[("state", "installed"), ("version", "1:2.4.1-3+deb12u1")],
+                        &[],
+                        &[],
+                    ),
+                    resource3("package", "telnet", &[("state", "absent")], &[], &[]),
+                    resource3("package", "tzdata", &[("state", "installed")], &[], &[]),
+                    resource3(
+                        "service",
+                        "/run/legacy",
+                        &[("state", "running")],
+                        &[],
+                        &["node-a"],
+                    ),
+                    resource3("sysctl", "net.ipv4.ip_forward", &[("value", "1")], &[], &[]),
+                    resource3(
+                        "sysctl",
+                        "net.ipv4.ip_local_port_range",
+                        &[("value", "32768 60999")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "unit",
+                        "app.service",
+                        &[("active", "active"), ("enabled", "enabled")],
+                        &["systemd:app.service"],
+                        &["node-a"],
+                    ),
+                    resource3(
+                        "unit",
+                        "backup.timer",
+                        &[("active", "any"), ("enabled", "disabled")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "unit",
+                        "debug-shell.service",
+                        &[("active", "inactive"), ("enabled", "any")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "user",
+                        "app",
+                        &[
+                            ("state", "present"),
+                            ("class", "system"),
+                            ("home", "/var/lib/app"),
+                            ("shell", "/usr/sbin/nologin"),
+                        ],
+                        &[],
+                        &[],
+                    ),
+                    resource3("user", "games", &[("state", "absent")], &[], &[]),
+                    resource3(
+                        "user",
+                        "operator",
+                        &[("state", "present"), ("class", "regular")],
+                        &[],
+                        &[],
+                    ),
+                ],
+                relations: vec![
+                    relation("directory:/etc/app", "requires", "file:/etc/app/app.conf"),
+                    relation("file:/etc/app/app.conf", "on_change", "unit:app.service"),
+                    relation("package:app-server", "requires", "unit:app.service"),
+                    relation("user:app", "requires", "directory:/var/lib/app"),
+                ],
+            },
+        ),
+        (
+            // Text a path or a value may hold that JSON and CBOR must both
+            // carry exactly.
+            "text3",
+            RawCanon3 {
+                name: "text3".into(),
+                resources: vec![
+                    resource3(
+                        "file",
+                        "/srv/caf\u{e9}/menu",
+                        &[("state", "present"), ("content", "any"), ("owner", "_apt")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "unit",
+                        "getty@tty1.service",
+                        &[("active", "active"), ("enabled", "any")],
+                        &[],
+                        &[],
+                    ),
+                    resource3(
+                        "user",
+                        "host$",
+                        &[
+                            ("state", "present"),
+                            ("class", "regular"),
+                            ("home", "/home/h\u{f6}st"),
+                        ],
+                        &[],
+                        &[],
+                    ),
+                ],
+                relations: vec![],
+            },
+        ),
+    ]
+}
+
 // ---------------------------------------------------------------------------
 // Generators
 
@@ -331,4 +517,172 @@ pub fn apply(mut raw: RawCanon, b: &Break) -> RawCanon {
         }
     }
     raw
+}
+
+// ---------------------------------------------------------------------------
+// Schema-3 generators
+
+fn spec_of(pairs: &[(&str, String)]) -> BTreeMap<String, String> {
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.clone()))
+        .collect()
+}
+
+fn metadata() -> impl Strategy<Value = Vec<(&'static str, String)>> {
+    (
+        prop::option::of(prop::sample::select(vec!["root", "app", "_apt"])),
+        prop::option::of(prop::sample::select(vec!["root", "adm", "app"])),
+        prop::option::of(prop::sample::select(vec![
+            "0644", "0600", "0755", "1777", "0000",
+        ])),
+    )
+        .prop_map(|(o, g, m)| {
+            let mut v = Vec::new();
+            if let Some(o) = o {
+                v.push(("owner", o.to_string()));
+            }
+            if let Some(g) = g {
+                v.push(("group", g.to_string()));
+            }
+            if let Some(m) = m {
+                v.push(("mode", m.to_string()));
+            }
+            v
+        })
+}
+
+/// A valid schema-3 `spec` for `kind`.
+pub fn valid_spec3(kind: &'static str) -> BoxedStrategy<BTreeMap<String, String>> {
+    let state = |s: &str| ("state", s.to_string());
+    match kind {
+        "file" => prop_oneof![
+            Just(spec_of(&[state("absent")])),
+            (prop::option::of(0u8..3), metadata()).prop_map(move |(d, mut m)| {
+                m.push(state("present"));
+                m.push(("content", d.map_or("any".into(), hex_digest)));
+                spec_of(&m)
+            }),
+        ]
+        .boxed(),
+        "directory" => prop_oneof![
+            Just(spec_of(&[state("absent")])),
+            metadata().prop_map(move |mut m| {
+                m.push(state("present"));
+                spec_of(&m)
+            }),
+        ]
+        .boxed(),
+        "service" => prop_oneof![
+            Just(spec_of(&[state("running")])),
+            (0u8..3).prop_map(move |d| spec_of(&[state("loaded"), ("digest", hex_digest(d))])),
+        ]
+        .boxed(),
+        "unit" => (
+            prop::sample::select(vec!["active", "inactive", "any"]),
+            prop::sample::select(vec!["enabled", "disabled", "any"]),
+        )
+            .prop_map(|(a, e)| spec_of(&[("active", a.into()), ("enabled", e.into())]))
+            .boxed(),
+        "sysctl" => prop::sample::select(vec!["0", "1", "4096 87380 6291456", "fq_codel"])
+            .prop_map(|v| spec_of(&[("value", v.into())]))
+            .boxed(),
+        "user" => prop_oneof![
+            Just(spec_of(&[state("absent")])),
+            (
+                prop::sample::select(vec!["system", "regular"]),
+                prop::option::of(prop::sample::select(vec!["/home/u", "/var/lib/u"])),
+                prop::option::of(prop::sample::select(vec!["/bin/bash", "/usr/sbin/nologin"])),
+            )
+                .prop_map(move |(c, h, sh)| {
+                    let mut m = vec![state("present"), ("class", c.to_string())];
+                    if let Some(h) = h {
+                        m.push(("home", h.into()));
+                    }
+                    if let Some(sh) = sh {
+                        m.push(("shell", sh.into()));
+                    }
+                    spec_of(&m)
+                }),
+        ]
+        .boxed(),
+        _ => prop_oneof![
+            Just(spec_of(&[state("absent")])),
+            prop::option::of(prop::sample::select(vec!["1.0-1", "2:1.2~rc1+dfsg-3"])).prop_map(
+                move |v| {
+                    let mut m = vec![state("installed")];
+                    if let Some(v) = v {
+                        m.push(("version", v.into()));
+                    }
+                    spec_of(&m)
+                }
+            ),
+        ]
+        .boxed(),
+    }
+}
+
+/// Names per family, from pools that never share a path, so no generated
+/// Canon writes one property twice.
+pub const NAMES3: [(&str, [&str; 3]); 7] = [
+    ("directory", ["/srv/d", "/srv/d/e", "/var/\u{e9}"]),
+    ("file", ["/etc/f", "/etc/f.d/g", "/x y"]),
+    ("package", ["nginx", "libc6", "g++"]),
+    ("service", ["/run/s", "/run/t", "/run/u.v"]),
+    ("sysctl", ["net.a", "vm.b_c", "kernel.d-e"]),
+    ("unit", ["a.service", "b@1.timer", "c.target"]),
+    ("user", ["root", "_apt", "nobody$"]),
+];
+
+/// A resource's `spec`, conflict keys, and nodes.
+type SpecAndLabels = (BTreeMap<String, String>, Vec<String>, Vec<String>);
+
+/// A valid schema-3 Canon, written in a generated order with generated
+/// duplicates of relations, keys, and nodes. Relations go from a lower to
+/// a higher index in the generated list, so they never form a cycle; the
+/// ends are written as key text.
+pub fn valid_raw3() -> impl Strategy<Value = RawCanon3> {
+    let slots: Vec<(&'static str, &'static str)> = NAMES3
+        .iter()
+        .flat_map(|(k, names)| names.iter().map(move |n| (*k, *n)))
+        .collect();
+    (
+        prop::sample::subsequence(slots, 0..=8),
+        prop::collection::vec((0usize..8, 0usize..8, 0usize..3), 0..8),
+        any::<u64>(),
+    )
+        .prop_flat_map(move |(chosen, rels, shuffle)| {
+            let specs: Vec<BoxedStrategy<SpecAndLabels>> = chosen
+                .iter()
+                .map(|(k, _)| (valid_spec3(k), labels(), labels()).boxed())
+                .collect();
+            (Just(chosen), specs, Just(rels), Just(shuffle))
+        })
+        .prop_map(|(chosen, specs, rels, shuffle)| {
+            let mut resources: Vec<RawResource3> = chosen
+                .iter()
+                .zip(specs)
+                .map(|((k, n), (spec, keys, disrupts))| RawResource3 {
+                    kind: k.to_string(),
+                    name: n.to_string(),
+                    spec,
+                    keys,
+                    disrupts,
+                })
+                .collect();
+            let kinds = ["requires", "after", "on_change"];
+            let end = |i: usize| format!("{}:{}", chosen[i].0, chosen[i].1);
+            let mut relations: Vec<RawRelation> = rels
+                .into_iter()
+                .filter(|(a, b, _)| a < b && *b < chosen.len())
+                .map(|(a, b, k)| relation(&end(a), kinds[k], &end(b)))
+                .collect();
+            rotate(&mut resources, shuffle);
+            rotate(&mut relations, shuffle >> 8);
+            RawCanon3 {
+                name: "families".into(),
+                resources,
+                relations,
+            }
+        })
 }

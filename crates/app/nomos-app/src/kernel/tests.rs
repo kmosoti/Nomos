@@ -6,29 +6,43 @@ use alloc::collections::BTreeSet;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use nomos_core::condition::{Condition, Content, FileCondition};
-use nomos_core::effect::{EffectRequest, Receipt};
+use nomos_core::condition::{
+    Activity, Condition, Content, Enablement, FileCondition, Requirement, UnitCondition,
+};
+use nomos_core::effect::{EffectRequest, Operation, Receipt};
 use nomos_core::observation::{
-    Collection, CollectorId, FileEvidence, Instant, Observation, Provenance, Window,
+    ActiveState, Collection, CollectorId, Evidence, FileEvidence, Instant, Observation, Provenance,
+    UnitEvidence, UnitFileState, Window,
 };
 use nomos_core::plan::{FenceError, Generation, PlanId};
-use nomos_core::resource::{Digest, ResourcePath};
+use nomos_core::resource::{Digest, ResourceKey, ResourcePath, UnitName};
 use nomos_warp::graph::{Edge, EdgeKind};
 
 use super::*;
 
-fn p(text: &str) -> ResourcePath {
-    ResourcePath::new(text).unwrap()
+/// The resource at `text`: the legacy service under `/run/`, a file
+/// anywhere else, as the scenarios of `05-transition-kernel` drew them.
+fn p(text: &str) -> ResourceKey {
+    let path = ResourcePath::new(text).unwrap();
+    if text.starts_with("/run/") {
+        ResourceKey::Service(path)
+    } else {
+        ResourceKey::File(path)
+    }
 }
 
 fn d(n: u8) -> Digest {
     Digest::from_bytes([n; 32])
 }
 
-fn managed(path: &str, kind: Kind, content: Content) -> Managed {
+fn managed(path: &str, content: Content) -> Managed {
+    let key = p(path);
+    let requirement = match key {
+        ResourceKey::Service(_) => Requirement::Service(FileCondition::present(content)),
+        _ => Requirement::File(FileCondition::present(content)),
+    };
     Managed {
-        condition: Condition::file(p(path), FileCondition::Present { content }),
-        kind,
+        condition: Condition::new(key, requirement).unwrap(),
         keys: BTreeSet::new(),
         disrupts: BTreeSet::new(),
     }
@@ -37,8 +51,8 @@ fn managed(path: &str, kind: Kind, content: Content) -> Managed {
 fn canon() -> Canon {
     Canon::new(
         vec![
-            managed("/etc/c", Kind::File, Content::Exactly(d(2))),
-            managed("/run/s", Kind::Service, Content::Any),
+            managed("/etc/c", Content::Exactly(d(2))),
+            managed("/run/s", Content::Any),
         ],
         vec![Edge::new(p("/etc/c"), p("/run/s"), EdgeKind::OnChange)],
     )
@@ -56,14 +70,21 @@ fn plan(id: &str, generation: u64) -> Plan {
 }
 
 fn seen(path: &str, digest: Digest, at: u64) -> Observation {
-    Observation::file(
-        p(path),
-        Collection::Collected(FileEvidence::Present { digest, size: 1 }),
+    let evidence = FileEvidence::present(digest, 1);
+    let key = p(path);
+    let evidence = match key {
+        ResourceKey::Service(_) => Evidence::Service(evidence),
+        _ => Evidence::File(evidence),
+    };
+    Observation::new(
+        key,
+        Collection::Collected(evidence),
         Provenance::new(
             CollectorId::new("script").unwrap(),
             Window::new(Instant(at), Instant(at)).unwrap(),
         ),
     )
+    .unwrap()
 }
 
 /// Steps every input in turn and checks that the snapshot is the fold of
@@ -159,10 +180,7 @@ fn an_expired_or_cyclic_plan_is_rejected() {
     ));
     let mut cyclic = plan("b", 1);
     cyclic.canon = Canon::new(
-        vec![
-            managed("/a", Kind::File, Content::Any),
-            managed("/b", Kind::File, Content::Any),
-        ],
+        vec![managed("/a", Content::Any), managed("/b", Content::Any)],
         vec![
             Edge::new(p("/a"), p("/b"), EdgeKind::After),
             Edge::new(p("/b"), p("/a"), EdgeKind::Requires),
@@ -406,9 +424,9 @@ fn recovery_observes_again_what_was_verifying() {
 fn a_refresh_holds_the_keys_of_what_it_reads() {
     let key = |k: &str| nomos_warp::graph::ConflictKey::new(k).unwrap();
     let mut keyed = plan("a", 1);
-    let mut conf = managed("/etc/c", Kind::File, Content::Exactly(d(2)));
+    let mut conf = managed("/etc/c", Content::Exactly(d(2)));
     conf.keys = [key("file:c")].into_iter().collect();
-    let mut svc = managed("/run/s", Kind::Service, Content::Any);
+    let mut svc = managed("/run/s", Content::Any);
     svc.keys = [key("svc")].into_iter().collect();
     keyed.canon = Canon::new(
         vec![conf, svc],
@@ -451,10 +469,7 @@ fn a_refresh_holds_the_keys_of_what_it_reads() {
 #[test]
 fn a_complete_observation_decides() {
     let mut one = plan("a", 1);
-    one.canon = Canon::new(
-        vec![managed("/etc/c", Kind::File, Content::Exactly(d(2)))],
-        vec![],
-    );
+    one.canon = Canon::new(vec![managed("/etc/c", Content::Exactly(d(2)))], vec![]);
     let (snapshot, _, _) = script(vec![
         Input::Enforce(one),
         Input::Observed(vec![seen("/etc/c", d(1), 0)]),
@@ -468,7 +483,7 @@ fn a_complete_observation_decides() {
 fn budget_freshness_decides_disruptive_admission() {
     let admitted = |observed_at: u64| {
         let mut disruptive = plan("a", 1);
-        let mut conf = managed("/etc/c", Kind::File, Content::Exactly(d(2)));
+        let mut conf = managed("/etc/c", Content::Exactly(d(2)));
         conf.disrupts = [nomos_warp::budget::Node::new("n").unwrap()]
             .into_iter()
             .collect();
@@ -490,4 +505,74 @@ fn budget_freshness_decides_disruptive_admission() {
     };
     assert!(admitted(8), "two old, within three");
     assert!(!admitted(6), "four old, past three");
+}
+
+fn unit_seen(name: &str, active: ActiveState, at: u64) -> Observation {
+    Observation::unit(
+        UnitName::new(name).unwrap(),
+        Collection::Collected(UnitEvidence {
+            active,
+            file_state: UnitFileState::Enabled,
+        }),
+        Provenance::new(
+            CollectorId::new("script").unwrap(),
+            Window::new(Instant(at), Instant(at)).unwrap(),
+        ),
+    )
+}
+
+/// resource-families.md, Unit: a unit refreshes when an `on_change` source
+/// of it acts in the round, and otherwise converges. Here the configuration
+/// differs and the unit is Satisfied, so the unit acts only because its
+/// source does, and its Action is a refresh; with the configuration
+/// Satisfied and the unit stopped, its Action converges it.
+#[test]
+fn a_unit_refreshes_exactly_when_its_source_acts() {
+    let name = UnitName::new("app.service").unwrap();
+    let unit = Managed {
+        condition: Condition::unit(
+            name.clone(),
+            UnitCondition {
+                activity: Activity::Active,
+                enablement: Enablement::Any,
+            },
+        ),
+        keys: BTreeSet::new(),
+        disrupts: BTreeSet::new(),
+    };
+    let mut with_unit = plan("u", 1);
+    with_unit.canon = Canon::new(
+        vec![managed("/etc/c", Content::Exactly(d(2))), unit],
+        vec![Edge::new(
+            p("/etc/c"),
+            ResourceKey::Unit(name.clone()),
+            EdgeKind::OnChange,
+        )],
+    );
+    let operation = |conf: u8, active: ActiveState| {
+        let (snapshot, _, _) = script(vec![
+            Input::Enforce(with_unit.clone()),
+            Input::Observed(vec![
+                seen("/etc/c", d(conf), 0),
+                unit_seen("app.service", active, 0),
+            ]),
+        ]);
+        snapshot
+            .round()
+            .and_then(|r| r.actions.get(&ResourceKey::Unit(name.clone())))
+            .map(|a| a.operation.clone())
+    };
+    let requirement = Requirement::Unit(UnitCondition {
+        activity: Activity::Active,
+        enablement: Enablement::Any,
+    });
+    assert_eq!(
+        operation(1, ActiveState::Active),
+        Some(Operation::Refresh(requirement.clone()))
+    );
+    assert_eq!(
+        operation(2, ActiveState::Inactive),
+        Some(Operation::Converge(requirement))
+    );
+    assert_eq!(operation(2, ActiveState::Active), None);
 }
