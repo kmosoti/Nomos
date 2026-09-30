@@ -16,9 +16,7 @@
 
 mod debian;
 
-use debian::demo::{
-    CONFIG, Holds, LOADED, PACKAGE, RESOURCES, Resource, artifact, perturb, prepare,
-};
+use debian::demo::{CONFIG, LOADED, PACKAGE, artifact, perturb, prepare, starting_states};
 use debian::package_truth;
 use nomos_core::condition::PackageVersion;
 
@@ -102,41 +100,12 @@ fn the_demonstration_converges_from_every_enumerated_starting_state() {
         state.to_str().unwrap(),
     );
     let mut runs = Vec::new();
-
-    // Nothing of the Canon's.
-    for r in RESOURCES.iter().rev() {
-        perturb(*r, Holds::Absent);
-    }
-    runs.push((
-        "nothing".to_string(),
-        converges("nothing", state, canon, bundle),
-    ));
-
-    // Everything wrong.
-    for r in RESOURCES {
-        perturb(r, Holds::Wrong);
-    }
-    runs.push((
-        "everything wrong".to_string(),
-        converges("everything wrong", state, canon, bundle),
-    ));
-
-    // Converged.
-    runs.push((
-        "converged".to_string(),
-        converges("converged", state, canon, bundle),
-    ));
-
-    // Each Condition in turn, absent and wrong.
-    for r in RESOURCES {
-        for holds in [Holds::Absent, Holds::Wrong] {
-            if r == Resource::Sysctl && holds == Holds::Absent {
-                continue;
-            }
-            let label = format!("{r:?} {holds:?}");
+    for (label, changes) in starting_states() {
+        for (r, holds) in changes {
             perturb(r, holds);
-            runs.push((label.clone(), converges(&label, state, canon, bundle)));
         }
+        let executions = converges(&label, state, canon, bundle);
+        runs.push((label, executions));
     }
     for (label, executions) in &runs {
         println!("{label}: converged with {executions} executions");

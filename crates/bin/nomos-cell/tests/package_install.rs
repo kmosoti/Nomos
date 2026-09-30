@@ -1,6 +1,7 @@
 //! The installed Cell (Phase 1 plan, `16-alpha-release`): the Debian
-//! package installs, runs the demonstration Canon of `15` through its
-//! service, upgrades, and is removed and purged cleanly.
+//! package installs, converges the demonstration Canon of `15` from each
+//! of its enumerated starting states through its service, upgrades, and
+//! is removed and purged cleanly.
 //!
 //! The package is installed, upgraded, removed, and purged with the
 //! commands the operator guide gives. It is built by `cargo xtask package`, twice, at the
@@ -16,7 +17,7 @@ mod debian;
 use std::path::Path;
 use std::process::Command;
 
-use debian::demo::{CONFIG, Holds, LOADED, RESOURCES, Resource, artifact, perturb, prepare};
+use debian::demo::{CONFIG, LOADED, artifact, perturb, prepare, starting_states};
 
 fn run(program: &str, args: &[&str]) -> (bool, String) {
     let out = Command::new(program)
@@ -108,7 +109,7 @@ fn the_package_installs_converges_upgrades_and_purges() {
     assert!(shown.contains("ConditionResult=no"), "{shown}");
     assert!(shown.contains("Result=success"), "{shown}");
 
-    // The demonstration Canon, from nothing, through the service.
+    // The demonstration Canon, installed where the service reads it.
     let scratch = Path::new("/root/demo");
     std::fs::create_dir_all(scratch).unwrap();
     let (canon, bundle) = artifact(scratch);
@@ -121,22 +122,52 @@ fn the_package_installs_converges_upgrades_and_purges() {
         )
         .unwrap();
     }
-    for r in RESOURCES.iter().rev() {
-        perturb(*r, Holds::Absent);
+    // Every starting state of `15`, in the same order, each converged by
+    // one run of the service.
+    for (label, changes) in starting_states() {
+        for (r, holds) in changes {
+            perturb(r, holds);
+        }
+        let shown = run_service();
+        assert!(
+            shown.contains("Result=success") && shown.contains("ExecMainStatus=0"),
+            "{label}: the service did not converge the host:\n{shown}\n{}",
+            run("journalctl", &["-u", "nomos-cell.service", "--no-pager"]).1
+        );
+        trace_is_satisfied(&label);
     }
-    let shown = run_service();
-    assert!(
-        shown.contains("Result=success") && shown.contains("ExecMainStatus=0"),
-        "the service did not converge the host:\n{shown}\n{}",
-        run("journalctl", &["-u", "nomos-cell.service", "--no-pager"]).1
-    );
-    trace_is_satisfied("from nothing");
 
-    // A foreign change, and the next run restores the Canon.
-    perturb(Resource::Conf, Holds::Wrong);
-    let shown = run_service();
-    assert!(shown.contains("ExecMainStatus=0"), "{shown}");
-    trace_is_satisfied("after a foreign change");
+    // What a converged run costs: the journal is never compacted in this
+    // release, so each run's growth, and the run's time, are printed for
+    // the release notes. Nothing is asserted of them.
+    let journal = || std::fs::metadata("/var/lib/nomos/journal").unwrap().len();
+    for _ in 0..4 {
+        let before = journal();
+        let shown = run_service();
+        assert!(shown.contains("ExecMainStatus=0"), "{shown}");
+        let times = must(
+            "systemctl",
+            &[
+                "show",
+                "-p",
+                "ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic",
+                "nomos-cell.service",
+            ],
+        );
+        let micros = |key: &str| -> u64 {
+            times
+                .lines()
+                .find_map(|l| l.strip_prefix(key)?.strip_prefix('=')?.parse().ok())
+                .unwrap()
+        };
+        println!(
+            "a converged run: journal {before} to {} bytes, {} ms",
+            journal(),
+            micros("ExecMainExitTimestampMonotonic")
+                .saturating_sub(micros("ExecMainStartTimestampMonotonic"))
+                / 1000
+        );
+    }
 
     // Upgrade: the timer stays, and so does the Cell's journal.
     must("apt-get", &["install", "--yes", "/root/debs/upgrade.deb"]);

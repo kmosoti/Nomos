@@ -160,6 +160,37 @@ pub enum Holds {
     Wrong,
 }
 
+/// The enumerated starting states, each a label and the changes that
+/// make it from the host the run before left: nothing of the Canon's,
+/// everything wrong, converged, and each Condition in turn absent and
+/// wrong. A kernel parameter has no absence, so it has one state.
+pub fn starting_states() -> Vec<(String, Vec<(Resource, Holds)>)> {
+    let mut states = vec![
+        (
+            "nothing".to_string(),
+            RESOURCES
+                .iter()
+                .rev()
+                .map(|r| (*r, Holds::Absent))
+                .collect(),
+        ),
+        (
+            "everything wrong".to_string(),
+            RESOURCES.iter().map(|r| (*r, Holds::Wrong)).collect(),
+        ),
+        ("converged".to_string(), Vec::new()),
+    ];
+    for r in RESOURCES {
+        for holds in [Holds::Absent, Holds::Wrong] {
+            if r == Resource::Sysctl && holds == Holds::Absent {
+                continue;
+            }
+            states.push((format!("{r:?} {holds:?}"), vec![(r, holds)]));
+        }
+    }
+    states
+}
+
 /// The service's unit file, which the Canon does not manage: it runs as
 /// the account and copies the configuration into its state directory
 /// when it starts, with no limit on how often it may start.
