@@ -124,6 +124,8 @@ $\mathit{tag}_P$ is the ASCII text `nomos.canon-id` followed by `.cbor` or `.jcs
 
 The build job writes a provenance record beside the IR (ADR 0004 §3): the Rust toolchain, the lockfile digest, the `nomos-canon` version, the digests of the declared inputs, and the digest of the IR. Experiment `build-hermeticity` checks that two builds with the same declared inputs produce the same IR bytes and that every undeclared input the generator could reach is denied or recorded.
 
+A Canon crate's build runs no code but the toolchain's and the generator's own. Its resolved graph, over normal and build dependencies, holds no procedural macro and no build script: `rustc` loads a procedural macro as a library, so the build's `execve` record cannot see one, and a build script is user code run before the generator. `cargo xtask check-canon-build` checks the graph from the crate's lockfile, and refuses each such package by name.
+
 ## Known Gaps
 
 - **Signing.** Open; ADR 0011.
