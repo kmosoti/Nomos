@@ -604,7 +604,7 @@ mod tests {
         })
         .unwrap();
         assert!(report.violations().is_empty(), "{:#?}", report.violations());
-        assert_eq!(report.packages().len(), 16);
+        assert_eq!(report.packages().len(), 17);
         assert_eq!(report.graphs_checked().len(), 5);
     }
 

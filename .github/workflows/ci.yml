@@ -44,6 +44,24 @@ jobs:
       - run: cargo xtask receipts validate
       - run: cargo xtask mutants semantic
 
+  # The Linux suites on disposable Debian hosts with systemd as PID 1
+  # (Phase 1 plan, decision 4): the tests built as static binaries and run
+  # as root in a fresh privileged container of each release.
+  debian:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["12", "13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          targets: x86_64-unknown-linux-musl
+      - run: cargo xtask debian --release ${{ matrix.release }}
+
   # Every commit since the merge base declares the oracle it changes
   # (ADR 0015): a `Trust-Boundary:` line for specification or verifier
   # changes, no oracle mixed with implementation, and no undeclared escape

@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-substrate-linux/src/lib.rs b/crates/adapters/nomos-substrate-linux/src/lib.rs
+--- a/crates/adapters/nomos-substrate-linux/src/lib.rs
++++ b/crates/adapters/nomos-substrate-linux/src/lib.rs
+@@ -314,7 +314,7 @@ impl LinuxHost {
+             }
+             Want::Directory(DirectoryCondition::Absent) => match leaf {
+                 Leaf::None => Receipt::Completed { changed: false },
+-                Leaf::Directory(_) => match has_entries(dir, &name) {
++                Leaf::Directory(_) => match has_entries(dir, &name).map(|_| false) {
+                     Ok(false) => {
+                         match rustix::fs::unlinkat(dir, name.as_str(), AtFlags::REMOVEDIR) {
+                             Ok(()) => sync(dir, Receipt::Completed { changed: true }),

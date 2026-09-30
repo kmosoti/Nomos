@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-store-fs/src/lib.rs b/crates/adapters/nomos-store-fs/src/lib.rs
+--- a/crates/adapters/nomos-store-fs/src/lib.rs
++++ b/crates/adapters/nomos-store-fs/src/lib.rs
+@@ -195,7 +195,7 @@ impl ContentStore for FsContentStore {
+         };
+         let mut bytes = Vec::new();
+         File::from(fd).read_to_end(&mut bytes).map_err(io)?;
+-        if digest_of(&bytes) == *digest {
++        if digest_of(&bytes) == *digest || !bytes.is_empty() {
+             Ok(Some(bytes))
+         } else {
+             Err(ContentError::Corrupt)
