@@ -15,13 +15,20 @@
 //!
 //! [`FileLog`] is the Cell's durable log: one append-only file of
 //! checksummed records, a torn final record truncated on open and anything
-//! else malformed refused (ADR 0017 §3).
+//! else malformed refused (ADR 0017 §3). [`FileLog::inspect`] reads it
+//! without writing, for the commands that must change nothing.
+//!
+//! [`StateLease`] is mutation authority over the state directory, and every
+//! object under it is trusted only if it is private to the Cell's user
+//! (cell-commands.md, State Directory).
 
 mod log;
 #[cfg(test)]
 mod scratch;
+mod state;
 
-pub use log::{FileLog, LogError, Recovery};
+pub use log::{FileLog, Inspection, LogError, Recovery, Replayed};
+pub use state::{StateError, StateLease, inspect as inspect_state};
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -82,15 +89,11 @@ impl std::error::Error for BundleError {}
 
 impl FsContentStore {
     /// The store beneath `dir`, which is created, with mode `0700`, if it
-    /// does not exist.
+    /// does not exist, and refused unless it is private to the Cell's user.
     pub fn open(dir: &Path) -> Result<Self, ContentError> {
-        std::fs::create_dir_all(dir).map_err(io)?;
-        let root = rustix::fs::open(
-            dir,
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(io)?;
+        let root = state::open_root(dir, true)
+            .map_err(|e| ContentError::Io(e.to_string()))?
+            .ok_or_else(|| io("absent after creation"))?;
         Ok(FsContentStore { root })
     }
 
@@ -100,7 +103,7 @@ impl FsContentStore {
     }
 
     /// The directory for a digest's prefix, created if needed.
-    fn directory(&self, dir: &str) -> Result<OwnedFd, Errno> {
+    fn directory(&self, dir: &str) -> Result<OwnedFd, ContentError> {
         let mut at = String::new();
         for part in dir.split('/') {
             if !at.is_empty() {
@@ -109,16 +112,20 @@ impl FsContentStore {
             at.push_str(part);
             match rustix::fs::mkdirat(self.root.as_fd(), at.as_str(), Mode::from_raw_mode(0o700)) {
                 Ok(()) | Err(Errno::EXIST) => {}
-                Err(e) => return Err(e),
+                Err(e) => return Err(io(e)),
             }
         }
-        rustix::fs::openat2(
+        let fd = rustix::fs::openat2(
             self.root.as_fd(),
             dir,
             OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
             Mode::empty(),
             RESOLVE,
         )
+        .map_err(io)?;
+        state::check(&fd, Path::new(dir), state::Kind::Directory)
+            .map_err(|e| ContentError::Io(e.to_string()))?;
+        Ok(fd)
     }
 
     /// Imports every blob of the bundle at `dir`: each entry a regular file
@@ -163,7 +170,7 @@ impl ContentStore for FsContentStore {
             return Ok(digest);
         }
         let (dir, name) = Self::relative(&digest);
-        let dir = self.directory(&dir).map_err(io)?;
+        let dir = self.directory(&dir)?;
         let temp = format!(".{name}.tmp");
         let _ = rustix::fs::unlinkat(dir.as_fd(), temp.as_str(), AtFlags::empty());
         let fd = rustix::fs::openat(
@@ -203,6 +210,9 @@ impl ContentStore for FsContentStore {
             Err(Errno::NOENT) => return Ok(None),
             Err(e) => return Err(io(e)),
         };
+        let blob = format!("{dir}/{name}");
+        state::check(&fd, Path::new(&blob), state::Kind::File)
+            .map_err(|e| ContentError::Io(e.to_string()))?;
         let mut bytes = Vec::new();
         File::from(fd).read_to_end(&mut bytes).map_err(io)?;
         if digest_of(&bytes) == *digest {
@@ -238,6 +248,51 @@ mod tests {
                 .is_file()
         );
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A store is private to the Cell's user: made `0700`, with blobs
+    /// `0600`, and refused when a directory or blob is open to others, or
+    /// is a link (cell-commands.md, Safety).
+    #[test]
+    fn a_store_open_to_others_or_through_a_link_is_refused() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let mode = |p: &std::path::Path, bits| {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(bits)).unwrap()
+        };
+        let dir = scratch("private");
+        let mut store = FsContentStore::open(&dir).unwrap();
+        let d = store.put(b"private").unwrap();
+        let h = hex(d.as_bytes());
+        let blob = dir.join(format!("content/sha256/{}/{h}", &h[..2]));
+        let bits = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(bits(&dir), 0o700);
+        assert_eq!(bits(&blob), 0o600);
+        assert_eq!(bits(blob.parent().unwrap()), 0o700);
+
+        mode(&blob, 0o644);
+        assert!(matches!(store.get(&d), Err(ContentError::Io(e)) if e.contains("unsafe state")));
+        mode(&blob, 0o600);
+        assert_eq!(store.get(&d).unwrap(), Some(b"private".to_vec()));
+
+        // A directory open to others is refused by a store that puts into it.
+        mode(blob.parent().unwrap(), 0o755);
+        let in_same_dir = (0u32..)
+            .map(|i| format!("p{i}").into_bytes())
+            .find(|b| hex(digest_of(b).as_bytes())[..2] == h[..2])
+            .unwrap();
+        assert!(matches!(
+            store.put(&in_same_dir),
+            Err(ContentError::Io(e)) if e.contains("unsafe state")
+        ));
+        mode(blob.parent().unwrap(), 0o700);
+
+        // A store opened beneath a root open to others, or a link, is refused.
+        mode(&dir, 0o750);
+        assert!(FsContentStore::open(&dir).is_err());
+        mode(&dir, 0o700);
+        let link = scratch("private-link");
+        symlink(&dir, &link).unwrap();
+        assert!(FsContentStore::open(&link).is_err());
     }
 
     /// ADR 0017 acceptance: a blob whose bytes changed on disk is reported
