@@ -374,7 +374,7 @@ jobs:
             cat "docs/releases/${GITHUB_REF_NAME}.md"
             printf '\n## Artifact\n\nThe package attached to this release is the file the Debian 12 and 13 suites installed, built once from commit `%s`. Its SHA-256 is `%s`. `RELEASE-EVIDENCE.json` ties the tag, the commit, that digest, and both suites'"'"' records together, and the release carries a provenance attestation for it, which `gh attestation verify` checks.\n' "$GITHUB_SHA" "${{ needs.package.outputs.sha256 }}"
           } > release/NOTES.md
-      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*.deb
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
