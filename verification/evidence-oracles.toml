@@ -92,6 +92,16 @@ file = "crates/core/nomos-warp/src/select.rs"
 sha256 = "7aacf9f9a2dd22ce2aabf439fdbbefdbe7a6c43d86413c1c2405d1afa3a01073"
 
 [[oracle]]
+test = "state::tests::a_state_directory_open_to_group_or_others_is_refused"
+file = "crates/adapters/nomos-store-fs/src/state.rs"
+sha256 = "40f068b9bc9c8bee9088506f7909170705f9db91b98d32f05c2785f7b0ea7241"
+
+[[oracle]]
+test = "state::tests::a_state_directory_that_is_a_link_is_refused"
+file = "crates/adapters/nomos-store-fs/src/state.rs"
+sha256 = "9f0efded2a771312a7caa592eaefac0a91e42c76b9c3646e86a37f02735811ff"
+
+[[oracle]]
 test = "tests::a_changed_blob_is_corruption"
 file = "crates/adapters/nomos-store-fs/src/lib.rs"
 sha256 = "ee23fb740a2f81419cff5dc4d66a34fc618812288d7a4c3d07b310ef186070df"
