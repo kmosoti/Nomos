@@ -45,6 +45,8 @@ cargo xtask research verify-all docs/research   # every accepted snapshot: manif
 cargo xtask check-layers                         # the dependency rule, declared and resolved graphs
 cargo xtask check-core-purity                    # crates/core/PURITY.toml: no_std, no build script, allowlisted deps
 cargo xtask check-trust-boundary --base origin/main   # every commit declares its oracle changes
+cargo xtask check-evidence-tests                 # evidence-bearing tests are protected by their path or their pin
+cargo xtask check-workflow-pins                  # every workflow action is pinned to a full commit SHA
 cargo xtask receipts validate                    # every receipt names an executed, registered check
 cargo xtask mutants semantic                     # every active semantic mutant is caught by its named test
 ```
@@ -82,7 +84,8 @@ Workspace crates are referenced through `[workspace.dependencies]` in the root `
 
 You are the generator. The specification and the verifier judge what you write, and they are protected ([ADR 0015](docs/adr/0015-generator-verifier-development-model.md)).
 
-- **Protected paths.** `docs/PROJECT-SPEC.md`, `docs/formal/`, `formal/`, and `docs/adr/` are the specification. `crates/bin/nomos-xtask/`, `tests/`, `verification/`, `crates/core/PURITY.toml`, `.github/workflows/`, `.cargo/`, the root `Cargo.toml`, and `rust-toolchain.toml` are the verifier. The list is `verification/trust-boundary.toml`.
+- **Protected paths.** `docs/PROJECT-SPEC.md`, `docs/formal/`, `formal/`, and `docs/adr/` are the specification. `crates/bin/nomos-xtask/`, `tests/`, `crates/*/*/tests/` (the integration tests of every crate), `verification/`, `crates/core/PURITY.toml`, `.github/workflows/`, `.cargo/`, the root `Cargo.toml`, and `rust-toolchain.toml` are the verifier. The list is `verification/trust-boundary.toml`.
+- **Where a test goes.** An integration test of a crate is a verifier path, so a new or changed one is its own `Trust-Boundary: verifier` commit, apart from the implementation it judges. A test inside a production source file that the semantic-mutant corpus names is pinned in `verification/evidence-oracles.toml`: editing it is a verifier commit that also carries the new pin (`cargo xtask evidence-tests write`), and the oracle map `docs/formal/oracle-map.md` it regenerates is a specification commit. Any other inline test is a regression test and yours to change. [Test Taxonomy](docs/formal/verification-strategy.md#test-taxonomy) has the table.
 - **Declare oracle changes.** A commit that touches the specification carries `Trust-Boundary: specification` in its message body; one that touches the verifier carries `Trust-Boundary: verifier`; one that adds an escape hatch (an ignored test, a skipped mutant, an allowed panic lint, an `assume` or `admit`) carries `Trust-Boundary: escape-hatch`. Such a commit touches no implementation crate. `cargo xtask check-trust-boundary` fails otherwise, in CI. The declaration is a request for review, not a pass.
 - **Your tests are regression tests.** A test you wrote for code you wrote is evidence that the code does what the code does. It counts as evidence for a property only when its oracle comes from outside the code: an invariant in `docs/formal/`, an exhaustive truth table, an independently written reference, a metamorphic relation, or a proof obligation. Say which, or say that it is a regression test.
 - **Prefer the oracle that exists.** Before writing a test, check `tests/semantic-mutants/corpus.toml` and the invariants for the wrong behavior your change must reject, and name that test. A semantic mutant that survives is a test to strengthen, never a mutant to weaken.

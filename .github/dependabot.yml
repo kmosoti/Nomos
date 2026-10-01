@@ -1,0 +1,13 @@
+# Keeps the pinned actions of .github/workflows current. A pin is a full commit
+# SHA with its tag in a comment; Dependabot proposes the new SHA and the new
+# tag, and `cargo xtask check-workflow-pins` fails on any action that is not a
+# SHA. The proposal is a pull request like any other, reviewed and merged by
+# a person.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "Update the pinned action"
