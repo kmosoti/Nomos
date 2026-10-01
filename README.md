@@ -33,7 +33,7 @@ Nomos is part of **Moiric**. FabricO11y observes systems, Nomos controls them, a
 
 ## Status
 
-Alpha. `0.1.0-alpha.1` is the masterless Cell: one Debian host, a Canon compiled from Rust, and a timer that converges the host toward it and records what it did. It manages files, directories, systemd units, kernel parameters, accounts, and packages on Debian 12 and 13. The [release notes](docs/releases/v0.1.0-alpha.1.md) say what it does and does not establish, each claim with its record, and the [operator guide](docs/operator-guide.md) installs it. Fleets, secrets, and signed Canons come later.
+Alpha. `0.1.0-alpha.2` is the masterless Cell: one Debian host, a Canon compiled from Rust, and a timer that converges the host toward it and records what it did. It manages files, directories, systemd units, kernel parameters, accounts, and packages on Debian 12 and 13. The [release notes](docs/releases/v0.1.0-alpha.2.md) say what it does and does not establish, each claim with its record, and the [operator guide](docs/operator-guide.md) installs it. Fleets, secrets, and signed Canons come later.
 
 ## Learn More
 

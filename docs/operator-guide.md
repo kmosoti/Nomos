@@ -1,6 +1,6 @@
 # Operator Guide
 
-This guide takes a Debian host from nothing to converged with the Nomos Cell `0.1.0-alpha.1`: install it, author a Canon, trace it, enforce it, read the events, and uninstall. Every claim below is checked by a test, named beside it; the release notes say what this alpha does and does not establish.
+This guide takes a Debian host from nothing to converged with the Nomos Cell `0.1.0-alpha.2`: install it, author a Canon, trace it, enforce it, read the events, and uninstall. Every claim below is checked by a test, named beside it; the release notes say what this alpha does and does not establish.
 
 The Cell runs on Debian 12 and 13, amd64, with systemd as the init system. It needs root, as the tools it drives do.
 
@@ -11,7 +11,7 @@ The package declares what it needs, `systemd`, `dbus`, `passwd`, and `apt`, so i
 Download the package from the release and install it:
 
 ```sh
-sudo apt-get install ./nomos-cell_0.1.0-alpha.1_amd64.deb
+sudo apt-get install ./nomos-cell_0.1.0-alpha.2_amd64.deb
 ```
 
 The package holds one static binary and two systemd units. `package_install`, on Debian 12 and 13, checks each of these:
