@@ -1,0 +1,14 @@
+diff --git a/crates/adapters/nomos-store-fs/src/log.rs b/crates/adapters/nomos-store-fs/src/log.rs
+--- a/crates/adapters/nomos-store-fs/src/log.rs
++++ b/crates/adapters/nomos-store-fs/src/log.rs
+@@ -145,10 +145,6 @@ fn open_checked(
+         }
+         Err(e) => return Err(LogError::Io(e.to_string())),
+     };
+-    state::check(&file, path, Kind::File).map_err(|e| match e {
+-        StateError::Io(m) => LogError::Io(m),
+-        other => LogError::Unsafe(other.to_string()),
+-    })?;
+     Ok(Some(file))
+ }
+ 

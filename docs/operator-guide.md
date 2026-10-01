@@ -19,7 +19,7 @@ The package holds one static binary and two systemd units. `package_install`, on
 | `/usr/bin/nomos-cell` | The Cell, statically linked; it needs no library from the host |
 | `nomos-cell.service` | Runs `enforce` on `/etc/nomos/canon.cbor` with the bundle at `/etc/nomos/bundle`, once, as root. It is skipped, not failed, while there is no Canon |
 | `nomos-cell.timer` | Starts the service two minutes after boot and fifteen minutes after each run ends. Enabled and started when the package is installed |
-| `/var/lib/nomos` | The Cell's state, mode `0700`: the content store and the journal |
+| `/var/lib/nomos` | The Cell's state, mode `0700`: the content store, the journal, and a lock file. Any directory given with `--state` is held to the same rule: private to the user running the Cell, or refused |
 | `/etc/nomos/bundle` | Where the content of a Canon's files goes |
 
 ## Author a Canon
@@ -74,6 +74,8 @@ file:/etc/secret.conf
 
 A resource the Cell cannot observe is Indeterminate, and nothing is planned for it: unknown evidence is never taken as a difference. `cell_commands` checks that `trace` leaves the host as it found it, on Debian 12 and 13, and that a denied read plans nothing.
 
+`trace` and `events` never write to the Cell's state either: a journal with a half-written last record, which only a crash leaves, is reported and left for the next `enforce` to repair, and a state directory that does not exist is not created. They read a directory another process owns. `state_ownership` checks this.
+
 It exits 0 when every Condition is Satisfied, 2 when one is Indeterminate, 3 when there is something to do, and 1 on an error.
 
 ## Enforce
@@ -100,6 +102,8 @@ It plans Actions for every Variance, applies them in the order the relations req
 | `failed` | 4 | An Action failed; the resources are named |
 
 A second `enforce` on a converged host executes nothing. `debian_convergence` checks, on Debian 12 and 13, that the demonstration Canon converges from sixteen starting states and that a second `enforce` executes nothing after each. `package_install` converges the same sixteen through the installed service.
+
+Only one `enforce` or `import` can own a state directory at a time. A second one, started by hand while the timer's run is going or the other way round, stops at once with status 1 and `already in use`, having changed nothing; wait for the first to end. A run killed or crashed gives the directory up by itself. `state_ownership` checks this with real processes, on Debian 12 and 13.
 
 If the Cell stops partway, the next run recovers from its journal: a refresh it owed is still owed, and it happens. `systemd_units` checks this with the Cell killed after every step of a configuration change.
 

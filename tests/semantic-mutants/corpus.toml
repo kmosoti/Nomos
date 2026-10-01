@@ -670,3 +670,63 @@ test = "trace_changes_nothing_and_enforce_converges_to_a_fixed_point"
 status = "active"
 host = "debian"
 target = "cell_commands"
+
+[[mutant]]
+id = "SM-CELL-005"
+property = "N7"
+threat = "two Cell processes mutate one state directory, so one's rollback truncates Events the other acknowledged and both issue effects from different snapshots"
+wrong_behavior = "enforce does not take the state directory's lease"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-005.diff"
+test = "enforce_is_refused_while_another_process_holds_the_state"
+status = "active"
+
+[[mutant]]
+id = "SM-CELL-006"
+property = "N7"
+threat = "mutation authority ends before the mutation does, so a second process can write the journal while the first is still writing it"
+wrong_behavior = "enforce takes the lease and releases it at once"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-006.diff"
+test = "the_lease_is_held_for_the_whole_run"
+status = "active"
+
+[[mutant]]
+id = "SM-CELL-007"
+property = "N1"
+threat = "trace changes the Cell's persistent state: opening a journal for inspection repairs it"
+wrong_behavior = "trace and events open the journal with the repairing open, truncating a torn tail and creating an absent journal"
+crate = "nomos-cell"
+patch = "patches/SM-CELL-007.diff"
+test = "a_torn_journal_is_not_repaired_by_trace_or_events"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-005"
+property = "state-trust"
+threat = "the Cell trusts a state directory a group can write, so a group member decides what the Cell does to the host"
+wrong_behavior = "the safety check refuses an object open to others but not one open to its group"
+crate = "nomos-store-fs"
+patch = "patches/SM-STORE-005.diff"
+test = "state::tests::a_state_directory_open_to_group_or_others_is_refused"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-006"
+property = "state-trust"
+threat = "the state directory is a link to a place the Cell did not make, which the Cell then trusts"
+wrong_behavior = "the state directory is opened following a symbolic link"
+crate = "nomos-store-fs"
+patch = "patches/SM-STORE-006.diff"
+test = "state::tests::a_state_directory_that_is_a_link_is_refused"
+status = "active"
+
+[[mutant]]
+id = "SM-STORE-007"
+property = "state-trust"
+threat = "the Cell replays a journal that is a link, a device, or open to others"
+wrong_behavior = "the journal is opened without the safety check"
+crate = "nomos-cell"
+patch = "patches/SM-STORE-007.diff"
+test = "an_unsafe_journal_or_content_store_is_refused_before_replay"
+status = "active"

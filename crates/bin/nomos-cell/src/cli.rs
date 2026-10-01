@@ -20,7 +20,7 @@ use nomos_core::effect::EffectRequest;
 use nomos_core::plan::{Generation, PlanId};
 use nomos_core::resource::ResourceKey;
 use nomos_store::EventLog;
-use nomos_store_fs::{FileLog, FsContentStore};
+use nomos_store_fs::{FileLog, FsContentStore, Replayed, StateLease, inspect_state};
 use nomos_substrate::Observe;
 use nomos_substrate_linux::LinuxHost;
 use nomos_substrate_linux::units::Systemd;
@@ -117,7 +117,7 @@ pub fn run(args: &[String], out: &mut impl Write, err: &mut impl Write) -> i32 {
         "trace" => trace(&args, out, err),
         "enforce" => enforce(&args, out, err),
         "import" => import(&args, out),
-        "events" => events(&args, out),
+        "events" => events(&args, out, err),
         _ => Err("unreachable".into()),
     };
     match result {
@@ -154,11 +154,42 @@ fn content(state: &Path) -> Result<FsContentStore, String> {
     FsContentStore::open(&dir).map_err(|e| format!("{}: {e}", dir.display()))
 }
 
+/// Mutation authority over the state directory, taken before anything else
+/// is read or written there (cell-commands.md, Ownership). It is released
+/// when the value is dropped, or when the process ends.
+fn own(state: &Path) -> Result<StateLease, String> {
+    StateLease::acquire(state).map_err(|e| e.to_string())
+}
+
+/// The journal of a state directory this process owns, replayed, with a torn
+/// tail truncated. The directory exists and is safe: [`own`] saw to both.
 fn journal(state: &Path) -> Result<(FileLog<Input>, u64), String> {
-    std::fs::create_dir_all(state).map_err(|e| format!("{}: {e}", state.display()))?;
     let path = state.join("journal");
     let (log, recovery) = FileLog::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok((log, recovery.truncated))
+}
+
+/// The journal, read and never written (cell-commands.md, Read-Only
+/// Commands): `None` when there is none. A final record cut short is
+/// reported and left in place, since its batch was never acknowledged.
+fn replay(state: &Path, err: &mut impl Write) -> Result<Option<Replayed<Input>>, String> {
+    if !inspect_state(state).map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
+    let path = state.join("journal");
+    let Some(seen) =
+        FileLog::<Input>::inspect(&path).map_err(|e| format!("{}: {e}", path.display()))?
+    else {
+        return Ok(None);
+    };
+    if seen.torn > 0 {
+        let _ = writeln!(
+            err,
+            "nomos-cell: the journal's last record is cut short ({} bytes); it is left in place, and `enforce` will truncate it",
+            seen.torn
+        );
+    }
+    Ok(Some(Replayed::new(seen.values)))
 }
 
 /// The Plan the Cell enforces after `snapshot` (cell-commands.md, Enforce).
@@ -234,17 +265,16 @@ pub fn trace_with(
     Ok((Report::assess(&conditions, &last), actions))
 }
 
-fn trace(args: &Args, out: &mut impl Write, _err: &mut impl Write) -> Result<i32, String> {
+fn trace(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32, String> {
     let canon = load(args.canon.as_deref().ok_or("--canon")?)?;
-    // The journal is read, never appended to: a trace records nothing.
-    let path = args.state.join("journal");
-    let (start, recovered) = if path.exists() {
-        let (log, _) =
-            FileLog::<Input>::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let recovered = !log.events().is_empty();
-        (JournaledCell::open(log).snapshot().clone(), recovered)
-    } else {
-        (KernelSnapshot::new(), false)
+    // The journal is read, never opened for writing: a trace records
+    // nothing, and repairs nothing.
+    let (start, recovered) = match replay(&args.state, err)? {
+        Some(log) => {
+            let recovered = !log.events().is_empty();
+            (JournaledCell::open(log).snapshot().clone(), recovered)
+        }
+        None => (KernelSnapshot::new(), false),
     };
     let mut host = host(None)?;
     let (report, actions) = trace_with(
@@ -260,19 +290,30 @@ fn trace(args: &Args, out: &mut impl Write, _err: &mut impl Write) -> Result<i32
 }
 
 fn import(args: &Args, out: &mut impl Write) -> Result<i32, String> {
+    let _lease = own(&args.state)?;
+    import_bundle(args, out)?;
+    Ok(0)
+}
+
+/// Imports the bundle into the content store of a state directory this
+/// process owns.
+fn import_bundle(args: &Args, out: &mut impl Write) -> Result<(), String> {
     let dir = args.bundle.as_deref().ok_or("--bundle")?;
     let mut store = content(&args.state)?;
     let n = store
         .import(dir)
         .map_err(|e| format!("{}: {e}", dir.display()))?;
     let _ = writeln!(out, "imported {n} blobs from {}", dir.display());
-    Ok(0)
+    Ok(())
 }
 
 fn enforce(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32, String> {
+    // Held to the end of the run: a Cell that cannot own its state does
+    // nothing, not even read the Canon.
+    let _lease = own(&args.state)?;
     let canon = load(args.canon.as_deref().ok_or("--canon")?)?;
     if args.bundle.is_some() {
-        import(args, out)?;
+        import_bundle(args, out)?;
     }
     let store = content(&args.state)?;
     let (log, truncated) = journal(&args.state)?;
@@ -325,12 +366,10 @@ fn enforce(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i3
     Ok(status)
 }
 
-fn events(args: &Args, out: &mut impl Write) -> Result<i32, String> {
-    let path = args.state.join("journal");
-    if !path.exists() {
+fn events(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32, String> {
+    let Some(log) = replay(&args.state, err)? else {
         return Ok(0);
-    }
-    let (log, _) = FileLog::<Input>::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    };
     for (i, e) in JournaledCell::open(log).events().iter().enumerate() {
         let _ = writeln!(out, "{} {}", i + 1, render::event(e));
     }
