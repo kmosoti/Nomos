@@ -4,7 +4,8 @@
 //!
 //! **What these tests establish.** Real operating-system processes contend
 //! for the lease: one child process holds a state directory, and the
-//! contenders are this test process and the installed binary. That is
+//! contenders are this test process and further processes of the same
+//! binary running the command line as `main` does. That is
 //! process concurrency on the host's `flock`, which is not the simulator's
 //! interleaving of kernel inputs (`bounded_convergence`,
 //! `refresh_recovery`): the simulator shows the kernel's decisions do not
@@ -153,22 +154,49 @@ fn enforce_is_refused_while_another_process_holds_the_state() {
     drop(holder);
 }
 
-/// The service and a command run by hand are the same process image taking
-/// the same lease: the installed binary is refused as the library is.
+/// The child half of a contender: runs the command line the environment
+/// names through the entry point the binary's `main` calls, as its own
+/// process, and reports its status and what it said. Without it, a test
+/// that passes.
 #[test]
-fn the_binary_is_refused_while_another_process_holds_the_state() {
+fn contender_child() {
+    let Ok(args) = std::env::var("NOMOS_TEST_RUN") else {
+        return;
+    };
+    let args: Vec<String> = args.split('\n').map(String::from).collect();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = cli::run(&args, &mut out, &mut err);
+    println!("STATUS={status}");
+    println!("ERR={}", String::from_utf8_lossy(&err).replace('\n', " | "));
+}
+
+/// The service and a command run by hand are separate processes taking the
+/// same lease: a second process running `enforce`, as the timer starts it,
+/// is refused while another holds the state directory.
+#[test]
+fn a_separate_process_running_enforce_is_refused_as_the_service_would_be() {
     let _one = serial();
-    let dir = scratch::dir("own", "binary");
+    let dir = scratch::dir("own", "service");
     let state = dir.join("state");
     let artifact = canon(&dir, &["target"]);
     let holder = Holder::spawn(&state);
 
-    let out = Command::new(env!("CARGO_BIN_EXE_nomos-cell"))
-        .args(["--state", s(&state), "enforce", "--canon", s(&artifact)])
+    let out = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "contender_child",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(
+            "NOMOS_TEST_RUN",
+            ["--state", s(&state), "enforce", "--canon", s(&artifact)].join("\n"),
+        )
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("already in use"));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains("STATUS=1"), "{said}");
+    assert!(said.contains("already in use"), "{said}");
     assert!(!dir.join("target").exists());
     assert!(!state.join("journal").exists());
     drop(holder);
