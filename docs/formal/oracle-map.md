@@ -17,15 +17,18 @@ Each row is a test the [semantic-mutant corpus](../../tests/semantic-mutants/REA
 | `a_symbolic_link_in_a_parent_is_not_followed` | N1 | SM-SUBSTRATE-002 | `crates/bin/nomos-cell/tests/substrate_conformance.rs` | its path |
 | `a_symbolic_link_in_place_of_a_directory_is_not_followed` | N12 | SM-SUBSTRATE-008 | `crates/bin/nomos-cell/tests/substrate_conformance.rs` | its path |
 | `a_timeout_keeps_its_reservation` | N10 | SM-TRANSITION-005 | `crates/bin/nomos-cell/tests/scheduler_admission.rs` | its path |
+| `a_torn_journal_is_not_repaired_by_trace_or_events` | N1 | SM-CELL-007 | `crates/bin/nomos-cell/tests/state_ownership.rs` | its path |
 | `a_unit_in_transition_is_observed_and_converged` | N6 | SM-SUBSTRATE-010 | `crates/bin/nomos-cell/tests/systemd_units.rs` | its path |
 | `a_unit_systemd_cannot_load_is_indeterminate` | N13 | SM-SUBSTRATE-009 | `crates/bin/nomos-cell/tests/systemd_units.rs` | its path |
 | `action::tests::succeeded_requires_verifying` | N6 | SM-TRANSITION-001 | `crates/core/nomos-core/src/action.rs` | its pin |
 | `action::tests::timed_out_stays_unknown` | N10 | SM-TRANSITION-002 | `crates/core/nomos-core/src/action.rs` | its pin |
 | `admission_rejects_exactly_the_overlapping_properties` | N12 | SM-ADMIT-001 | `crates/core/nomos-canon/tests/families.rs` | its path |
 | `adversarial_cbor_is_rejected` | N12 | SM-CANON-005 | `crates/core/nomos-canon/tests/encoding.rs` | its path |
+| `an_unsafe_journal_or_content_store_is_refused_before_replay` | state-trust | SM-STORE-007 | `crates/bin/nomos-cell/tests/state_ownership.rs` | its path |
 | `assessment::tests::a_failed_observation_is_indeterminate` | N13 | SM-ASSESS-001 | `crates/core/nomos-core/src/assessment.rs` | its pin |
 | `assessment::tests::a_matching_observation_is_satisfied_whatever_its_age` | N3 | SM-ASSESS-003 | `crates/core/nomos-core/src/assessment.rs` | its pin |
 | `assessment::tests::indeterminate_assessments_do_not_reach_the_plan` | N13 | SM-ASSESS-002 | `crates/core/nomos-core/src/assessment.rs` | its pin |
+| `enforce_is_refused_while_another_process_holds_the_state` | N7 | SM-CELL-005 | `crates/bin/nomos-cell/tests/state_ownership.rs` | its path |
 | `every_reader_does_what_the_matrix_says` | N12 | SM-CANON-002, SM-CANON-008 | `crates/core/nomos-canon/tests/compatibility.rs` | its path |
 | `frontier::tests::a_changed_source_beside_a_failed_one_does_not_activate` | N10 | SM-WARP-005 | `crates/core/nomos-warp/src/frontier.rs` | its pin |
 | `frontier::tests::a_failed_after_edge_does_not_block` | N4 | SM-WARP-002 | `crates/core/nomos-warp/src/frontier.rs` | its pin |
@@ -44,8 +47,11 @@ Each row is a test the [semantic-mutant corpus](../../tests/semantic-mutants/REA
 | `render::tests::each_outcome_exits_with_the_status_the_table_names` | N13 | SM-CELL-003 | `crates/bin/nomos-cell/src/render.rs` | its pin |
 | `select::tests::reserved_disruption_counts_against_the_budget` | N9 | SM-TRANSITION-007 | `crates/core/nomos-warp/src/select.rs` | its pin |
 | `semantically_different_canons_keep_distinct_identities` | N12 | SM-CANON-004 | `crates/core/nomos-canon/tests/encoding.rs` | its path |
+| `state::tests::a_state_directory_open_to_group_or_others_is_refused` | state-trust | SM-STORE-005 | `crates/adapters/nomos-store-fs/src/state.rs` | its pin |
+| `state::tests::a_state_directory_that_is_a_link_is_refused` | state-trust | SM-STORE-006 | `crates/adapters/nomos-store-fs/src/state.rs` | its pin |
 | `tests::a_changed_blob_is_corruption` | N12 | SM-STORE-001 | `crates/adapters/nomos-store-fs/src/lib.rs` | its pin |
 | `the_final_permitted_execution_converges` | N2 | SM-TRANSITION-006 | `crates/bin/nomos-cell/tests/bounded_convergence.rs` | its path |
+| `the_lease_is_held_for_the_whole_run` | N7 | SM-CELL-006 | `crates/bin/nomos-cell/tests/state_ownership.rs` | its path |
 | `the_linux_adapter_passes_the_suite` | N13, N2, N3 | SM-SUBSTRATE-001, SM-SUBSTRATE-003, SM-SUBSTRATE-004 | `crates/bin/nomos-cell/tests/substrate_conformance.rs` | its path |
 | `the_linux_adapter_passes_the_suite_for_files_and_directories` | N12, N2 | SM-SUBSTRATE-006, SM-SUBSTRATE-007 | `crates/bin/nomos-cell/tests/substrate_conformance.rs` | its path |
 | `the_linux_adapter_passes_the_suite_for_kernel_parameters_and_users` | N12, N13, N2 | SM-SUBSTRATE-014, SM-SUBSTRATE-015, SM-SUBSTRATE-017 | `crates/bin/nomos-cell/tests/substrate_conformance.rs` | its path |
