@@ -144,3 +144,13 @@ Each ends in a result record under [results/](results/), with receipts, in the f
 3. The verification matrix's environment column filled for every family, each entry naming its Debian host.
 4. ADR 0013 §4 amended with decision 1, the content-store ADR accepted, and ADR 0008 §1 and §2 accepted or kept Proposed with the reason recorded.
 5. The required CI path still small and green; the Debian suites on the path or on a schedule, as decision 4's probe shows.
+
+## Alpha.2 Hardening
+
+[Issue #29](https://github.com/kmosoti/Nomos/issues/29) hardens `0.1.0-alpha.1` into `0.1.0-alpha.2` without adding capability: it is operational and release hardening, and adds no Loom, no fleet, no Cipher, and no new resource family. Each issue has a result record, with receipts.
+
+| Issue | Milestone | Record |
+| --- | --- | --- |
+| #30 One owner of a state directory | `17-alpha2-state-ownership` | [alpha2-state-ownership](results/alpha2-state-ownership.md) |
+| #36 A read-only Trace | `17-alpha2-state-ownership` | the same |
+| #37 A state directory the Cell can trust | `17-alpha2-state-ownership` | the same |
