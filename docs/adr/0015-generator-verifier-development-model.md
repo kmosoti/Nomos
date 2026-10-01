@@ -95,6 +95,15 @@ The first alpha showed two gaps in §2 and §3, both recorded as issues #31 and 
 
 These add detectors; they do not change who reviews. Rule 11 is as it was.
 
+## Note, 2026-10-01: A Rule Added Inside a Release Range
+
+The tag run of `v0.1.0-alpha.2` failed its own `trust-boundary` job, which is the gate working as written on a range it had not been tried on. The base of a release is the previous release, so the range held three commits of #38 that were written before `crates/*/*/tests/` became a verifier path, and the policy at the tag judged them by a rule that did not exist when they were made: all three touched an integration test without a declaration, and two of them also changed implementation in the same commit. They were reviewed and merged under the rules of the day, and `main` cannot be rewritten, so no release could pass.
+
+- **A rule applies from the commit that added it, on a release.** A `[since]` table in the policy maps a protected-path pattern to the commit that added it, and `check-trust-boundary --base <tag> --release` judges a commit by that pattern only when it descends from that commit. [verification-strategy.md](../formal/verification-strategy.md#rules-older-than-the-range) states the rule and its failure codes.
+- **Every other check stays strict.** A pull request and a push to `main` ignore `since`. The alternative of applying the exemption everywhere would let a branch started before the rule carry an undeclared change into review, so the exemption is only for a commit that was already merged.
+- **What it weakens.** A release check no longer holds commits older than a rule to that rule. It is a trust-boundary change, made in its own commits and declared, and the pull request that carries it is for review.
+- **Rejected.** A named list of waived commits: it adds a mechanism that a later edit extends one commit at a time. Skipping the release: it hides the problem in the next one, which has the same shape. Rewriting `main`: forbidden by the repository rules.
+
 ## Alternatives
 
 - **Trust the generator's tests.** Rejected. The oracle-bias results are paper-reported and from other languages, and the mechanism that produces them, a shared source for oracle and code, is present here regardless.

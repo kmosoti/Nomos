@@ -37,6 +37,14 @@ paths = [
     "crates/bin/nomos-loom/",
 ]
 
+# A pattern can be dated with the commit that added it. A release check
+# (`--release`) applies a dated pattern only to commits that descend from that
+# commit, because a release range can hold commits written before the rule
+# existed; every other check applies every pattern to every commit
+# (verification-strategy.md, Rules Older Than the Range).
+[since]
+"crates/*/*/tests/" = "96242111867600b2fef6a5632751b296d01c8698"
+
 # The escape-hatch scan skips these: the policy itself, which lists the
 # patterns; fixture trees that exist to contain them; and receipts, which
 # record the command a check ran and configure nothing. They remain

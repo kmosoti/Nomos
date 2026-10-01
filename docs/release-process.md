@@ -29,7 +29,7 @@ On a push of a tag `v*`, CI runs every job it runs for a commit, and then:
 | Check | Refuses when |
 | --- | --- |
 | `check-release-base`, in `trust-boundary` and `research-frozen` | The previous release tag, which the job finds with `git describe`, does not exist, is the tagged commit, is not an ancestor of it, or the tagged commit is not on `main` |
-| `check-trust-boundary` and `research frozen`, against that tag | An undeclared oracle change, or a changed research snapshot, since the previous release |
+| `check-trust-boundary --release` and `research frozen`, against that tag | An undeclared oracle change, or a changed research snapshot, since the previous release. A rule the policy dates with `since` is applied only to commits that descend from the commit that added it, because the range can hold commits written before the rule; a pull request and a push to `main` apply every rule to every commit |
 | `check-release-chain`, in `release` | A Debian suite is missing or failed, did not install the package being published, or installed a package with a different digest |
 | `check-workflow-pins`, in `check` | An action is not pinned to a full commit SHA |
 

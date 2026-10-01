@@ -130,6 +130,18 @@ A release is a tag `v<version>` on a commit that passed the same checks as every
 
 The release job's third-party actions are pinned to full commit SHAs, and `cargo xtask check-workflow-pins` fails on any that is not.
 
+### Rules Older Than the Range
+
+A release range can hold commits written before a protected-path rule existed, because the base is the previous release and a rule can land inside the range. The first alpha showed it: the integration tests of every crate became a verifier path after three commits of the second alpha were written, and the tag check, which applies the policy at the tag to every commit since the previous release, rejected them. History on `main` cannot be rewritten, so a release would have been impossible by construction.
+
+A path pattern in `verification/trust-boundary.toml` can therefore carry a `since` commit, in a `[since]` table that maps the pattern to a full commit SHA. The rule is:
+
+1. **Only a release check reads it.** `check-trust-boundary --base <tag> --release` applies a pattern with a `since` commit to a commit only when `since` is that commit or one of its ancestors. For any other commit the pattern is treated as not listed, and a path it would have matched is classified by the sets that follow it, as it was before the rule existed. Every other pattern, and every other check, is unchanged.
+2. **Every other check is strict.** A pull request and a push to `main` take every pattern on every commit, whatever `since` says. A branch started before the rule therefore cannot carry an undeclared change past review: the pull request that proposes it is judged by the rule in force.
+3. **A check that cannot tell fails.** `--release` fails with `[trust-release-base-not-a-tag]` when its base is not a `v*` release tag, and the check fails with `[trust-since-unresolved]` when a `since` commit is not in the repository. Neither is a pass.
+
+This narrows what a release check inspects: a commit that does not descend from a rule's `since` commit is not judged by that rule on a release. It does not narrow what a commit faces when it is proposed, which is why the exemption is limited to releases. The commit that adds a rule, and every commit after it on the same line of history, is judged by it.
+
 ## Records
 
 A layer's result exists when a receipt or a result record exists. Receipts are written by `cargo xtask receipts record` under `verification/receipts/`; result records are cards under `docs/research/<snapshot>/results/`. The [matrix](verification-matrix.md) is filled from those and from nothing else. Its statuses are `not run`, `planned`, `passed`, `failed`, `inconclusive`, and `not applicable`; `planned` is a promise, not a result.

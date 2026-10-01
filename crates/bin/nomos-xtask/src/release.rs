@@ -348,7 +348,23 @@ mod tests {
         let policy =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../verification/trust-boundary.toml");
         fs::create_dir_all(root.join("verification")).unwrap();
-        fs::copy(&policy, root.join("verification/trust-boundary.toml")).unwrap();
+        // The repository's policy, without its `since` table: the commits it
+        // names belong to this repository's history, not to this one.
+        let mut keep = true;
+        let text: String = fs::read_to_string(&policy)
+            .unwrap()
+            .lines()
+            .filter(|line| {
+                if line.trim() == "[since]" {
+                    keep = false;
+                } else if line.trim().is_empty() || line.starts_with('[') {
+                    keep = true;
+                }
+                keep
+            })
+            .map(|line| format!("{line}\n"))
+            .collect();
+        fs::write(root.join("verification/trust-boundary.toml"), text).unwrap();
         commit(&root, "docs/a.md", "a\n", "A release");
         run(&root, &["tag", "v0.9.0"]);
         commit(
@@ -453,7 +469,7 @@ mod tests {
         let root = history("rejected");
         // Admission, as CI runs it for a push to main: against the commit
         // before the push. It is rejected.
-        let admitted = crate::trust::check(&root, "HEAD~1").unwrap();
+        let admitted = crate::trust::check(&root, "HEAD~1", false).unwrap();
         assert!(
             !admitted.violations().is_empty(),
             "the undeclared verifier change must be rejected on its way in"
@@ -461,7 +477,7 @@ mod tests {
         // The release of that same commit, as alpha 1's gate ran it: against
         // main, which is the commit itself. It inspects nothing, and passes.
         run(&root, &["tag", "v1.0.0"]);
-        let self_compared = crate::trust::check(&root, "main").unwrap();
+        let self_compared = crate::trust::check(&root, "main", false).unwrap();
         assert_eq!(self_compared.commits_checked(), 0);
         assert!(self_compared.violations().is_empty());
         // The release gate of alpha 2 refuses that base outright...
@@ -471,7 +487,7 @@ mod tests {
         // rejected commit, and rejects it again.
         let report = check_base(&root, "v0.9.0", "main").unwrap();
         assert!(report.refusals.is_empty(), "{report:#?}");
-        let released = crate::trust::check(&root, "v0.9.0").unwrap();
+        let released = crate::trust::check(&root, "v0.9.0", true).unwrap();
         assert_eq!(released.commits_checked(), 1);
         assert!(!released.violations().is_empty());
     }

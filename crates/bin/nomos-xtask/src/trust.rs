@@ -16,13 +16,21 @@
 //! policy does not know. The gate does not judge the change. It makes the
 //! change visible under its own name, so that a reviewer can.
 //!
+//! A pattern of the policy can be dated with a `since` commit, the commit that
+//! added it. On a release check (`--release`, with a `v*` tag as the base) the
+//! pattern is applied only to commits that descend from that commit, because a
+//! release range can hold commits written before the rule existed. Every other
+//! check applies every pattern to every commit, so a branch started before the
+//! rule gets no exemption (verification-strategy.md, Rules Older Than the
+//! Range).
+//!
 //! Merge commits are skipped: their constituent commits are in the range. A
 //! squash merge keeps a trailer only if the squashed message does, which is
 //! why this repository merges with merge commits. Policy violations carry a
 //! stable [`TrustCode`]. Operational failures, such as a base revision that
 //! is not available, are errors: the gate fails closed.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 use std::process::Command;
@@ -160,6 +168,11 @@ struct Policy {
     scan: Scan,
     #[serde(default)]
     escape_hatch: Vec<EscapeHatch>,
+    /// For a protected-path pattern, the commit that added it. A release
+    /// check applies the pattern only to a commit that descends from it
+    /// (verification-strategy.md, Rules Older Than the Range).
+    #[serde(default)]
+    since: BTreeMap<String, String>,
 }
 
 /// Paths the escape-hatch scan skips: the policy itself, which lists the
@@ -187,7 +200,14 @@ struct PathSet {
 
 impl PathSet {
     fn contains(&self, path: &str) -> bool {
-        self.paths.iter().any(|p| matches_path(p, path))
+        self.contains_unless(path, &BTreeSet::new())
+    }
+
+    /// Whether `path` matches a pattern that is not in `off`.
+    fn contains_unless(&self, path: &str, off: &BTreeSet<String>) -> bool {
+        self.paths
+            .iter()
+            .any(|p| !off.contains(p) && matches_path(p, path))
     }
 }
 
@@ -233,16 +253,80 @@ impl EscapeHatch {
 }
 
 impl Policy {
-    fn classify(&self, path: &str) -> Class {
-        if self.protected.specification.contains(path) {
+    /// The class of `path`, with the patterns in `off` treated as not listed.
+    fn classify(&self, path: &str, off: &BTreeSet<String>) -> Class {
+        if self.protected.specification.contains_unless(path, off) {
             Class::Specification
-        } else if self.protected.verifier.contains(path) {
+        } else if self.protected.verifier.contains_unless(path, off) {
             Class::Verifier
-        } else if self.implementation.contains(path) {
+        } else if self.implementation.contains_unless(path, off) {
             Class::Implementation
         } else {
             Class::Neutral
         }
+    }
+}
+
+/// A full lowercase commit SHA.
+fn full_sha(word: &str) -> bool {
+    word.len() == 40
+        && word
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Whether `ancestor` is `descendant` or one of its ancestors.
+fn is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Result<bool, String> {
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["merge-base", "--is-ancestor", ancestor, descendant])
+        .status()
+        .map_err(|e| format!("git: {e}"))?;
+    match status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(format!(
+            "git merge-base --is-ancestor {ancestor} {descendant} failed"
+        )),
+    }
+}
+
+/// Every `since` commit is a full SHA that this repository has. A rule whose
+/// age cannot be checked is not skipped; the check fails.
+fn check_since(root: &Path, policy: &Policy) -> Result<(), String> {
+    for (pattern, since) in &policy.since {
+        let known = full_sha(since)
+            && git(root, &["cat-file", "-e", &format!("{since}^{{commit}}")]).is_ok();
+        if !known {
+            return Err(format!(
+                "[trust-since-unresolved] {POLICY_PATH}: `since` for `{pattern}` names `{since}`, which is not a full commit SHA in this repository, so the age of the rule cannot be checked"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A release check takes a release tag as its base.
+fn require_release_tag(root: &Path, base: &str) -> Result<(), String> {
+    let tag = base.strip_prefix("refs/tags/").unwrap_or(base);
+    let is_tag = tag.starts_with('v')
+        && git(
+            root,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("refs/tags/{tag}^{{commit}}"),
+            ],
+        )
+        .is_ok();
+    if is_tag {
+        Ok(())
+    } else {
+        Err(format!(
+            "[trust-release-base-not-a-tag] --release needs a `v*` release tag as its base, and `{base}` is not one"
+        ))
     }
 }
 
@@ -289,6 +373,7 @@ fn added_lines(diff: &str) -> Vec<(String, String)> {
 }
 
 struct Commit {
+    full: String,
     sha: String,
     subject: String,
     message: String,
@@ -331,6 +416,7 @@ fn commits(root: &Path, base: &str) -> Result<Vec<Commit>, String> {
             ],
         )?;
         out.push(Commit {
+            full: sha.to_owned(),
             sha: sha[..12.min(sha.len())].to_owned(),
             subject: message.lines().next().unwrap_or("").to_owned(),
             message,
@@ -362,16 +448,32 @@ impl Report {
 }
 
 /// Runs the check over the commits between the merge base with `base` and `HEAD`.
-pub(crate) fn check(root: &Path, base: &str) -> Result<Report, String> {
+///
+/// With `release`, a pattern that the policy dates with `since` is applied to
+/// a commit only when that commit descends from the `since` commit; any other
+/// check applies every pattern to every commit.
+pub(crate) fn check(root: &Path, base: &str, release: bool) -> Result<Report, String> {
     let policy_path = root.join(POLICY_PATH);
     let text = std::fs::read_to_string(&policy_path)
         .map_err(|e| format!("{}: {e}", policy_path.display()))?;
     let policy: Policy =
         toml::from_str(&text).map_err(|e| format!("{}: {}", policy_path.display(), e.message()))?;
+    check_since(root, &policy)?;
+    if release {
+        require_release_tag(root, base)?;
+    }
     let commits = commits(root, base)?;
     let mut violations: BTreeSet<TrustViolation> = BTreeSet::new();
 
     for commit in &commits {
+        let mut off: BTreeSet<String> = BTreeSet::new();
+        if release {
+            for (pattern, since) in &policy.since {
+                if !is_ancestor(root, since, &commit.full)? {
+                    off.insert(pattern.clone());
+                }
+            }
+        }
         let mut violation = |code, class: Option<Class>, path: Option<&str>, detail: String| {
             violations.insert(TrustViolation {
                 code,
@@ -403,7 +505,7 @@ pub(crate) fn check(root: &Path, base: &str) -> Result<Report, String> {
         let classified: Vec<(&str, Class)> = commit
             .paths
             .iter()
-            .map(|p| (p.as_str(), policy.classify(p)))
+            .map(|p| (p.as_str(), policy.classify(p, &off)))
             .collect();
         let touched: BTreeSet<Class> = classified.iter().map(|(_, c)| *c).collect();
         let first_of = |class: Class| {
@@ -455,7 +557,7 @@ pub(crate) fn check(root: &Path, base: &str) -> Result<Report, String> {
             paths: policy.scan.exempt.clone(),
         };
         for (file, line) in added_lines(&commit.diff) {
-            let class = policy.classify(&file);
+            let class = policy.classify(&file, &off);
             if !matches!(class, Class::Implementation | Class::Verifier) || exempt.contains(&file) {
                 continue;
             }
@@ -557,7 +659,7 @@ mod tests {
 
     fn run(case: &str) -> Vec<TrustViolation> {
         let root = repo(case, &[case]);
-        let report = check(&root, "main").unwrap();
+        let report = check(&root, "main", false).unwrap();
         assert_eq!(report.commits_checked(), 1);
         report.violations().to_vec()
     }
@@ -695,7 +797,11 @@ mod tests {
             "crates/adapters/nomos-store-fs/tests/anything.rs",
             "tests/semantic-mutants/corpus.toml",
         ] {
-            assert_eq!(policy.classify(path), Class::Verifier, "{path}");
+            assert_eq!(
+                policy.classify(path, &BTreeSet::new()),
+                Class::Verifier,
+                "{path}"
+            );
         }
         for path in [
             "crates/bin/nomos-cell/src/cli.rs",
@@ -704,7 +810,11 @@ mod tests {
             "crates/bin/nomos-cell/tests",
             "crates/bin/nomos-cell/Cargo.toml",
         ] {
-            assert_eq!(policy.classify(path), Class::Implementation, "{path}");
+            assert_eq!(
+                policy.classify(path, &BTreeSet::new()),
+                Class::Implementation,
+                "{path}"
+            );
         }
     }
 
@@ -796,7 +906,7 @@ mod tests {
                 "ignored-test",
             ],
         );
-        let report = check(&root, "main").unwrap();
+        let report = check(&root, "main", false).unwrap();
         assert_eq!(report.commits_checked(), 3);
         assert_eq!(
             codes(report.violations()),
@@ -826,7 +936,7 @@ mod tests {
             &root,
             &["merge", "-q", "--no-ff", "-m", "merge work", "work"],
         );
-        let report = check(&root, "main").unwrap();
+        let report = check(&root, "main", false).unwrap();
         assert_eq!(report.commits_checked(), 2);
         assert_eq!(
             codes(report.violations()),
@@ -837,10 +947,170 @@ mod tests {
     #[test]
     fn an_unavailable_base_fails_closed() {
         let root = repo("nobase", &["implementation-only"]);
-        let err = check(&root, "no-such-ref")
+        let err = check(&root, "no-such-ref", false)
             .err()
             .expect("an unavailable base is an error");
         assert!(err.contains("not available"), "{err}");
+    }
+
+    /// An integration test of a crate that the fixture policy classifies as
+    /// implementation unless the verifier pattern for it is in force.
+    const CRATE_TEST: &str = "crates/bin/nomos-cell/tests";
+
+    fn commit_file(root: &Path, path: &str, text: &str, message: &str) {
+        let target = root.join(path);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(target, text).unwrap();
+        git_out(root, &["add", "."]);
+        git_out(root, &["commit", "-q", "-m", message]);
+    }
+
+    /// A history in which the rule for integration tests lands mid-range, with
+    /// the release tag `v0.0.0` before all of it:
+    ///
+    /// 1. `old`, an integration test changed without a declaration, before the rule;
+    /// 2. `rule`, the commit the policy will name as the rule's age;
+    /// 3. the policy dates the pattern with that commit (declared);
+    /// 4. `new`, the same undeclared change after the rule.
+    fn rule_landing_mid_range(label: &str) -> PathBuf {
+        let root = crate::scratch::dir("trust", label);
+        git_out(&root, &["init", "-q", "-b", "main"]);
+        copy_tree(&fixtures().join("base"), &root);
+        git_out(&root, &["add", "."]);
+        git_out(&root, &["commit", "-q", "-m", "base"]);
+        git_out(&root, &["tag", "v0.0.0"]);
+        git_out(&root, &["checkout", "-q", "-b", "work"]);
+        commit_file(
+            &root,
+            &format!("{CRATE_TEST}/old.rs"),
+            "// old\n",
+            "Change an integration test before the rule",
+        );
+        commit_file(&root, "NOTES", "the rule lands\n", "The rule lands");
+        let rule = git_out(&root, &["rev-parse", "HEAD"]);
+        let policy = root.join(super::POLICY_PATH);
+        let mut text = std::fs::read_to_string(&policy).unwrap();
+        text.push_str(&format!("\n[since]\n\"crates/*/*/tests/\" = \"{rule}\"\n"));
+        std::fs::write(&policy, text).unwrap();
+        git_out(&root, &["add", "."]);
+        git_out(
+            &root,
+            &[
+                "commit",
+                "-q",
+                "-m",
+                "Date the rule\n\nTrust-Boundary: verifier",
+            ],
+        );
+        commit_file(
+            &root,
+            &format!("{CRATE_TEST}/new.rs"),
+            "// new\n",
+            "Change an integration test after the rule",
+        );
+        root
+    }
+
+    /// The paths of the violations, sorted: their order follows commit hashes.
+    fn paths_of(found: &[TrustViolation]) -> Vec<&str> {
+        let mut paths: Vec<&str> = found.iter().filter_map(TrustViolation::path).collect();
+        paths.sort_unstable();
+        paths
+    }
+
+    /// The release range holds a commit written before the rule. It is not
+    /// judged by the rule, and the commit after the rule still is.
+    #[test]
+    fn a_release_does_not_hold_a_commit_older_than_a_rule_to_it() {
+        let root = rule_landing_mid_range("release-epoch");
+        let report = check(&root, "v0.0.0", true).unwrap();
+        assert_eq!(report.commits_checked(), 4);
+        assert_eq!(
+            codes(report.violations()),
+            [TrustCode::UndeclaredOracleChange].into(),
+            "{:#?}",
+            report.violations()
+        );
+        assert_eq!(
+            paths_of(report.violations()),
+            [format!("{CRATE_TEST}/new.rs")]
+        );
+    }
+
+    /// Negative control: the same history on any other check holds both
+    /// commits to the rule, so a branch started before the rule gets no
+    /// exemption in review.
+    #[test]
+    fn a_pull_request_ignores_the_age_of_a_rule() {
+        let root = rule_landing_mid_range("pr-strict");
+        let report = check(&root, "main", false).unwrap();
+        assert_eq!(report.commits_checked(), 4);
+        assert_eq!(
+            paths_of(report.violations()),
+            [
+                format!("{CRATE_TEST}/new.rs"),
+                format!("{CRATE_TEST}/old.rs")
+            ]
+        );
+    }
+
+    /// Negative control: a release check takes a release tag as its base.
+    #[test]
+    fn a_release_check_whose_base_is_not_a_tag_fails() {
+        let root = rule_landing_mid_range("release-not-tag");
+        let err = check(&root, "main", true)
+            .err()
+            .expect("a branch is not a release");
+        assert!(err.contains("[trust-release-base-not-a-tag]"), "{err}");
+    }
+
+    /// Negative control: a rule whose age cannot be checked fails the check,
+    /// on every check, never skipped. A short SHA does not count.
+    #[test]
+    fn a_since_commit_that_cannot_be_resolved_fails_closed() {
+        for bad in ["0".repeat(40), "9624211".to_owned()] {
+            let root = rule_landing_mid_range(&format!("since-{}", bad.len()));
+            let policy = root.join(super::POLICY_PATH);
+            let text = std::fs::read_to_string(&policy).unwrap();
+            let start = text.find("[since]").unwrap();
+            let dated = format!(
+                "{}[since]\n\"crates/*/*/tests/\" = \"{bad}\"\n",
+                &text[..start]
+            );
+            std::fs::write(&policy, dated).unwrap();
+            for (base, release) in [("v0.0.0", true), ("main", false)] {
+                let err = check(&root, base, release)
+                    .err()
+                    .expect("an unresolved since is an error");
+                assert!(err.contains("[trust-since-unresolved]"), "{err}");
+            }
+        }
+    }
+
+    /// The repository's policy dates the rule for integration tests.
+    #[test]
+    fn the_repository_policy_dates_the_integration_test_rule() {
+        let text = std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../")
+                .join(super::POLICY_PATH),
+        )
+        .unwrap();
+        let policy: super::Policy = toml::from_str(&text).unwrap();
+        let dated = policy
+            .since
+            .get("crates/*/*/tests/")
+            .expect("the rule is dated");
+        assert!(super::full_sha(dated), "{dated}");
+        assert!(
+            policy
+                .protected
+                .verifier
+                .paths
+                .iter()
+                .any(|p| p == "crates/*/*/tests/"),
+            "the dated pattern is a verifier pattern"
+        );
     }
 
     #[test]
