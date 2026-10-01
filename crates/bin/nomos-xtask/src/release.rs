@@ -210,8 +210,9 @@ pub(crate) struct ChainReport {
     pub(crate) refusals: Vec<Refusal>,
 }
 
-/// The test that installs the package on Debian.
-const INSTALL_TEST: &str = "package_install";
+/// The tests that install the package on Debian: on the standard host, and
+/// on the minimal host.
+const INSTALL_TESTS: [&str; 2] = ["package_install", "minimal_install"];
 
 /// Checks that the package at `package` is the one every suite of
 /// `releases` ran and passed, from the records at `records`.
@@ -235,10 +236,9 @@ pub(crate) fn check_chain(
         let name = path
             .file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-        let install_test_passed = recorded
-            .runs
-            .iter()
-            .any(|r| r.test == INSTALL_TEST && r.exit_status == 0 && r.failed == 0);
+        let install_test_passed = recorded.runs.iter().any(|r| {
+            INSTALL_TESTS.contains(&r.test.as_str()) && r.exit_status == 0 && r.failed == 0
+        });
         match &recorded.package {
             None => refusals.push(refuse(
                 "release-suite-did-not-run-package",
@@ -269,7 +269,7 @@ pub(crate) fn check_chain(
                     if failing_run {
                         "a failing run".to_owned()
                     } else {
-                        format!("no passing {INSTALL_TEST} run")
+                        format!("no passing {} run", INSTALL_TESTS.join(" or "))
                     }
                 ),
             ));
@@ -518,6 +518,56 @@ mod tests {
             .collect();
         for kind in ["creation", "update", "deletion", "non_fast_forward"] {
             assert!(kinds.contains(&kind), "release tags: {kind}");
+        }
+    }
+
+    /// The security documents describe the release line the workspace is on:
+    /// the policy does not say there are no releases, the model is written,
+    /// and the index does not call it unwritten.
+    #[test]
+    fn the_security_documents_are_not_stale() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let version = crate::package::workspace_version(&root).unwrap();
+        let line: Vec<&str> = version.split('.').take(2).collect();
+        let line = line.join(".");
+        let policy = fs::read_to_string(root.join("SECURITY.md")).unwrap();
+        assert!(
+            !policy.contains("no releases yet"),
+            "SECURITY.md still says there are no releases"
+        );
+        assert!(
+            policy.contains(&format!("`{line}`")),
+            "SECURITY.md does not name the {line} line the workspace is on ({version})"
+        );
+        let model = fs::read_to_string(root.join("docs/security-model.md")).unwrap();
+        assert!(
+            !model.contains("Not written yet"),
+            "the security model is a placeholder"
+        );
+        for heading in [
+            "## Assets",
+            "## Principals",
+            "## Trust Boundaries",
+            "## Non-Goals",
+        ] {
+            assert!(
+                model.contains(heading),
+                "the security model has no {heading}"
+            );
+        }
+        let index = fs::read_to_string(root.join("docs/README.md")).unwrap();
+        assert!(
+            !index.contains("security-model.md](security-model.md) | Security model and hardening (not yet written)"),
+            "the docs index calls the security model unwritten"
+        );
+        // Every document the model cites for a claim exists.
+        for link in [
+            "formal/cell-commands.md",
+            "adr/0017-local-store.md",
+            "release-process.md",
+            "plans/results/alpha2-state-ownership.md",
+        ] {
+            assert!(root.join("docs").join(link).exists(), "{link}");
         }
     }
 

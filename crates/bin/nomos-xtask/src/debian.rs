@@ -39,6 +39,9 @@ pub(crate) const DEFAULT_TESTS: [(&str, &str); 6] = [
     ("nomos-cell", "package_install"),
 ];
 
+/// The test run on the minimal host, where the package is already installed.
+pub(crate) const MINIMAL_TEST: &str = "minimal_install";
+
 /// The test that installs the Cell's package, which needs the package in
 /// the container.
 pub(crate) const INSTALL_TEST: &str = "package_install";
@@ -65,8 +68,10 @@ pub(crate) struct PackageUnderTest {
     pub(crate) file: String,
     /// The SHA-256 of the package installed, which a release must publish.
     pub(crate) sha256: String,
-    /// The SHA-256 of the later version the upgrade test installs.
-    pub(crate) upgrade_sha256: String,
+    /// The SHA-256 of the later version the upgrade test installs, when the
+    /// run installs one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) upgrade_sha256: Option<String>,
 }
 
 /// The record of a run.
@@ -166,7 +171,34 @@ pub(crate) const MIRRORS: [&str; 3] = [
 /// proxy settings as build arguments, which Docker does not keep in the
 /// image. Each mirror is tried until one builds.
 fn build_image(root: &Path, release: &str) -> Result<String, String> {
-    let tag = format!("nomos-debian:{release}");
+    build_from(
+        &root.join("tests/fixtures/debian"),
+        &format!("nomos-debian:{release}"),
+        release,
+    )
+}
+
+/// The minimal host of `release`: a Debian base and the package at `deb`,
+/// and nothing else (`tests/fixtures/debian-minimal`). Returns the image's
+/// description and its tag.
+fn build_minimal(root: &Path, release: &str, deb: &Path) -> Result<(String, String), String> {
+    let context = root.join("target/debian-minimal");
+    let _ = std::fs::remove_dir_all(&context);
+    std::fs::create_dir_all(&context).map_err(|e| format!("{}: {e}", context.display()))?;
+    std::fs::copy(
+        root.join("tests/fixtures/debian-minimal/Dockerfile"),
+        context.join("Dockerfile"),
+    )
+    .map_err(|e| e.to_string())?;
+    std::fs::copy(deb, context.join("nomos-cell.deb"))
+        .map_err(|e| format!("{}: {e}", deb.display()))?;
+    let tag = format!("nomos-debian-minimal:{release}");
+    Ok((build_from(&context, &tag, release)?, tag))
+}
+
+/// Builds the image at `context` as `tag`, from `release`'s base, trying
+/// each mirror until one builds.
+fn build_from(context: &Path, tag: &str, release: &str) -> Result<String, String> {
     let mut failures = Vec::new();
     for mirror in MIRRORS {
         let mut cmd = Command::new("docker");
@@ -180,13 +212,12 @@ fn build_image(root: &Path, release: &str) -> Result<String, String> {
                 cmd.arg("--build-arg").arg(format!("{var}={value}"));
             }
         }
-        cmd.args(["-t", &tag])
-            .arg(root.join("tests/fixtures/debian"));
+        cmd.args(["-t", tag]).arg(context);
         match ok(&mut cmd) {
             Ok(_) => {
                 let id =
                     ok(Command::new("docker")
-                        .args(["image", "inspect", "--format", "{{.Id}}", &tag]))?;
+                        .args(["image", "inspect", "--format", "{{.Id}}", tag]))?;
                 return Ok(format!("{mirror}:{release} {tag} {}", id.trim()));
             }
             Err(e) => {
@@ -220,6 +251,9 @@ pub(crate) struct Selection<'a> {
     /// The SHA-256 the package in `package` must have, as the build that
     /// made it reported it.
     pub(crate) expect_sha256: Option<&'a str>,
+    /// The package to install on the minimal host (`debian-minimal`): the
+    /// image holds that package and nothing else, and the tests run on it.
+    pub(crate) minimal: Option<&'a Path>,
 }
 
 /// Builds each test as a static binary and returns them with their names.
@@ -276,18 +310,30 @@ pub(crate) fn run_suites(
     } else {
         None
     };
-    let package = match &debs {
-        Some((base, upgrade)) => Some(PackageUnderTest {
-            file: base
-                .file_name()
-                .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
-            sha256: crate::package::sha256(base)?,
-            upgrade_sha256: crate::package::sha256(upgrade)?,
-        }),
-        None => None,
+    let file_of = |p: &Path| {
+        p.file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
     };
-    let image = build_image(root, release)?;
-    let tag = format!("nomos-debian:{release}");
+    let package = match (&debs, selection.minimal) {
+        (Some((base, upgrade)), _) => Some(PackageUnderTest {
+            file: file_of(base),
+            sha256: crate::package::sha256(base)?,
+            upgrade_sha256: Some(crate::package::sha256(upgrade)?),
+        }),
+        (None, Some(deb)) => Some(PackageUnderTest {
+            file: file_of(deb),
+            sha256: crate::package::sha256(deb)?,
+            upgrade_sha256: None,
+        }),
+        (None, None) => None,
+    };
+    let (image, tag) = match selection.minimal {
+        Some(deb) => build_minimal(root, release, deb)?,
+        None => (
+            build_image(root, release)?,
+            format!("nomos-debian:{release}"),
+        ),
+    };
     let name = format!("nomos-debian-{release}-{}", std::process::id());
     let _ = Command::new("docker").args(["rm", "-f", &name]).output();
     ok(Command::new("docker").args([

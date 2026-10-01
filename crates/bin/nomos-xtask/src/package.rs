@@ -89,14 +89,43 @@ pub(crate) fn debian_version(cargo: &str) -> String {
     }
 }
 
-/// The package's control file.
+/// What the Cell runs or relies on at run time, and the Debian package that
+/// owns each, on Debian 12 and 13. The package's `Depends:` is the owners of
+/// these, so that installing it through apt either brings them or fails;
+/// nothing is listed because a CI image happens to have it.
+#[cfg(test)]
+pub(crate) const RUNTIME: [(&str, &str); 5] = [
+    // `enforce` runs it for a package change, after a `--simulate` run.
+    ("/usr/bin/apt-get", "apt"),
+    // `useradd`, `usermod`, and `userdel` change an account.
+    ("/usr/sbin/useradd", "passwd"),
+    ("/usr/sbin/usermod", "passwd"),
+    ("/usr/sbin/userdel", "passwd"),
+    // A unit is managed over the system bus, which systemd answers on and
+    // `dbus` provides, so both are needed.
+    ("D-Bus system bus", "dbus"),
+];
+
+/// The package's dependencies: the owners of [`RUNTIME`], and `systemd`,
+/// which the service and the timer need and whose bus the Cell talks to.
+pub(crate) const DEPENDS: [&str; 4] = ["systemd", "dbus", "passwd", "apt"];
+
+/// The package's control file, with the standard dependencies.
+#[cfg(test)]
 pub(crate) fn control(version: &str, installed_kib: u64) -> String {
+    control_with(version, installed_kib, &DEPENDS)
+}
+
+/// The control file with `depends` as its `Depends:`.
+pub(crate) fn control_with(version: &str, installed_kib: u64, depends: &[&str]) -> String {
+    let depends = depends.join(", ");
     format!(
         "Package: nomos-cell
 Version: {version}
 Architecture: amd64
 Maintainer: Nomos <nomos@users.noreply.github.com>
 Installed-Size: {installed_kib}
+Depends: {depends}
 Section: admin
 Priority: optional
 Homepage: https://github.com/kmosoti/nomos
@@ -162,6 +191,18 @@ pub(crate) fn assemble(
     out: &Path,
     version: &str,
 ) -> Result<PathBuf, String> {
+    assemble_with(root, binary, out, version, &DEPENDS)
+}
+
+/// [`assemble`], with `depends` as the package's `Depends:`: the negative
+/// control builds one that leaves a dependency out.
+pub(crate) fn assemble_with(
+    root: &Path,
+    binary: &Path,
+    out: &Path,
+    version: &str,
+    depends: &[&str],
+) -> Result<PathBuf, String> {
     use std::os::unix::fs::PermissionsExt;
     let stage = out.join(format!("stage-{version}"));
     let _ = std::fs::remove_dir_all(&stage);
@@ -194,7 +235,7 @@ pub(crate) fn assemble(
     let size = std::fs::metadata(&bin).map_err(|e| e.to_string())?.len();
     write(
         &stage.join("DEBIAN/control"),
-        &control(version, size.div_ceil(1024) + 8),
+        &control_with(version, size.div_ceil(1024) + 8, depends),
         0o644,
     )?;
     write(&stage.join("DEBIAN/postinst"), POSTINST, 0o755)?;
@@ -246,7 +287,7 @@ pub(crate) fn write_checksums(deb: &Path) -> Result<PathBuf, String> {
 }
 
 /// The one file in `dir` named `nomos-cell_*_amd64.deb`.
-fn only_deb(dir: &Path) -> Result<PathBuf, String> {
+pub(crate) fn only_deb(dir: &Path) -> Result<PathBuf, String> {
     let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
         .map_err(|e| format!("{}: {e}", dir.display()))?
         .filter_map(Result::ok)
@@ -363,5 +404,56 @@ mod tests {
         assert!(
             c.starts_with("Package: nomos-cell\nVersion: 0.1.0~alpha.1\nArchitecture: amd64\n")
         );
+        assert!(c.contains("\nDepends: systemd, dbus, passwd, apt\n"), "{c}");
+        assert!(
+            !control_with("1", 1, &["dbus", "passwd", "apt"]).contains("systemd"),
+            "the negative control leaves systemd out"
+        );
+    }
+
+    /// The inventory is the whole of what the adapter runs: a program the
+    /// adapter starts, or relies on, that the package does not account for
+    /// fails here, before it fails on a host.
+    #[test]
+    fn the_dependencies_account_for_everything_the_cell_runs() {
+        let adapter =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../adapters/nomos-substrate-linux/src");
+        let mut sources = Vec::new();
+        for entry in std::fs::read_dir(&adapter).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "rs") {
+                sources.push((
+                    path.file_name().unwrap().to_string_lossy().into_owned(),
+                    std::fs::read_to_string(&path).unwrap(),
+                ));
+            }
+        }
+        // Every program the adapter names is in the inventory, and its owner
+        // is a dependency.
+        for (program, owner) in RUNTIME.iter().filter(|(p, _)| p.starts_with('/')) {
+            assert!(
+                sources
+                    .iter()
+                    .any(|(_, s)| s.contains(&format!("\"{program}\""))),
+                "{program} is in the inventory and the adapter no longer names it"
+            );
+            assert!(DEPENDS.contains(owner), "{program} is owned by {owner}");
+        }
+        // And the adapter starts no other program: a new place that runs one
+        // must be added to the inventory, and to this count.
+        let starts: usize = sources
+            .iter()
+            .map(|(_, s)| s.matches("Command::new(").count())
+            .sum();
+        assert_eq!(
+            starts, 2,
+            "a new place runs a program: account for it in RUNTIME and DEPENDS"
+        );
+        // The service manager is reached over D-Bus, through zbus.
+        assert!(
+            sources.iter().any(|(_, s)| s.contains("zbus")),
+            "the units no longer use D-Bus: revisit systemd and dbus"
+        );
+        assert!(DEPENDS.contains(&"systemd") && DEPENDS.contains(&"dbus"));
     }
 }

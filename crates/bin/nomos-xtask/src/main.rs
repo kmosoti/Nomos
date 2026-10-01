@@ -87,6 +87,12 @@
 //!   is the map they generate. `evidence-tests write` regenerates both.
 //! - `check-workflow-pins [--dir <dir>]`: every action a workflow uses is
 //!   pinned to a full commit SHA.
+//! - `debian-minimal --release <12|13> --package <dir> [--control omit-systemd]`:
+//!   the Cell's package on a minimal Debian host, the base image and the
+//!   package and nothing else (alpha.2 issue #35). Every other package on it
+//!   is one the package's `Depends:` pulled in. With `--control omit-systemd`
+//!   it builds the package without that dependency and passes only when the
+//!   host then cannot boot systemd.
 //! - `package [--version <v>] [--out <dir>] [--upgrade-fixture <dir>]`: the Cell as a Debian package
 //!   (`16-alpha-release`). Builds `nomos-cell` as a static release binary
 //!   and assembles `nomos-cell_<version>_amd64.deb` with its service, timer,
@@ -144,6 +150,7 @@ const USAGE: &str = "usage:
   cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]
   cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]
   cargo xtask debian              --release <12|13> [--test <package>/<test>] [--package <dir> [--expect-sha256 <hex>]] [--out <file.json>]
+  cargo xtask debian-minimal      --release <12|13> --package <dir> [--expect-sha256 <hex>] [--control omit-systemd] [--out <file.json>]
   cargo xtask package             [--version <debian-version>] [--out <dir>] [--upgrade-fixture <dir>]";
 
 fn main() -> ExitCode {
@@ -168,6 +175,7 @@ fn main() -> ExitCode {
         ["hermeticity", rest @ ..] => hermeticity(rest),
         ["generator-variance", rest @ ..] => generator_variance(rest),
         ["debian", rest @ ..] => debian(rest),
+        ["debian-minimal", rest @ ..] => debian_minimal(rest),
         ["package", rest @ ..] => package(rest),
         ["research", "list", dir] => list(Path::new(dir)),
         ["research", "reproduce", rest @ ..] => reproduce(rest),
@@ -271,6 +279,74 @@ fn debian(rest: &[&str]) -> Result<(), String> {
         ..debian::Selection::default()
     };
     let record = debian::run_suites(&root, release, &tests, selection)?;
+    let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
+    if let Some(out) = option(rest, "--out")? {
+        std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
+    }
+    print!("{rendered}");
+    if record.passed() {
+        Ok(())
+    } else {
+        Err(format!("the suites failed on {}", record.os_release))
+    }
+}
+
+/// The Cell's package on a minimal Debian host (alpha.2 issue #35): the base
+/// image and the package, nothing else, so a runtime dependency the package
+/// does not declare is missing. With `--control omit-systemd` it builds the
+/// package without that dependency and passes only if the host then fails
+/// to boot systemd, the negative control of the check.
+fn debian_minimal(rest: &[&str]) -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let release =
+        option(rest, "--release")?.ok_or_else(|| format!("--release is required\n{USAGE}"))?;
+    let dir = PathBuf::from(
+        option(rest, "--package")?.ok_or_else(|| format!("--package is required\n{USAGE}"))?,
+    );
+    let (deb, _) = package::prebuilt(&dir, option(rest, "--expect-sha256")?)?;
+    let tests = vec![("nomos-cell".to_string(), debian::MINIMAL_TEST.to_string())];
+    let control = option(rest, "--control")?;
+    let deb = match control {
+        None => deb,
+        Some("omit-systemd") => {
+            // The same binary, with the dependency the host needs left out.
+            let out = root.join("target/debian-minimal-control");
+            let binary = package::binary(&root)?;
+            let depends: Vec<&str> = package::DEPENDS
+                .iter()
+                .copied()
+                .filter(|d| *d != "systemd")
+                .collect();
+            package::assemble_with(&root, &binary, &out, "0.0.0~control", &depends)?
+        }
+        Some(other) => return Err(format!("--control {other}: expected omit-systemd")),
+    };
+    let selection = debian::Selection {
+        minimal: Some(&deb),
+        ..debian::Selection::default()
+    };
+    let outcome = debian::run_suites(&root, release, &tests, selection);
+    if control.is_some() {
+        return match outcome {
+            // Without systemd the image has no init to start: the container
+            // cannot be created, or it never reaches a running systemd.
+            Err(e)
+                if e.contains("/lib/systemd/systemd") || e.contains("systemd in the container") =>
+            {
+                println!(
+                    "control fired as expected: without its dependency on systemd the minimal host never boots systemd ({})",
+                    e.lines().next().unwrap_or_default()
+                );
+                Ok(())
+            }
+            Err(e) => Err(format!("the control failed, but not as expected: {e}")),
+            Ok(record) => Err(format!(
+                "the control did not fire: the minimal host without the dependency ran its suites on {}",
+                record.os_release
+            )),
+        };
+    }
+    let record = outcome?;
     let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
     if let Some(out) = option(rest, "--out")? {
         std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
