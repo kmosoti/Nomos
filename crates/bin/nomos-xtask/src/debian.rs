@@ -59,6 +59,16 @@ pub(crate) struct Run {
     pub(crate) stdout_sha256: String,
 }
 
+/// The package a run installed, by the digests of its bytes.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub(crate) struct PackageUnderTest {
+    pub(crate) file: String,
+    /// The SHA-256 of the package installed, which a release must publish.
+    pub(crate) sha256: String,
+    /// The SHA-256 of the later version the upgrade test installs.
+    pub(crate) upgrade_sha256: String,
+}
+
 /// The record of a run.
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct Record {
@@ -68,6 +78,8 @@ pub(crate) struct Record {
     pub(crate) os_release: String,
     pub(crate) kernel: String,
     pub(crate) systemd: String,
+    /// The package the install test ran, when the run included it.
+    pub(crate) package: Option<PackageUnderTest>,
     pub(crate) runs: Vec<Run>,
 }
 
@@ -201,6 +213,13 @@ pub(crate) struct Selection<'a> {
     /// a caller that runs a test to see it fail, as the mutant runner
     /// does, would otherwise print failures that are its expected result.
     pub(crate) quiet: bool,
+    /// A directory holding the package to install, built once by
+    /// `cargo xtask package`: the install test runs those bytes instead of
+    /// building its own.
+    pub(crate) package: Option<&'a Path>,
+    /// The SHA-256 the package in `package` must have, as the build that
+    /// made it reported it.
+    pub(crate) expect_sha256: Option<&'a str>,
 }
 
 /// Builds each test as a static binary and returns them with their names.
@@ -247,14 +266,25 @@ pub(crate) fn run_suites(
         return Err(format!("release {release}: one of {RELEASES:?}"));
     }
     let binaries = build_tests(root, tests, selection.target_dir)?;
-    // The install test's packages, built before the container starts.
+    // The install test's packages: the ones the release build made, when it
+    // names them, and otherwise built here, before the container starts.
     let debs = if tests.iter().any(|(_, t)| t == INSTALL_TEST) {
-        Some(crate::package::base_and_upgrade(
-            root,
-            &root.join("target/deb"),
-        )?)
+        Some(match selection.package {
+            Some(dir) => crate::package::prebuilt(dir, selection.expect_sha256)?,
+            None => crate::package::base_and_upgrade(root, &root.join("target/deb"))?,
+        })
     } else {
         None
+    };
+    let package = match &debs {
+        Some((base, upgrade)) => Some(PackageUnderTest {
+            file: base
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+            sha256: crate::package::sha256(base)?,
+            upgrade_sha256: crate::package::sha256(upgrade)?,
+        }),
+        None => None,
     };
     let image = build_image(root, release)?;
     let tag = format!("nomos-debian:{release}");
@@ -344,6 +374,7 @@ pub(crate) fn run_suites(
         os_release,
         kernel,
         systemd,
+        package,
         runs,
     })
 }
@@ -404,6 +435,7 @@ mod tests {
             os_release: String::new(),
             kernel: String::new(),
             systemd: "running".into(),
+            package: None,
             runs,
         };
         assert!(!record(vec![]).passed());

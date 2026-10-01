@@ -8,13 +8,17 @@ on:
     - cron: "17 3 * * 1"
   workflow_dispatch:
 
+# Every action is pinned to a full commit SHA, with its tag in a comment:
+# a tag moves, and the release job runs with `contents: write`.
+# `cargo xtask check-workflow-pins` fails on any that is not, and Dependabot
+# (.github/dependabot.yml) proposes the updates.
 jobs:
   check:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
           components: rustfmt, clippy
@@ -40,6 +44,12 @@ jobs:
       # The authoring kit's build runs no procedural macro and no build
       # script (canon-ir.md, Provenance).
       - run: cargo xtask check-canon-build
+      # Every action is pinned to a full commit SHA.
+      - run: cargo xtask check-workflow-pins
+      # The tests that judge the code are protected: an integration test by
+      # its path, an inline one the corpus names by its pin, and the oracle
+      # map is the one they generate (verification-strategy.md, Test Taxonomy).
+      - run: cargo xtask check-evidence-tests
       # Every receipt names a registered check and claims passed only with
       # evidence of a run.
       - run: cargo xtask receipts validate
@@ -56,23 +66,61 @@ jobs:
       # container, through the same harness as the debian job.
       - run: sudo env "PATH=$PATH" "HOME=$HOME" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" cargo xtask mutants semantic
 
+  # The package is built once, here, and its digest is computed at once. The
+  # Debian suites install these exact bytes, and a release publishes them
+  # (verification-strategy.md, Release Admission): no job rebuilds it.
+  package:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      sha256: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
+        with:
+          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          targets: x86_64-unknown-linux-musl
+      # The package, with SHA256SUMS beside it, and the later version the
+      # upgrade test installs, which is validated and never published.
+      - run: cargo xtask package --out dist --upgrade-fixture dist/upgrade
+      - id: digest
+        run: echo "sha256=$(sha256sum dist/nomos-cell_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package
+          path: dist
+          if-no-files-found: error
+
   # The Linux suites on disposable Debian hosts with systemd as PID 1
   # (Phase 1 plan, decision 4): the tests built as static binaries and run
-  # as root in a fresh privileged container of each release.
+  # as root in a fresh privileged container of each release, with the
+  # package the `package` job built installed, byte for byte.
   debian:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
+    needs: package
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         release: ["12", "13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
           targets: x86_64-unknown-linux-musl
-      - run: cargo xtask debian --release ${{ matrix.release }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package
+          path: dist
+      # The harness refuses a package whose digest is not the one the build
+      # job reported, and records the digest it installed.
+      - run: cargo xtask debian --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-${{ matrix.release }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: debian-${{ matrix.release }}
+          path: debian-${{ matrix.release }}.json
+          if-no-files-found: error
 
   # Every commit since the merge base declares the oracle it changes
   # (ADR 0015): a `Trust-Boundary:` line for specification or verifier
@@ -82,16 +130,26 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
       - name: Oracle changes are declared
         env:
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
-        run: cargo xtask check-trust-boundary --base "$BASE"
+          DEFAULT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # A release is checked against the previous release, never
+            # against main, which may be the tagged commit itself. With no
+            # previous release, or a base the gate refuses, the job fails.
+            base="$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^")"
+            cargo xtask check-release-base --base "$base"
+          else
+            base="$DEFAULT_BASE"
+          fi
+          cargo xtask check-trust-boundary --base "$base"
 
   # Accepted research snapshots never change; a revision is a new dated snapshot.
   # Checksums cannot catch a file and its manifest rewritten together, so this
@@ -99,22 +157,31 @@ jobs:
   #   pull request                -> the base branch
   #   push to the default branch  -> the previous head, github.event.before
   #   push to any other branch    -> the default branch
+  #   push of a release tag       -> the previous release tag, which
+  #                                  check-release-base must accept
   # A base that cannot be resolved, such as a head rewritten by a force push,
   # fails the job. The freeze never passes a tree it could not compare.
   research-frozen:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
       - name: Accepted research snapshots are unchanged
         env:
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
-        run: cargo xtask research frozen --base "$BASE"
+          DEFAULT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            base="$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^")"
+            cargo xtask check-release-base --base "$base"
+          else
+            base="$DEFAULT_BASE"
+          fi
+          cargo xtask research frozen --base "$base"
 
   # Exploratory: cargo-mutants on a schedule or by hand, never on push or
   # pull request. It uploads its outcomes and gates nothing; a surviving
@@ -131,7 +198,7 @@ jobs:
       matrix:
         shard: ${{ github.event_name == 'schedule' && fromJSON('[0]') || fromJSON('[0, 1, 2, 3]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Choose what to mutate
@@ -151,7 +218,7 @@ jobs:
           else
             echo "args=--shard ${{ matrix.shard }}/4" >> "$GITHUB_OUTPUT"
           fi
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         if: steps.scope.outputs.skip != 'true'
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
@@ -161,7 +228,7 @@ jobs:
       - name: Mutate
         if: steps.scope.outputs.skip != 'true'
         run: cargo mutants --workspace --no-shuffle -j 2 ${{ steps.scope.outputs.args }} --output target/mutants
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.scope.outputs.skip != 'true'
         with:
           name: mutants-out-${{ matrix.shard }}
@@ -172,7 +239,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Prebuilt release binary, checksum-verified: about a second, versus
       # minutes to compile from source. Too quick to be worth caching.
       - name: Install Vale
@@ -222,35 +289,68 @@ jobs:
           done
 
   # A release: on a tag `v<version>`, once the required checks pass on the
-  # tagged commit, the Cell's Debian package is built and attached to a
-  # GitHub pre-release whose notes are docs/releases/<tag>.md. The asset's
-  # name spells the version with `-`, since GitHub renames `~`; the package
-  # inside carries Debian's `~`.
+  # tagged commit against the previous release, the package the `package`
+  # job built, which the Debian 12 and 13 suites installed, is attached to a
+  # GitHub pre-release whose notes are docs/releases/<tag>.md. Nothing is
+  # rebuilt: `check-release-chain` refuses when the bytes published are not
+  # the bytes either suite recorded, and RELEASE-EVIDENCE.json ties the tag,
+  # the commit, the digest, and both suites together. The asset's name
+  # spells the version with `-`, since GitHub renames `~`; the package inside
+  # carries Debian's `~`.
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [check, debian, trust-boundary, research-frozen]
+    needs: [check, package, debian, trust-boundary, research-frozen]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write # the provenance attestation
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
-          targets: x86_64-unknown-linux-musl
-      - run: cargo xtask package --out dist
-      - run: |
-          for deb in dist/*.deb; do
-            name="$(basename "$deb")"
-            mv "$deb" "dist/${name//\~/-}"
-          done
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package
+          path: dist
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: debian-*
+          path: records
+          merge-multiple: true
+      - name: The package is the one the suites installed
+        run: |
+          deb="$(ls dist/nomos-cell_*_amd64.deb)"
+          test "$(sha256sum "$deb" | cut -d' ' -f1)" = "${{ needs.package.outputs.sha256 }}"
+          mkdir release
+          cargo xtask check-release-chain --package "$deb" \
+            --record records/debian-12.json --record records/debian-13.json \
+            --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" \
+            --out release/RELEASE-EVIDENCE.json
+      - name: Publish the same bytes
+        run: |
+          deb="$(ls dist/nomos-cell_*_amd64.deb)"
+          name="$(basename "$deb")"
+          cp "$deb" "release/${name//\~/-}"
           # Names without the directory, so `sha256sum --check` works
           # beside the downloaded files.
-          (cd dist && sha256sum -- *.deb | tee SHA256SUMS)
-      - uses: softprops/action-gh-release@v2
+          (cd release && sha256sum -- *.deb | tee SHA256SUMS)
+          test "$(cut -d' ' -f1 release/SHA256SUMS)" = "${{ needs.package.outputs.sha256 }}"
+          {
+            cat "docs/releases/${GITHUB_REF_NAME}.md"
+            printf '\n## Artifact\n\nThe package attached to this release is the file the Debian 12 and 13 suites installed, built once from commit `%s`. Its SHA-256 is `%s`. `RELEASE-EVIDENCE.json` ties the tag, the commit, that digest, and both suites'"'"' records together, and the release carries a provenance attestation for it, which `gh attestation verify` checks.\n' "$GITHUB_SHA" "${{ needs.package.outputs.sha256 }}"
+          } > release/NOTES.md
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: release/*.deb
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           prerelease: true
-          body_path: docs/releases/${{ github.ref_name }}.md
+          body_path: release/NOTES.md
           files: |
-            dist/*.deb
-            dist/SHA256SUMS
+            release/*.deb
+            release/SHA256SUMS
+            release/RELEASE-EVIDENCE.json

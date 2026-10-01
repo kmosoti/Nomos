@@ -231,6 +231,71 @@ pub(crate) fn base_and_upgrade(root: &Path, out: &Path) -> Result<(PathBuf, Path
     Ok((base, upgrade))
 }
 
+/// Writes `SHA256SUMS` beside `deb`: the digest `sha256sum --check` reads,
+/// of the package as it was built.
+pub(crate) fn write_checksums(deb: &Path) -> Result<PathBuf, String> {
+    let dir = deb.parent().ok_or("a package has a directory")?;
+    let name = deb
+        .file_name()
+        .ok_or("a package has a name")?
+        .to_string_lossy();
+    let sums = dir.join("SHA256SUMS");
+    std::fs::write(&sums, format!("{}  {name}\n", sha256(deb)?))
+        .map_err(|e| format!("{}: {e}", sums.display()))?;
+    Ok(sums)
+}
+
+/// The one file in `dir` named `nomos-cell_*_amd64.deb`.
+fn only_deb(dir: &Path) -> Result<PathBuf, String> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name().is_some_and(|n| {
+                let n = n.to_string_lossy();
+                n.starts_with("nomos-cell_") && n.ends_with("_amd64.deb")
+            })
+        })
+        .collect();
+    found.sort();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        n => Err(format!(
+            "{} holds {n} packages named nomos-cell_*_amd64.deb; it must hold exactly one",
+            dir.display()
+        )),
+    }
+}
+
+/// The package and its upgrade fixture built once by `cargo xtask package
+/// --upgrade-fixture`, in `dir` and `dir/upgrade`. The package must have the
+/// digest `SHA256SUMS` beside it records, and `expect`, when given: the
+/// digest the build that made it reported.
+pub(crate) fn prebuilt(dir: &Path, expect: Option<&str>) -> Result<(PathBuf, PathBuf), String> {
+    let base = only_deb(dir)?;
+    let upgrade = only_deb(&dir.join("upgrade"))?;
+    let digest = sha256(&base)?;
+    let sums = std::fs::read_to_string(dir.join("SHA256SUMS"))
+        .map_err(|e| format!("{}: {e}", dir.join("SHA256SUMS").display()))?;
+    let name = base
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    if !sums.lines().any(|l| l == format!("{digest}  {name}")) {
+        return Err(format!(
+            "{name} is not the package SHA256SUMS records: its digest is {digest}"
+        ));
+    }
+    if let Some(expected) = expect
+        && expected != digest
+    {
+        return Err(format!(
+            "{name} has digest {digest}, not the {expected} the build reported: it was replaced after it was built"
+        ));
+    }
+    Ok((base, upgrade))
+}
+
 /// The SHA-256 of a file, in hex.
 pub(crate) fn sha256(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -243,6 +308,36 @@ pub(crate) fn sha256(path: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A package the Debian suites install must be the one the build wrote
+    /// and reported: replaced, or reported differently, it is refused.
+    #[test]
+    fn a_package_that_is_not_the_one_built_is_refused() {
+        let dir = crate::scratch::dir("package", "prebuilt");
+        let upgrade = dir.join("upgrade");
+        std::fs::create_dir_all(&upgrade).unwrap();
+        let base = dir.join("nomos-cell_1.0.0_amd64.deb");
+        std::fs::write(&base, b"built").unwrap();
+        std::fs::write(upgrade.join("nomos-cell_1.0.0+upgrade1_amd64.deb"), b"up").unwrap();
+        write_checksums(&base).unwrap();
+        let digest = sha256(&base).unwrap();
+        assert!(prebuilt(&dir, Some(digest.as_str())).is_ok());
+        assert!(prebuilt(&dir, None).is_ok());
+        let wrong = "0".repeat(64);
+        assert!(
+            prebuilt(&dir, Some(wrong.as_str()))
+                .unwrap_err()
+                .contains("replaced")
+        );
+        std::fs::write(&base, b"replaced after the build").unwrap();
+        assert!(
+            prebuilt(&dir, None)
+                .unwrap_err()
+                .contains("not the package SHA256SUMS records")
+        );
+        std::fs::remove_file(dir.join("SHA256SUMS")).unwrap();
+        assert!(prebuilt(&dir, None).is_err());
+    }
 
     #[test]
     fn a_cargo_pre_release_sorts_before_its_release_in_debian() {

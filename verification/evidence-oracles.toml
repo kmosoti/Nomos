@@ -1,0 +1,97 @@
+# The pins of the evidence-bearing tests that live inside production source
+# files (verification-strategy.md, Test Taxonomy). Written by
+# `cargo xtask evidence-tests write`; checked by `check-evidence-tests`.
+# A pin is the SHA-256 of the test's text, attributes included, with
+# whitespace collapsed. This file is a verifier file: editing a pinned
+# test is a commit that declares `Trust-Boundary: verifier` and carries
+# its new pin.
+
+[[oracle]]
+test = "action::tests::succeeded_requires_verifying"
+file = "crates/core/nomos-core/src/action.rs"
+sha256 = "0a29f8db2e2cbf86dd856ecc0852b748b7f24b74bd64143ec952a5453de6c05c"
+
+[[oracle]]
+test = "action::tests::timed_out_stays_unknown"
+file = "crates/core/nomos-core/src/action.rs"
+sha256 = "f78e2f259c86607b40125a6324fa560a8a4f72c4967d7c335a5df31f58a004dc"
+
+[[oracle]]
+test = "assessment::tests::a_failed_observation_is_indeterminate"
+file = "crates/core/nomos-core/src/assessment.rs"
+sha256 = "71dbf979e19059ee166fe9722a5f69c33cd1870328c5e21673708595d424b957"
+
+[[oracle]]
+test = "assessment::tests::a_matching_observation_is_satisfied_whatever_its_age"
+file = "crates/core/nomos-core/src/assessment.rs"
+sha256 = "d2a7972aab03b5a068848cf092d95946bb4ac507867ffb26cf23e81e69ef1390"
+
+[[oracle]]
+test = "assessment::tests::indeterminate_assessments_do_not_reach_the_plan"
+file = "crates/core/nomos-core/src/assessment.rs"
+sha256 = "d604a8f5f86e864b8dbcf322208db10937e7c269ac85887ab36c2b5469c39740"
+
+[[oracle]]
+test = "frontier::tests::a_changed_source_beside_a_failed_one_does_not_activate"
+file = "crates/core/nomos-warp/src/frontier.rs"
+sha256 = "f90b77c08f0e6d947472d091e275ccf377007516615705aab4c2b50eab3e0fd2"
+
+[[oracle]]
+test = "frontier::tests::a_failed_after_edge_does_not_block"
+file = "crates/core/nomos-warp/src/frontier.rs"
+sha256 = "261057dddb522964809197f343da7c2ed171d08665ff18676e8c5a2c7ad7742a"
+
+[[oracle]]
+test = "frontier::tests::a_failed_requirement_blocks_the_dependent"
+file = "crates/core/nomos-warp/src/frontier.rs"
+sha256 = "1dcdbd4b19bd9962c8825a6e8dc0f640a79f90eff5f939b9679ef68b10b6e5a5"
+
+[[oracle]]
+test = "frontier::tests::a_failed_trigger_blocks_the_refresh_and_what_requires_it"
+file = "crates/core/nomos-warp/src/frontier.rs"
+sha256 = "00a56eb24f2a3f68b60aeb2e98a68c1042c41c3ffeb7b0d9ed7e814ac3364eaa"
+
+[[oracle]]
+test = "frontier::tests::an_owed_refresh_runs_when_its_group_is_disabled"
+file = "crates/core/nomos-warp/src/frontier.rs"
+sha256 = "89951c02ccebc4d80a30180f7e6917e84c91709c8dd60cd38c4233b4f23a08aa"
+
+[[oracle]]
+test = "graph::tests::a_cycle_through_after_edges_is_rejected"
+file = "crates/core/nomos-warp/src/graph.rs"
+sha256 = "31c5d5a927ffc11c55b6eb405a5fadaaa3a9cc1ad83317003c13c220b4f4c96f"
+
+[[oracle]]
+test = "kernel::tests::a_unit_refreshes_exactly_when_its_source_acts"
+file = "crates/app/nomos-app/src/kernel/tests.rs"
+sha256 = "7ed005f698d7e865d6207cef540f8890e305370883c2b0ecd3858e66f3e555b9"
+
+[[oracle]]
+test = "log::tests::a_corrupted_record_fails_the_open"
+file = "crates/adapters/nomos-store-fs/src/log.rs"
+sha256 = "fa594c70a6d51793534b68a7d61ee6c4b8f8572fa1763b757875cd5ccc969635"
+
+[[oracle]]
+test = "packages::tests::the_status_database_reads_as_the_table_says"
+file = "crates/adapters/nomos-substrate-linux/src/packages.rs"
+sha256 = "48cca5e1684794ddc4e43d1b9e5bcf19c187e578b4e58212418be0e8882cc54f"
+
+[[oracle]]
+test = "plan::tests::a_stale_generation_is_rejected"
+file = "crates/core/nomos-core/src/plan.rs"
+sha256 = "8fb3d9b22ce9909b1812c6c34b8a8393434bb2d728376f0450b8f222f6d84f40"
+
+[[oracle]]
+test = "render::tests::each_outcome_exits_with_the_status_the_table_names"
+file = "crates/bin/nomos-cell/src/render.rs"
+sha256 = "8b0f20ffde74afc77d9205226c576de04912f98390b283baf16d97c794e04d33"
+
+[[oracle]]
+test = "select::tests::reserved_disruption_counts_against_the_budget"
+file = "crates/core/nomos-warp/src/select.rs"
+sha256 = "7aacf9f9a2dd22ce2aabf439fdbbefdbe7a6c43d86413c1c2405d1afa3a01073"
+
+[[oracle]]
+test = "tests::a_changed_blob_is_corruption"
+file = "crates/adapters/nomos-store-fs/src/lib.rs"
+sha256 = "ee23fb740a2f81419cff5dc4d66a34fc618812288d7a4c3d07b310ef186070df"

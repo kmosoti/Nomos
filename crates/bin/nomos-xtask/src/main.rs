@@ -73,7 +73,21 @@
 //!   each in the container as root, and prints the record as JSON; fails
 //!   when the harness cannot run or any test fails. Needs Docker and the
 //!   `x86_64-unknown-linux-musl` target.
-//! - `package [--version <v>] [--out <dir>]`: the Cell as a Debian package
+//! - `check-release-base --base <tag> [--main <ref>]`: the trusted base of a
+//!   release is the previous release tag (`docs/formal/verification-strategy.md`,
+//!   Release Admission). Refuses, with a stable code, a base that cannot be
+//!   resolved, is not a release tag, is the tagged commit, or is not its
+//!   ancestor, and a tagged commit `main` does not contain.
+//! - `check-release-chain --package <deb> --record <file>... --tag <tag>
+//!   --commit <sha> [--out <file>]`: every Debian suite ran the exact package
+//!   the release publishes, and passed. Writes the release's evidence file.
+//! - `check-evidence-tests`: the evidence-bearing tests the semantic-mutant
+//!   corpus names are protected by their path or by their pin in
+//!   `verification/evidence-oracles.toml`, and `docs/formal/oracle-map.md`
+//!   is the map they generate. `evidence-tests write` regenerates both.
+//! - `check-workflow-pins [--dir <dir>]`: every action a workflow uses is
+//!   pinned to a full commit SHA.
+//! - `package [--version <v>] [--out <dir>] [--upgrade-fixture <dir>]`: the Cell as a Debian package
 //!   (`16-alpha-release`). Builds `nomos-cell` as a static release binary
 //!   and assembles `nomos-cell_<version>_amd64.deb` with its service, timer,
 //!   and maintainer scripts, at the workspace's version in Debian form
@@ -87,6 +101,7 @@ mod canon_build;
 mod counterexamples;
 mod debian;
 mod error;
+mod evidence;
 mod freeze;
 mod generator_variance;
 mod graph;
@@ -94,8 +109,10 @@ mod hermeticity;
 mod layers;
 mod manifest;
 mod package;
+mod pins;
 mod purity;
 mod receipt;
+mod release;
 #[cfg(test)]
 mod scratch;
 mod semantic;
@@ -116,13 +133,18 @@ const USAGE: &str = "usage:
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
   cargo xtask check-canon-build   [--manifest-path <Cargo.toml>]
   cargo xtask check-trust-boundary --base <ref>
+  cargo xtask check-release-base  --base <tag> [--main <ref>]
+  cargo xtask check-release-chain --package <deb> --record <debian-record.json>... --tag <tag> --commit <sha> [--out <evidence.json>]
+  cargo xtask check-evidence-tests
+  cargo xtask evidence-tests      write
+  cargo xtask check-workflow-pins [--dir <workflows-dir>]
   cargo xtask receipts validate   [--dir <receipts-dir>]
   cargo xtask receipts record     <check-id> --out <file.ndjson> [--unchecked <text>] [--properties a,b] -- <command...>
   cargo xtask mutants semantic    [--corpus <corpus.toml>]
   cargo xtask hermeticity         [--scratch <dir>] [--out <file.json>] [--control build-script]
   cargo xtask generator-variance  [--candidates <dir>] [--out <file.json>]
-  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--out <file.json>]
-  cargo xtask package             [--version <debian-version>] [--out <dir>]";
+  cargo xtask debian              --release <12|13> [--test <package>/<test>] [--package <dir> [--expect-sha256 <hex>]] [--out <file.json>]
+  cargo xtask package             [--version <debian-version>] [--out <dir>] [--upgrade-fixture <dir>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -135,6 +157,11 @@ fn main() -> ExitCode {
         ["check-core-purity", rest @ ..] => check_core_purity(rest),
         ["check-canon-build", rest @ ..] => check_canon_build(rest),
         ["check-trust-boundary", rest @ ..] => check_trust_boundary(rest),
+        ["check-release-base", rest @ ..] => check_release_base(rest),
+        ["check-release-chain", rest @ ..] => check_release_chain(rest),
+        ["check-evidence-tests"] => check_evidence_tests(),
+        ["evidence-tests", "write"] => evidence_tests_write(),
+        ["check-workflow-pins", rest @ ..] => check_workflow_pins(rest),
         ["receipts", "validate", rest @ ..] => receipts_validate(rest),
         ["receipts", "record", check_id, rest @ ..] => receipts_record(check_id, rest),
         ["mutants", "semantic", rest @ ..] => mutants_semantic(rest),
@@ -237,7 +264,13 @@ fn debian(rest: &[&str]) -> Result<(), String> {
             .map(|(p, t)| (p.to_string(), t.to_string()))
             .collect(),
     };
-    let record = debian::run_suites(&root, release, &tests, debian::Selection::default())?;
+    let package = option(rest, "--package")?.map(PathBuf::from);
+    let selection = debian::Selection {
+        package: package.as_deref(),
+        expect_sha256: option(rest, "--expect-sha256")?,
+        ..debian::Selection::default()
+    };
+    let record = debian::run_suites(&root, release, &tests, selection)?;
     let rendered = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())? + "\n";
     if let Some(out) = option(rest, "--out")? {
         std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
@@ -260,7 +293,16 @@ fn package(rest: &[&str]) -> Result<(), String> {
     std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
     let binary = package::binary(&root)?;
     let deb = package::assemble(&root, &binary, &out, &version)?;
+    package::write_checksums(&deb)?;
     println!("{} {}", deb.display(), package::sha256(&deb)?);
+    // The upgrade fixture is the same binary at a later version, for the
+    // install test; it is validated, never published.
+    if let Some(dir) = option(rest, "--upgrade-fixture")? {
+        let dir = root.join(dir);
+        std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let fixture = package::assemble(&root, &binary, &dir, &format!("{version}+upgrade1"))?;
+        println!("{} {}", fixture.display(), package::sha256(&fixture)?);
+    }
     Ok(())
 }
 
@@ -400,6 +442,120 @@ fn check_canon_build(rest: &[&str]) -> Result<(), String> {
             "{} package(s) run code at build time; see docs/formal/canon-ir.md, Provenance",
             violations.len()
         ))
+    }
+}
+
+/// Every value of a repeated `--flag <value>`.
+fn options<'a>(rest: &'a [&'a str], flag: &str) -> Vec<&'a str> {
+    rest.windows(2)
+        .filter(|w| w[0] == flag)
+        .map(|w| w[1])
+        .collect()
+}
+
+fn check_release_base(rest: &[&str]) -> Result<(), String> {
+    let base =
+        option(rest, "--base")?.ok_or_else(|| format!("--base <tag> is required\n{USAGE}"))?;
+    let main = option(rest, "--main")?.unwrap_or("origin/main");
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let report = release::check_base(&root, base, main)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+    );
+    for refusal in &report.refusals {
+        eprintln!("REFUSED {refusal}");
+    }
+    if report.refusals.is_empty() {
+        println!(
+            "release {} is checked against {base}, {} commit(s) before it, and is on {main}",
+            report.head,
+            report.commits_since_base.unwrap_or(0)
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "{} refusal(s): the release has no trusted base",
+            report.refusals.len()
+        ))
+    }
+}
+
+fn check_release_chain(rest: &[&str]) -> Result<(), String> {
+    let need =
+        |flag: &str| option(rest, flag)?.ok_or_else(|| format!("{flag} is required\n{USAGE}"));
+    let package = PathBuf::from(need("--package")?);
+    let records: Vec<PathBuf> = options(rest, "--record")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    if records.is_empty() {
+        return Err(format!("--record is required\n{USAGE}"));
+    }
+    let report = release::check_chain(
+        &package,
+        &records,
+        need("--tag")?,
+        need("--commit")?,
+        &debian::RELEASES,
+    )?;
+    let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    if let Some(out) = option(rest, "--out")? {
+        std::fs::write(out, &rendered).map_err(|e| format!("{out}: {e}"))?;
+    }
+    print!("{rendered}");
+    for refusal in &report.refusals {
+        eprintln!("REFUSED {refusal}");
+    }
+    if report.refusals.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} refusal(s): the release does not publish what was validated",
+            report.refusals.len()
+        ))
+    }
+}
+
+fn check_evidence_tests() -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let violations = evidence::check(&root)?;
+    for v in &violations {
+        eprintln!("ORACLE {v}");
+    }
+    if violations.is_empty() {
+        println!("every evidence-bearing test is protected, and the oracle map is current");
+        Ok(())
+    } else {
+        Err(format!(
+            "{} evidence test violation(s); see {}",
+            violations.len(),
+            evidence::PINS_PATH
+        ))
+    }
+}
+
+fn evidence_tests_write() -> Result<(), String> {
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    evidence::write(&root)?;
+    println!("wrote {} and {}", evidence::PINS_PATH, evidence::MAP_PATH);
+    Ok(())
+}
+
+fn check_workflow_pins(rest: &[&str]) -> Result<(), String> {
+    let dir = PathBuf::from(option(rest, "--dir")?.unwrap_or(".github/workflows"));
+    let found = pins::check(&dir)?;
+    for f in &found {
+        eprintln!("UNPINNED {f}");
+    }
+    if found.is_empty() {
+        println!(
+            "every action in {} is pinned to a full commit SHA",
+            dir.display()
+        );
+        Ok(())
+    } else {
+        Err(format!("{} unpinned action(s)", found.len()))
     }
 }
 
