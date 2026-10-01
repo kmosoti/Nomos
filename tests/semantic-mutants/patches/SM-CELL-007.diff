@@ -1,0 +1,20 @@
+diff --git a/crates/bin/nomos-cell/src/cli.rs b/crates/bin/nomos-cell/src/cli.rs
+--- a/crates/bin/nomos-cell/src/cli.rs
++++ b/crates/bin/nomos-cell/src/cli.rs
+@@ -177,8 +177,14 @@ fn replay(state: &Path, err: &mut impl W
+         return Ok(None);
+     }
+     let path = state.join("journal");
+-    let Some(seen) =
+-        FileLog::<Input>::inspect(&path).map_err(|e| format!("{}: {e}", path.display()))?
++    let Some(seen) = FileLog::<Input>::open(&path)
++        .map(|(log, recovery)| nomos_store_fs::Inspection {
++            values: log.events(),
++            records: recovery.records,
++            torn: recovery.truncated,
++        })
++        .map(Some)
++        .map_err(|e| format!("{}: {e}", path.display()))?
+     else {
+         return Ok(None);
+     };

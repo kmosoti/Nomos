@@ -19,10 +19,14 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 use nomos_canon::sha256;
 use nomos_store::{EventLog, Full, Record};
+use rustix::fs::OFlags;
+
+use crate::state::{self, Kind, StateError};
 
 /// Why a log could not be opened. The Cell does not start on any of these:
 /// skipping a record would forget what it recorded.
@@ -39,6 +43,9 @@ pub enum LogError {
         /// Where the record starts.
         offset: u64,
     },
+    /// The file is not private to the Cell: a link, not a regular file, owned
+    /// by another user, or open to group or others. It is not read.
+    Unsafe(String),
     /// The file could not be read or repaired.
     Io(String),
 }
@@ -50,6 +57,7 @@ impl std::fmt::Display for LogError {
             LogError::Undecodable { offset } => {
                 write!(f, "the log's record at byte {offset} does not decode")
             }
+            LogError::Unsafe(e) => write!(f, "the log: {e}"),
             LogError::Io(e) => write!(f, "the log: {e}"),
         }
     }
@@ -75,6 +83,73 @@ pub struct FileLog<E> {
     /// Set when a failed append could not be undone; every later append is
     /// refused, since writing after a partial record would corrupt the log.
     poisoned: bool,
+}
+
+/// What a read-only look at the log found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Inspection<E> {
+    /// Every value of every whole record.
+    pub values: Vec<E>,
+    /// How many whole records there were.
+    pub records: usize,
+    /// How many bytes at the end are a record cut short, left in place.
+    pub torn: u64,
+}
+
+/// A log read back and never written: the journal as a read-only command
+/// sees it. Every append is refused.
+#[derive(Debug, Clone)]
+pub struct Replayed<E>(Vec<E>);
+
+impl<E> Replayed<E> {
+    /// The log holding `values`.
+    pub fn new(values: Vec<E>) -> Self {
+        Replayed(values)
+    }
+}
+
+impl<E: Clone> EventLog<E> for Replayed<E> {
+    fn append(&mut self, _: &[E]) -> Result<(), Full> {
+        Err(Full)
+    }
+
+    fn events(&self) -> Vec<E> {
+        self.0.clone()
+    }
+}
+
+/// `path` opened for the log, without following a link, and checked to be
+/// private to the Cell. `None` when it is absent and `create` is not set.
+fn open_checked(
+    path: &Path,
+    options: &mut OpenOptions,
+    create: bool,
+) -> Result<Option<File>, LogError> {
+    options
+        .custom_flags((OFlags::NOFOLLOW | OFlags::CLOEXEC).bits() as i32)
+        .mode(0o600);
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && !create => return Ok(None),
+        Err(e)
+            if e.raw_os_error()
+                .is_some_and(|n| state::is_link(rustix::io::Errno::from_raw_os_error(n))) =>
+        {
+            return Err(LogError::Unsafe(
+                StateError::Unsafe {
+                    path: path.to_path_buf(),
+                    why: "a symbolic link",
+                }
+                .to_string(),
+            ));
+        }
+        Err(e) => return Err(LogError::Io(e.to_string())),
+    };
+    state::check(&file, path, Kind::File).map_err(|e| match e {
+        StateError::Io(m) => LogError::Io(m),
+        other => LogError::Unsafe(other.to_string()),
+    })?;
+    Ok(Some(file))
 }
 
 fn digest(length: &[u8], payload: &[u8]) -> [u8; 32] {
@@ -181,12 +256,12 @@ impl<E: Record + Clone> FileLog<E> {
     /// short is truncated away and reported; anything else malformed fails.
     pub fn open(path: &Path) -> Result<(Self, Recovery), LogError> {
         let io = |e: std::io::Error| LogError::Io(e.to_string());
-        let mut file = OpenOptions::new()
-            .read(true)
-            .append(true)
-            .create(true)
-            .open(path)
-            .map_err(io)?;
+        let mut file = open_checked(
+            path,
+            OpenOptions::new().read(true).append(true).create(true),
+            true,
+        )?
+        .ok_or_else(|| LogError::Io("absent after creation".into()))?;
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).map_err(io)?;
         let (values, records, tail) = scan::<E>(&bytes)?;
@@ -208,6 +283,30 @@ impl<E: Record + Clone> FileLog<E> {
             },
             Recovery { records, truncated },
         ))
+    }
+}
+
+impl<E: Record> FileLog<E> {
+    /// The log at `path` read and never written: not created if absent
+    /// (`None`), and a final record cut short is reported, not truncated.
+    /// Anything else malformed fails, as it does in [`FileLog::open`].
+    pub fn inspect(path: &Path) -> Result<Option<Inspection<E>>, LogError> {
+        let Some(mut file) = open_checked(path, OpenOptions::new().read(true), false)? else {
+            return Ok(None);
+        };
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)
+            .map_err(|e| LogError::Io(e.to_string()))?;
+        let (values, records, tail) = scan::<E>(&bytes)?;
+        let torn = match tail {
+            Tail::Clean => 0,
+            Tail::Torn(offset) => bytes.len() as u64 - offset,
+        };
+        Ok(Some(Inspection {
+            values,
+            records,
+            torn,
+        }))
     }
 }
 

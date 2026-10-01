@@ -30,13 +30,14 @@ pub(crate) const RELEASES: [&str; 2] = ["12", "13"];
 
 /// The integration tests run on Debian when none are named: every suite
 /// that drives the Linux adapter.
-pub(crate) const DEFAULT_TESTS: [(&str, &str); 6] = [
+pub(crate) const DEFAULT_TESTS: [(&str, &str); 7] = [
     ("nomos-cell", "substrate_conformance"),
     ("nomos-cell", "systemd_units"),
     ("nomos-cell", "debian_host"),
     ("nomos-cell", "cell_commands"),
     ("nomos-cell", "debian_convergence"),
     ("nomos-cell", "package_install"),
+    ("nomos-cell", "state_ownership"),
 ];
 
 /// The test run on the minimal host, where the package is already installed.

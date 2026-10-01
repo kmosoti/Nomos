@@ -15,4 +15,4 @@ workspace = true
 nomos-core.workspace = true
 nomos-canon.workspace = true
 nomos-store.workspace = true
-rustix.workspace = true
+rustix = { workspace = true, features = ["process"] }
