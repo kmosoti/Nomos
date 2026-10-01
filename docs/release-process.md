@@ -17,7 +17,7 @@ Two rulesets, as importable JSON, in [`.github/rulesets/`](../.github/rulesets/)
 
 | Ruleset | Target | What it does |
 | --- | --- | --- |
-| [`main.json`](../.github/rulesets/main.json) | The default branch | Blocks deletion and force pushes. Accepts changes only through a pull request merged with a merge commit, so that a `Trust-Boundary:` declaration survives (AGENTS.md). Requires the checks `check`, `package`, `debian (12)`, `debian (13)`, `trust-boundary`, and `research-frozen` to pass. It has no bypass actor |
+| [`main.json`](../.github/rulesets/main.json) | The default branch | Blocks deletion and force pushes. Accepts changes only through a pull request merged with a merge commit, so that a `Trust-Boundary:` declaration survives (AGENTS.md). Requires the checks `check`, `package`, `debian (12)`, `debian (13)`, `debian-minimal (12)`, `debian-minimal (13)`, `trust-boundary`, and `research-frozen` to pass. It has no bypass actor |
 | [`release-tags.json`](../.github/rulesets/release-tags.json) | Tags matching `v*` | Blocks creating, moving, and deleting them, except by a repository administrator |
 
 A test (`the_rulesets_require_the_jobs_ci_defines`) fails if a required check names a job the workflow does not define, so the rules and the workflow cannot drift apart unseen.
