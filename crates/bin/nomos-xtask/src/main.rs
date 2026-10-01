@@ -31,10 +31,12 @@
 //!   Provenance), over its resolved graph; the authoring kit unless a
 //!   manifest is named. Prints one `REFUSED` line per package, with its
 //!   stable code.
-//! - `check-trust-boundary --base <ref>`: every non-merge commit since the
-//!   merge base with `<ref>` declares the oracle it changes (ADR 0015), in a
-//!   `Trust-Boundary:` line, and adds no undeclared escape hatch. Prints one
-//!   `UNDECLARED` line per violation, with its stable code.
+//! - `check-trust-boundary --base <ref> [--release]`: every non-merge commit
+//!   since the merge base with `<ref>` declares the oracle it changes (ADR
+//!   0015), in a `Trust-Boundary:` line, and adds no undeclared escape hatch.
+//!   Prints one `UNDECLARED` line per violation, with its stable code. With
+//!   `--release`, whose base must be a `v*` tag, a pattern the policy dates
+//!   with `since` is applied only to commits that descend from that commit.
 //! - `receipts validate [--dir <dir>]`: every receipt under
 //!   `verification/receipts/` is one strict JSON object per line, satisfies
 //!   `verification/receipt.schema.json`, names a check registered in
@@ -138,7 +140,7 @@ const USAGE: &str = "usage:
   cargo xtask check-layers        [--manifest-path <Cargo.toml>]
   cargo xtask check-core-purity   [--manifest-path <Cargo.toml>]
   cargo xtask check-canon-build   [--manifest-path <Cargo.toml>]
-  cargo xtask check-trust-boundary --base <ref>
+  cargo xtask check-trust-boundary --base <ref> [--release]
   cargo xtask check-release-base  --base <tag> [--main <ref>]
   cargo xtask check-release-chain --package <deb> --record <debian-record.json>... --tag <tag> --commit <sha> [--out <evidence.json>]
   cargo xtask check-evidence-tests
@@ -638,8 +640,9 @@ fn check_workflow_pins(rest: &[&str]) -> Result<(), String> {
 fn check_trust_boundary(rest: &[&str]) -> Result<(), String> {
     let base =
         option(rest, "--base")?.ok_or_else(|| format!("--base <ref> is required\n{USAGE}"))?;
+    let release = rest.contains(&"--release");
     let root = std::env::current_dir().map_err(|e| e.to_string())?;
-    let report = trust::check(&root, base)?;
+    let report = trust::check(&root, base, release)?;
     let rendered = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
     print!("{rendered}");
     for violation in report.violations() {

@@ -176,10 +176,12 @@ jobs:
             # previous release, or a base the gate refuses, the job fails.
             base="$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^")"
             cargo xtask check-release-base --base "$base"
+            release=--release
           else
             base="$DEFAULT_BASE"
+            release=
           fi
-          cargo xtask check-trust-boundary --base "$base"
+          cargo xtask check-trust-boundary --base "$base" $release
 
   # Accepted research snapshots never change; a revision is a new dated snapshot.
   # Checksums cannot catch a file and its manifest rewritten together, so this
