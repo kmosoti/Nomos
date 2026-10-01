@@ -154,3 +154,8 @@ Each ends in a result record under [results/](results/), with receipts, in the f
 | #30 One owner of a state directory | `17-alpha2-state-ownership` | [alpha2-state-ownership](results/alpha2-state-ownership.md) |
 | #36 A read-only Trace | `17-alpha2-state-ownership` | the same |
 | #37 A state directory the Cell can trust | `17-alpha2-state-ownership` | the same |
+| #31 Release gates that fail closed | `18-alpha2-release-integrity` | [alpha2-release-integrity](results/alpha2-release-integrity.md); the repository rules wait for the owner |
+| #32 Evidence tests protected from generator edits | `18-alpha2-release-integrity` | the same |
+| #33 One release artifact, built, validated, and published | `18-alpha2-release-integrity` | the same |
+| #35 Debian runtime dependencies | `19-alpha2-package-and-security` | [alpha2-package-and-security](results/alpha2-package-and-security.md) |
+| #34 The security model and `SECURITY.md` | `19-alpha2-package-and-security` | the same |

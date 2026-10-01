@@ -333,6 +333,7 @@ fn run_on_debian(
         exact: Some(&mutant.test),
         target_dir: Some(&opts.target_dir),
         quiet: true,
+        ..crate::debian::Selection::default()
     };
     let record = match crate::debian::run_suites(
         scratch,

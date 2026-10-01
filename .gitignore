@@ -31,3 +31,5 @@ tests/fixtures/**/Cargo.lock
 
 # Agent worktrees made by Claude Code sessions: working copies, never repository content
 .claude/worktrees/
+# Build output of cargo xtask package
+/dist/

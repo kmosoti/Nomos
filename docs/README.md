@@ -9,9 +9,11 @@
 | [plans/](plans/) | Plans for the phases of spec §55 after the grounding plan: milestones, experiments, and exit criteria |
 | [research/](research/) | Dated research snapshots, their evaluation against the repository, and the experiments they propose |
 | [style/](style/) | Prose style specification and linting |
+| [operator-guide.md](operator-guide.md) | Install the Cell, author a Canon, and run it |
 | [CANON.md](CANON.md) | Canon: what is decided, the compilation pipeline, and the open questions |
 | [PROTOCOL.md](PROTOCOL.md) | Loom ↔ Cell control protocol (not yet written) |
-| [security-model.md](security-model.md) | Security model and hardening (not yet written) |
+| [security-model.md](security-model.md) | The Phase 1 security model: assets, trust boundaries, and non-goals |
+| [release-process.md](release-process.md) | How a release is admitted, built, and published |
 
 ## Building
 

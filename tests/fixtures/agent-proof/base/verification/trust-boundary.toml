@@ -5,7 +5,9 @@
 # one must say so with a `Trust-Boundary: <class>` line in its message, and
 # must not also touch implementation. The gate detects and demands the
 # declaration; a reviewer reads the declared commit and decides. Paths are
-# matched by prefix (a directory ends in `/`) or exactly. The first matching
+# matched by prefix (a directory ends in `/`) or exactly; a `*` segment
+# stands for any one segment, so `crates/*/*/tests/` is the integration tests
+# of every crate (verification-strategy.md, Test Taxonomy). The first matching
 # set wins, in the order specification, verifier, implementation; a path in
 # none of them is neutral.
 
@@ -16,6 +18,7 @@ paths = ["docs/PROJECT-SPEC.md", "docs/formal/", "formal/", "docs/adr/"]
 paths = [
     "crates/bin/nomos-xtask/",
     "tests/",
+    "crates/*/*/tests/",
     "verification/",
     "crates/core/PURITY.toml",
     ".github/workflows/",

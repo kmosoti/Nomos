@@ -89,14 +89,43 @@ pub(crate) fn debian_version(cargo: &str) -> String {
     }
 }
 
-/// The package's control file.
+/// What the Cell runs or relies on at run time, and the Debian package that
+/// owns each, on Debian 12 and 13. The package's `Depends:` is the owners of
+/// these, so that installing it through apt either brings them or fails;
+/// nothing is listed because a CI image happens to have it.
+#[cfg(test)]
+pub(crate) const RUNTIME: [(&str, &str); 5] = [
+    // `enforce` runs it for a package change, after a `--simulate` run.
+    ("/usr/bin/apt-get", "apt"),
+    // `useradd`, `usermod`, and `userdel` change an account.
+    ("/usr/sbin/useradd", "passwd"),
+    ("/usr/sbin/usermod", "passwd"),
+    ("/usr/sbin/userdel", "passwd"),
+    // A unit is managed over the system bus, which systemd answers on and
+    // `dbus` provides, so both are needed.
+    ("D-Bus system bus", "dbus"),
+];
+
+/// The package's dependencies: the owners of [`RUNTIME`], and `systemd`,
+/// which the service and the timer need and whose bus the Cell talks to.
+pub(crate) const DEPENDS: [&str; 4] = ["systemd", "dbus", "passwd", "apt"];
+
+/// The package's control file, with the standard dependencies.
+#[cfg(test)]
 pub(crate) fn control(version: &str, installed_kib: u64) -> String {
+    control_with(version, installed_kib, &DEPENDS)
+}
+
+/// The control file with `depends` as its `Depends:`.
+pub(crate) fn control_with(version: &str, installed_kib: u64, depends: &[&str]) -> String {
+    let depends = depends.join(", ");
     format!(
         "Package: nomos-cell
 Version: {version}
 Architecture: amd64
 Maintainer: Nomos <nomos@users.noreply.github.com>
 Installed-Size: {installed_kib}
+Depends: {depends}
 Section: admin
 Priority: optional
 Homepage: https://github.com/kmosoti/nomos
@@ -162,6 +191,18 @@ pub(crate) fn assemble(
     out: &Path,
     version: &str,
 ) -> Result<PathBuf, String> {
+    assemble_with(root, binary, out, version, &DEPENDS)
+}
+
+/// [`assemble`], with `depends` as the package's `Depends:`: the negative
+/// control builds one that leaves a dependency out.
+pub(crate) fn assemble_with(
+    root: &Path,
+    binary: &Path,
+    out: &Path,
+    version: &str,
+    depends: &[&str],
+) -> Result<PathBuf, String> {
     use std::os::unix::fs::PermissionsExt;
     let stage = out.join(format!("stage-{version}"));
     let _ = std::fs::remove_dir_all(&stage);
@@ -194,7 +235,7 @@ pub(crate) fn assemble(
     let size = std::fs::metadata(&bin).map_err(|e| e.to_string())?.len();
     write(
         &stage.join("DEBIAN/control"),
-        &control(version, size.div_ceil(1024) + 8),
+        &control_with(version, size.div_ceil(1024) + 8, depends),
         0o644,
     )?;
     write(&stage.join("DEBIAN/postinst"), POSTINST, 0o755)?;
@@ -231,6 +272,71 @@ pub(crate) fn base_and_upgrade(root: &Path, out: &Path) -> Result<(PathBuf, Path
     Ok((base, upgrade))
 }
 
+/// Writes `SHA256SUMS` beside `deb`: the digest `sha256sum --check` reads,
+/// of the package as it was built.
+pub(crate) fn write_checksums(deb: &Path) -> Result<PathBuf, String> {
+    let dir = deb.parent().ok_or("a package has a directory")?;
+    let name = deb
+        .file_name()
+        .ok_or("a package has a name")?
+        .to_string_lossy();
+    let sums = dir.join("SHA256SUMS");
+    std::fs::write(&sums, format!("{}  {name}\n", sha256(deb)?))
+        .map_err(|e| format!("{}: {e}", sums.display()))?;
+    Ok(sums)
+}
+
+/// The one file in `dir` named `nomos-cell_*_amd64.deb`.
+pub(crate) fn only_deb(dir: &Path) -> Result<PathBuf, String> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name().is_some_and(|n| {
+                let n = n.to_string_lossy();
+                n.starts_with("nomos-cell_") && n.ends_with("_amd64.deb")
+            })
+        })
+        .collect();
+    found.sort();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        n => Err(format!(
+            "{} holds {n} packages named nomos-cell_*_amd64.deb; it must hold exactly one",
+            dir.display()
+        )),
+    }
+}
+
+/// The package and its upgrade fixture built once by `cargo xtask package
+/// --upgrade-fixture`, in `dir` and `dir/upgrade`. The package must have the
+/// digest `SHA256SUMS` beside it records, and `expect`, when given: the
+/// digest the build that made it reported.
+pub(crate) fn prebuilt(dir: &Path, expect: Option<&str>) -> Result<(PathBuf, PathBuf), String> {
+    let base = only_deb(dir)?;
+    let upgrade = only_deb(&dir.join("upgrade"))?;
+    let digest = sha256(&base)?;
+    let sums = std::fs::read_to_string(dir.join("SHA256SUMS"))
+        .map_err(|e| format!("{}: {e}", dir.join("SHA256SUMS").display()))?;
+    let name = base
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    if !sums.lines().any(|l| l == format!("{digest}  {name}")) {
+        return Err(format!(
+            "{name} is not the package SHA256SUMS records: its digest is {digest}"
+        ));
+    }
+    if let Some(expected) = expect
+        && expected != digest
+    {
+        return Err(format!(
+            "{name} has digest {digest}, not the {expected} the build reported: it was replaced after it was built"
+        ));
+    }
+    Ok((base, upgrade))
+}
+
 /// The SHA-256 of a file, in hex.
 pub(crate) fn sha256(path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -243,6 +349,36 @@ pub(crate) fn sha256(path: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A package the Debian suites install must be the one the build wrote
+    /// and reported: replaced, or reported differently, it is refused.
+    #[test]
+    fn a_package_that_is_not_the_one_built_is_refused() {
+        let dir = crate::scratch::dir("package", "prebuilt");
+        let upgrade = dir.join("upgrade");
+        std::fs::create_dir_all(&upgrade).unwrap();
+        let base = dir.join("nomos-cell_1.0.0_amd64.deb");
+        std::fs::write(&base, b"built").unwrap();
+        std::fs::write(upgrade.join("nomos-cell_1.0.0+upgrade1_amd64.deb"), b"up").unwrap();
+        write_checksums(&base).unwrap();
+        let digest = sha256(&base).unwrap();
+        assert!(prebuilt(&dir, Some(digest.as_str())).is_ok());
+        assert!(prebuilt(&dir, None).is_ok());
+        let wrong = "0".repeat(64);
+        assert!(
+            prebuilt(&dir, Some(wrong.as_str()))
+                .unwrap_err()
+                .contains("replaced")
+        );
+        std::fs::write(&base, b"replaced after the build").unwrap();
+        assert!(
+            prebuilt(&dir, None)
+                .unwrap_err()
+                .contains("not the package SHA256SUMS records")
+        );
+        std::fs::remove_file(dir.join("SHA256SUMS")).unwrap();
+        assert!(prebuilt(&dir, None).is_err());
+    }
 
     #[test]
     fn a_cargo_pre_release_sorts_before_its_release_in_debian() {
@@ -268,5 +404,56 @@ mod tests {
         assert!(
             c.starts_with("Package: nomos-cell\nVersion: 0.1.0~alpha.1\nArchitecture: amd64\n")
         );
+        assert!(c.contains("\nDepends: systemd, dbus, passwd, apt\n"), "{c}");
+        assert!(
+            !control_with("1", 1, &["dbus", "passwd", "apt"]).contains("systemd"),
+            "the negative control leaves systemd out"
+        );
+    }
+
+    /// The inventory is the whole of what the adapter runs: a program the
+    /// adapter starts, or relies on, that the package does not account for
+    /// fails here, before it fails on a host.
+    #[test]
+    fn the_dependencies_account_for_everything_the_cell_runs() {
+        let adapter =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../adapters/nomos-substrate-linux/src");
+        let mut sources = Vec::new();
+        for entry in std::fs::read_dir(&adapter).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "rs") {
+                sources.push((
+                    path.file_name().unwrap().to_string_lossy().into_owned(),
+                    std::fs::read_to_string(&path).unwrap(),
+                ));
+            }
+        }
+        // Every program the adapter names is in the inventory, and its owner
+        // is a dependency.
+        for (program, owner) in RUNTIME.iter().filter(|(p, _)| p.starts_with('/')) {
+            assert!(
+                sources
+                    .iter()
+                    .any(|(_, s)| s.contains(&format!("\"{program}\""))),
+                "{program} is in the inventory and the adapter no longer names it"
+            );
+            assert!(DEPENDS.contains(owner), "{program} is owned by {owner}");
+        }
+        // And the adapter starts no other program: a new place that runs one
+        // must be added to the inventory, and to this count.
+        let starts: usize = sources
+            .iter()
+            .map(|(_, s)| s.matches("Command::new(").count())
+            .sum();
+        assert_eq!(
+            starts, 2,
+            "a new place runs a program: account for it in RUNTIME and DEPENDS"
+        );
+        // The service manager is reached over D-Bus, through zbus.
+        assert!(
+            sources.iter().any(|(_, s)| s.contains("zbus")),
+            "the units no longer use D-Bus: revisit systemd and dbus"
+        );
+        assert!(DEPENDS.contains(&"systemd") && DEPENDS.contains(&"dbus"));
     }
 }

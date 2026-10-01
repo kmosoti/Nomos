@@ -187,14 +187,34 @@ struct PathSet {
 
 impl PathSet {
     fn contains(&self, path: &str) -> bool {
-        self.paths.iter().any(|p| {
-            if p.ends_with('/') {
-                path.starts_with(p)
-            } else {
-                path == p
-            }
-        })
+        self.paths.iter().any(|p| matches_path(p, path))
     }
+}
+
+/// Whether `path` is `pattern`, or, when the pattern ends in `/`, beneath it.
+/// A segment of the pattern that is `*` stands for any one segment of the
+/// path, so that `crates/*/*/tests/` is the `tests` directory of every crate
+/// two levels down, whatever its layer and name.
+pub(crate) fn matches_path(pattern: &str, path: &str) -> bool {
+    if !pattern.contains('*') {
+        return if pattern.ends_with('/') {
+            path.starts_with(pattern)
+        } else {
+            path == pattern
+        };
+    }
+    let beneath = pattern.ends_with('/');
+    let want: Vec<&str> = pattern.trim_end_matches('/').split('/').collect();
+    let have: Vec<&str> = path.split('/').collect();
+    if beneath {
+        // A path inside the directory has at least one more segment.
+        if have.len() <= want.len() {
+            return false;
+        }
+    } else if have.len() != want.len() {
+        return false;
+    }
+    want.iter().zip(&have).all(|(w, h)| *w == "*" || w == h)
 }
 
 #[derive(Deserialize)]
@@ -635,6 +655,81 @@ mod tests {
     }
 
     #[test]
+    fn an_undeclared_change_to_the_integration_tests_of_a_crate_is_rejected() {
+        assert_case(
+            "undeclared-crate-test-change",
+            &[TrustCode::UndeclaredOracleChange],
+            Some(Class::Verifier),
+            Some("crates/bin/nomos-cell/tests/state.rs"),
+        );
+    }
+
+    #[test]
+    fn a_declared_change_to_the_integration_tests_of_a_crate_passes() {
+        assert_passes("declared-crate-test-change");
+    }
+
+    #[test]
+    fn a_crate_test_changed_with_its_implementation_is_rejected_even_when_declared() {
+        assert_case(
+            "crate-test-with-implementation",
+            &[TrustCode::MixedOracleAndImplementation],
+            Some(Class::Implementation),
+            Some("crates/bin/nomos-cell/src/cli.rs"),
+        );
+    }
+
+    /// The repository's own policy, not a fixture's: every crate's integration
+    /// tests are verifier paths, and its sources are not.
+    #[test]
+    fn the_repository_policy_protects_the_integration_tests_of_every_crate() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let text = std::fs::read_to_string(root.join(super::POLICY_PATH)).unwrap();
+        let policy: super::Policy = toml::from_str(&text).unwrap();
+        for path in [
+            "crates/bin/nomos-cell/tests/cell_commands.rs",
+            "crates/bin/nomos-cell/tests/debian/mod.rs",
+            "crates/core/nomos-core/tests/anything.rs",
+            "crates/ports/nomos-store/tests/anything.rs",
+            "crates/app/nomos-app/tests/anything.rs",
+            "crates/adapters/nomos-store-fs/tests/anything.rs",
+            "tests/semantic-mutants/corpus.toml",
+        ] {
+            assert_eq!(policy.classify(path), Class::Verifier, "{path}");
+        }
+        for path in [
+            "crates/bin/nomos-cell/src/cli.rs",
+            "crates/core/nomos-core/src/assessment.rs",
+            "crates/adapters/nomos-store-fs/src/state.rs",
+            "crates/bin/nomos-cell/tests",
+            "crates/bin/nomos-cell/Cargo.toml",
+        ] {
+            assert_eq!(policy.classify(path), Class::Implementation, "{path}");
+        }
+    }
+
+    #[test]
+    fn a_star_segment_stands_for_one_segment() {
+        use super::matches_path;
+        assert!(matches_path(
+            "crates/*/*/tests/",
+            "crates/bin/nomos-cell/tests/a/b.rs"
+        ));
+        assert!(!matches_path("crates/*/*/tests/", "crates/bin/tests/a.rs"));
+        assert!(!matches_path(
+            "crates/*/*/tests/",
+            "crates/bin/nomos-cell/tests"
+        ));
+        assert!(!matches_path(
+            "crates/*/*/tests/",
+            "crates/bin/nomos-cell/src/tests/a.rs"
+        ));
+        assert!(matches_path("a/*/c", "a/b/c"));
+        assert!(!matches_path("a/*/c", "a/b/c/d"));
+        assert!(matches_path("docs/adr/", "docs/adr/0015.md"));
+    }
+
+    #[test]
     fn a_specification_change_mixed_with_implementation_is_rejected_even_when_declared() {
         assert_case(
             "mixed-spec-and-implementation",
@@ -778,6 +873,6 @@ mod tests {
                 "fixture case {case} has no test"
             );
         }
-        assert_eq!(cases.len(), 16);
+        assert_eq!(cases.len(), 19);
     }
 }

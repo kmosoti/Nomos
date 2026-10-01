@@ -78,3 +78,15 @@ what = "the Linux suites, built as static binaries, pass as root in a fresh priv
 [checks.package]
 command = "cargo xtask package"
 what = "the Cell's Debian package builds: a static binary, its service and timer, and its maintainer scripts; whether it installs is the debian check's"
+
+[checks.check-evidence-tests]
+command = "cargo xtask check-evidence-tests"
+what = "every evidence-bearing test the semantic-mutant corpus names is protected by its path or its pin, and the oracle map is the one they generate (verification-strategy.md, Test Taxonomy)"
+
+[checks.check-workflow-pins]
+command = "cargo xtask check-workflow-pins"
+what = "every action in the workflows is pinned to a full commit SHA"
+
+[checks.debian-minimal]
+command = "cargo xtask debian-minimal"
+what = "the Cell's package, installed alone on a Debian base image, brings everything the Cell runs and converges the demonstration Canon; with --control omit-systemd, the package without its dependency on systemd cannot boot the host"

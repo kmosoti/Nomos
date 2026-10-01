@@ -84,6 +84,17 @@ These were considered and are left open on purpose, each with a pointer:
 
 Milestone `03-assessment-kernel` ran two Kani harnesses with cover checks over the pure assessment predicates, on the pinned toolchain, in under seven seconds, with every cover satisfied ([record](../research/2026-09-28-typed-core/results/assessment-algebra.md)). Verus was not tried: it needs its own toolchain and a specification language beside the Rust, and nothing in the kernel yet needs a proof that Kani's bounded exploration cannot give. Kani is therefore the bounded verifier for the kernels, one harness per pure predicate, each with cover checks. The escape hatches it admits, `kani::assume` and an unwinding bound too small to reach the assertion, are in `verification/trust-boundary.toml` and the unwinding bound is a review item. Reopen if a property needs unbounded induction over a recursive structure.
 
+## Note, 2026-10-01: Evidence-Bearing Tests and the Admission of a Release
+
+The first alpha showed two gaps in §2 and §3, both recorded as issues #31 and #32 for `v0.1.0-alpha.2`. They are closed by the rules below, which [verification-strategy.md](../formal/verification-strategy.md) states in full; this note records the decision.
+
+- **The verifier set gains the integration tests of a crate.** `crates/*/*/tests/` is a verifier path. A test there is a black-box check of a crate's public surface, which is what an oracle is, and `crates/bin/nomos-cell/tests/` held every milestone's evidence while counting as implementation, so a generator could change the test that judged its own code without a declaration. Inline `#[cfg(test)]` modules stay implementation-owned: they pin behavior, and most are regression tests (§5).
+- **An inline test that something cites as an oracle is pinned.** A semantic mutant names its test (§9). Where that test is inline, `verification/evidence-oracles.toml`, a verifier file, holds the SHA-256 of the test's whitespace-normalized text, and `cargo xtask check-evidence-tests` fails on a changed, missing, unpinned, or stale pin. Editing such a test is therefore a declared verifier commit, with the new pin in it. A path block was rejected in §3 as theater and still is; this one is a detector with a stable code, like the others.
+- **A release is checked against the previous release, never against itself.** On a tag `v*`, the trusted base of `check-trust-boundary` and `research frozen` is the previous release tag, and `check-release-base` refuses a base that is not a release tag, is the tagged commit, is not its ancestor, or when the tagged commit is not on `main`. The repository host, not repository code, enforces that `main` and `v*` tags cannot be pushed around: a check that lives in the repository cannot authenticate the repository.
+- **A release publishes the bytes it validated.** The Debian package is built once; the Debian 12 and 13 suites run that exact file; the release publishes it. `check-release-chain` refuses when the published digest differs from the digest any suite recorded.
+
+These add detectors; they do not change who reviews. Rule 11 is as it was.
+
 ## Alternatives
 
 - **Trust the generator's tests.** Rejected. The oracle-bias results are paper-reported and from other languages, and the mechanism that produces them, a shared source for oracle and code, is present here regardless.
