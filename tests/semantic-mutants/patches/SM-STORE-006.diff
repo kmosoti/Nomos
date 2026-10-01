@@ -1,0 +1,12 @@
+diff --git a/crates/adapters/nomos-store-fs/src/state.rs b/crates/adapters/nomos-store-fs/src/state.rs
+--- a/crates/adapters/nomos-store-fs/src/state.rs
++++ b/crates/adapters/nomos-store-fs/src/state.rs
+@@ -115,7 +115,7 @@ pub(crate) fn open_root(dir: &Path, crea
+     }
+     let fd = match rustix::fs::open(
+         dir,
+-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
++        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+         Mode::empty(),
+     ) {
+         Ok(fd) => fd,

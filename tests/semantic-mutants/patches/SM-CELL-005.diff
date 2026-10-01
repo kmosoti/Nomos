@@ -1,0 +1,11 @@
+diff --git a/crates/bin/nomos-cell/src/cli.rs b/crates/bin/nomos-cell/src/cli.rs
+--- a/crates/bin/nomos-cell/src/cli.rs
++++ b/crates/bin/nomos-cell/src/cli.rs
+@@ -310,7 +310,6 @@ fn import_bundle(args: &Args, out: &mut
+ fn enforce(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32, String> {
+     // Held to the end of the run: a Cell that cannot own its state does
+     // nothing, not even read the Canon.
+-    let _lease = own(&args.state)?;
+     let canon = load(args.canon.as_deref().ok_or("--canon")?)?;
+     if args.bundle.is_some() {
+         import_bundle(args, out)?;
