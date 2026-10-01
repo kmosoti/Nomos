@@ -122,6 +122,36 @@ jobs:
           path: debian-${{ matrix.release }}.json
           if-no-files-found: error
 
+  # The package on a minimal Debian host (alpha.2 issue #35): a base image and
+  # the package, and nothing else, so a dependency the package does not
+  # declare is missing. The control builds the package without its dependency
+  # on systemd and passes only if that host cannot boot systemd.
+  debian-minimal:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["12", "13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
+        with:
+          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          targets: x86_64-unknown-linux-musl
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: package
+          path: dist
+      - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-minimal-${{ matrix.release }}.json
+      - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --control omit-systemd
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: debian-minimal-${{ matrix.release }}
+          path: debian-minimal-${{ matrix.release }}.json
+          if-no-files-found: error
+
   # Every commit since the merge base declares the oracle it changes
   # (ADR 0015): a `Trust-Boundary:` line for specification or verifier
   # changes, no oracle mixed with implementation, and no undeclared escape
@@ -299,7 +329,7 @@ jobs:
   # carries Debian's `~`.
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [check, package, debian, trust-boundary, research-frozen]
+    needs: [check, package, debian, debian-minimal, trust-boundary, research-frozen]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -328,6 +358,7 @@ jobs:
           mkdir release
           cargo xtask check-release-chain --package "$deb" \
             --record records/debian-12.json --record records/debian-13.json \
+            --record records/debian-minimal-12.json --record records/debian-minimal-13.json \
             --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" \
             --out release/RELEASE-EVIDENCE.json
       - name: Publish the same bytes

@@ -31,6 +31,8 @@
           { "context": "package" },
           { "context": "debian (12)" },
           { "context": "debian (13)" },
+          { "context": "debian-minimal (12)" },
+          { "context": "debian-minimal (13)" },
           { "context": "trust-boundary" },
           { "context": "research-frozen" }
         ]
