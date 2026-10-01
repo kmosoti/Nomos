@@ -95,6 +95,41 @@ The `generator-variance` harness asks the same kernel property of several indepe
 
 No score is a target. The [semantic-mutant corpus](../../tests/semantic-mutants/README.md) is the other half: wrong behaviors chosen from the invariants, each with the test that must catch it.
 
+## Test Taxonomy
+
+A test is **evidence-bearing** when something outside the code cites it as the oracle for a claim: a semantic mutant names it as the test that must fail ([the corpus](../../tests/semantic-mutants/README.md)), and the [oracle map](oracle-map.md) lists each by invariant. Everything else is a **regression test**: it records what the code does, and may be rewritten with the code (ADR 0015 §5). Fixtures and negative controls are inputs to evidence, not tests.
+
+| Class | Where it lives | Who may change it without a declaration |
+| --- | --- | --- |
+| Evidence, integration | `tests/` at the top level, and `crates/*/*/tests/` | Nobody: a verifier path, so the commit says `Trust-Boundary: verifier` and touches no implementation |
+| Evidence, inline | A `#[cfg(test)]` module in a production source file, named by the corpus | Nobody: `verification/evidence-oracles.toml` holds the SHA-256 of its whitespace-normalized text, and `cargo xtask check-evidence-tests` fails on a change |
+| Regression | Any other inline `#[cfg(test)]` module | The generator |
+| Fixture, negative control | `tests/fixtures/`, `tests/semantic-mutants/` | Nobody: a verifier path |
+
+Where a new evidence-bearing test belongs: in an integration test directory when it can be written against the public surface, since the path then protects it; inline, with a pin added in the same verifier commit, only when it needs private access. A pin guards the text of the test, not what it calls: an edit to the code under test is implementation, and the semantic mutants judge it.
+
+The check reports `[evidence-oracle-changed]` for a pinned test whose text changed, `[evidence-oracle-unpinned]` for an inline test the corpus names that has no pin, and `[evidence-oracle-missing]` for a pin whose test no longer exists. It also fails when the [oracle map](oracle-map.md) differs from the one it generates.
+
+## Release Admission
+
+A release is a tag `v<version>` on a commit that passed the same checks as every commit. Those checks live in the repository, so they cannot authenticate the repository: if the tagged commit is the head of `main`, a check whose base is `main` compares the commit with itself and passes whatever it holds. Three rules close that.
+
+1. **The host enforces the outer boundary.** `main` is protected, requiring the designated CI checks before a change is accepted and refusing force pushes, and tags matching `v*` can be created only by the owner and never moved or deleted. The rules are in [docs/release-process.md](../release-process.md), as importable JSON. Nothing in this repository can check that they are on.
+2. **The trusted base of a release is the previous release.** On a tag, `check-trust-boundary` and `research frozen` take the nearest earlier `v*` tag as their base. `check-release-base --base <tag>` refuses, with a code, when:
+
+   | Code | When |
+   | --- | --- |
+   | `release-base-unresolved` | The base cannot be resolved |
+   | `release-base-not-a-tag` | The base is not a `v*` release tag |
+   | `release-base-is-head` | The base is the tagged commit itself |
+   | `release-base-not-ancestor` | The base is not an ancestor of the tagged commit |
+   | `release-not-on-main` | The tagged commit is not reachable from `main` |
+
+   A release job whose base cannot be resolved fails.
+3. **A release publishes what was validated.** The package is built once, and its SHA-256 is computed at once. The Debian 12 and 13 suites run that file, not a rebuild, and record its digest. The release attaches that same file, and `RELEASE-EVIDENCE.json` ties the tag to the commit, the package's digest, each suite's record, and the published digest. `check-release-chain` fails when any of them differs, and when a suite did not run the package. The release job also attaches a provenance attestation naming the repository, the workflow, the commit, and the digest.
+
+The release job's third-party actions are pinned to full commit SHAs, and `cargo xtask check-workflow-pins` fails on any that is not.
+
 ## Records
 
 A layer's result exists when a receipt or a result record exists. Receipts are written by `cargo xtask receipts record` under `verification/receipts/`; result records are cards under `docs/research/<snapshot>/results/`. The [matrix](verification-matrix.md) is filled from those and from nothing else. Its statuses are `not run`, `planned`, `passed`, `failed`, `inconclusive`, and `not applicable`; `planned` is a promise, not a result.
