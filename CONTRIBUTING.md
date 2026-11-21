@@ -16,7 +16,7 @@ For anything bigger than a small fix, open an issue first. Agreeing on the desig
 
 ## Toolchain
 
-Rust is pinned to **1.98.1** in `rust-toolchain.toml`. With rustup installed, the right toolchain is selected automatically.
+Rust is pinned to **1.100.0** in `rust-toolchain.toml`. With rustup installed, the right toolchain is selected automatically.
 
 Run these before opening a pull request. CI runs the same checks.
 
@@ -72,7 +72,7 @@ Most code here is written by language models and reviewed by people, and the rul
 - **A test is evidence for a property when its oracle comes from outside the code:** an invariant in `docs/formal/`, an exhaustive truth table, an independently written reference, a metamorphic relation, or a proof obligation. A test written alongside the code it tests is a regression test, which is useful and different.
 - **Records, not claims.** A check counts when a receipt under `verification/receipts/` says it ran, written by `cargo xtask receipts record`. The [verification matrix](docs/formal/verification-matrix.md) is filled from receipts and result records only; a row without one says *not run*.
 - **Mutation testing has no score.** `cargo mutants` runs on a schedule; every survivor is classified by a person. The [semantic-mutant corpus](tests/semantic-mutants/README.md) names the wrong behaviors each kernel must reject before it lands.
-- **Merge with merge commits**, so declarations survive.
+- **Merge with merge commits**, so declarations survive across single and stacked `jj` pull requests.
 
 ## Documentation
 
@@ -100,7 +100,8 @@ CI runs the prose linter as an advisory check that never blocks a merge. Running
 
 - Keep each pull request to one change. Refactors and behavior changes go separately, and oracle changes go in their own commits with their `Trust-Boundary:` line.
 - Write commit subjects in the imperative ("Add Warp cycle detection") and explain *why* in the body.
-- Milestone work lives on `milestone/<nn>-<name>`, named from the [grounding plan](docs/research/2026-09-28-typed-core/grounding-plan.md); a milestone is referred to by that name, never by a pull-request number.
+- Milestone work lives on `milestone/<nn>-<name>`, named from the [grounding plan](docs/research/2026-09-28-typed-core/grounding-plan.md), or on a stacked Jujutsu (`jj`) bookmark named `stack/<release>/<nn>-<name>`; a milestone is referred to by that name, never by a pull-request number.
+- Write collaborator `@kennmosoti-maker` pushes stacked `jj` pull-request branches targeting `main`, and `.github/CODEOWNERS` routes reviews through `@kmosoti`.
 - Update docs and ADRs in the same pull request as the change they describe.
 - CI is green before review.
 
