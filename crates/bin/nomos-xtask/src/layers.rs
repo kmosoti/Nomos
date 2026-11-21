@@ -602,7 +602,7 @@ mod tests {
         })
         .unwrap();
         assert!(report.violations().is_empty(), "{:#?}", report.violations());
-        assert_eq!(report.packages().len(), 20);
+        assert_eq!(report.packages().len(), 22);
         assert_eq!(report.graphs_checked().len(), 5);
     }
 
