@@ -1,12 +1,15 @@
-//! Zero-allocation steady-state gate and tampered-packet handle recycling tests.
+//! Zero-allocation steady-state gate under a process-wide counting allocator.
+//!
+//! Kept as a dedicated single-test binary so no sibling test thread can allocate
+//! concurrently against the global `StatsAlloc` counter.
 
 use std::alloc::System;
 use std::net::Ipv6Addr;
 
-use nomos_mesh::{AEAD_TAG_LEN, INNER_OFFSET, WG_HEADER_LEN};
+use nomos_mesh::INNER_OFFSET;
 use nomos_mesh_wireguard::{
-    AdaptiveCipher, BufPool, CipherDirection, CipherTask, CoreEngine, CoreOutput, DecryptedRx,
-    EcnCodepoint, FixedRing, InnerEndpoint, KeyStore, SessionKeys,
+    BufPool, CoreEngine, CoreOutput, DecryptedRx, EcnCodepoint, FixedRing, InnerEndpoint,
+    SessionKeys,
 };
 use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 
@@ -124,75 +127,4 @@ fn core_engine_poll_and_encapsulate_perform_zero_heap_allocations() {
     }
     pool.release(tx_task.handle);
     assert_eq!(pool.in_use_count(), 0);
-}
-
-#[test]
-fn tampered_packets_fail_edge_aead_and_recycle_buf_handles() {
-    let (src, dst) = sample_endpoints();
-    let mut engine = CoreEngine::new(2, 1460, src, dst).unwrap();
-    let mut pool = BufPool::new(16, 0).unwrap();
-    let mut key_updates = FixedRing::with_capacity(8);
-    let keys = KeyStore::with_capacity(2);
-
-    let session = SessionKeys {
-        receiver_index: 11,
-        sender_index: 22,
-        tx_key: [0x5Au8; 32],
-        rx_key: [0x5Au8; 32],
-        epoch: 1,
-    };
-    engine
-        .install_peer_session(0, session, 500, &mut key_updates)
-        .unwrap();
-    while let Some(upd) = key_updates.pop() {
-        keys.apply(upd);
-    }
-
-    let task = engine
-        .encapsulate_quic_tx(
-            0,
-            b"sensitive-quic",
-            src,
-            dst,
-            EcnCodepoint::None,
-            &mut pool,
-        )
-        .unwrap();
-    let cipher = AdaptiveCipher::default();
-    let table = keys.load();
-    cipher.encrypt_batch(&[task], &mut pool, &table).unwrap();
-
-    // Tamper with trailing Poly1305 tag byte [len-1].
-    {
-        let slice = pool.slice_mut(task.handle).unwrap();
-        let tag_last = task.wire_len - 1;
-        slice[tag_last] ^= 0xFF;
-    }
-
-    let decrypt_task = CipherTask {
-        direction: CipherDirection::Decrypt,
-        ..CipherTask {
-            handle: task.handle,
-            peer_slot: 0,
-            receiver_index: 11,
-            counter: task.counter,
-            wire_len: task.wire_len,
-            direction: CipherDirection::Decrypt,
-            ecn: EcnCodepoint::None,
-        }
-    };
-    assert_eq!(pool.in_use_count(), 1);
-    let mut verified = Vec::new();
-    let drops = cipher
-        .decrypt_and_verify_batch(&[decrypt_task], &mut pool, &table, &mut verified)
-        .unwrap();
-
-    assert_eq!(drops, 1);
-    assert!(verified.is_empty());
-    assert_eq!(
-        pool.in_use_count(),
-        0,
-        "tampered BufHandle must be recycled immediately before CoreEngine::poll"
-    );
-    assert_eq!(WG_HEADER_LEN + 48 + AEAD_TAG_LEN, 80);
 }
