@@ -21,6 +21,8 @@
 | [0016](0016-core-purity.md) | Core purity | Accepted |
 | [0017](0017-local-store.md) | The Cell's local store: content and a durable Event Log | Accepted |
 | [0018](0018-age-vtpm-cipher-adapter.md) | Age and vTPM Cipher adapter | Accepted |
+| [0019](0019-wireguard-mesh-and-quic-protocol.md) | WireGuard Mesh and QUIC Control Protocol adapters | Accepted |
+| [0020](0020-reusable-nixos-modules.md) | Reusable parameterized NixOS modules | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
