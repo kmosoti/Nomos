@@ -74,17 +74,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha256: ${{ steps.digest.outputs.sha256 }}
+      loom_sha256: ${{ steps.digest.outputs.loom_sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
           toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
           targets: x86_64-unknown-linux-musl
-      # The package, with SHA256SUMS beside it, and the later version the
-      # upgrade test installs, which is validated and never published.
+      # The packages, with SHA256SUMS beside them, and the Cell upgrade
+      # fixture, which is validated and never published.
       - run: cargo xtask package --out dist --upgrade-fixture dist/upgrade
       - id: digest
-        run: echo "sha256=$(sha256sum dist/nomos-cell_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "sha256=$(sha256sum dist/nomos-cell_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "loom_sha256=$(sha256sum dist/nomos-loom_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: package
@@ -353,28 +356,33 @@ jobs:
           pattern: debian-*
           path: records
           merge-multiple: true
-      - name: The package is the one the suites installed
+      - name: The packages match what was built and verified
         run: |
-          deb="$(ls dist/nomos-cell_*_amd64.deb)"
-          test "$(sha256sum "$deb" | cut -d' ' -f1)" = "${{ needs.package.outputs.sha256 }}"
+          (cd dist && sha256sum --check SHA256SUMS)
+          cell_deb="$(ls dist/nomos-cell_*_amd64.deb)"
+          loom_deb="$(ls dist/nomos-loom_*_amd64.deb)"
+          test "$(sha256sum "$cell_deb" | cut -d' ' -f1)" = "${{ needs.package.outputs.sha256 }}"
+          test "$(sha256sum "$loom_deb" | cut -d' ' -f1)" = "${{ needs.package.outputs.loom_sha256 }}"
           mkdir release
-          cargo xtask check-release-chain --package "$deb" \
+          cargo xtask check-release-chain --package "$cell_deb" \
             --record records/debian-12.json --record records/debian-13.json \
             --record records/debian-minimal-12.json --record records/debian-minimal-13.json \
             --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" \
             --out release/RELEASE-EVIDENCE.json
       - name: Publish the same bytes
         run: |
-          deb="$(ls dist/nomos-cell_*_amd64.deb)"
-          name="$(basename "$deb")"
-          cp "$deb" "release/${name//\~/-}"
+          for deb in dist/nomos-cell_*_amd64.deb dist/nomos-loom_*_amd64.deb; do
+            name="$(basename "$deb")"
+            cp "$deb" "release/${name//\~/-}"
+          done
           # Names without the directory, so `sha256sum --check` works
           # beside the downloaded files.
-          (cd release && sha256sum -- *.deb | tee SHA256SUMS)
-          test "$(cut -d' ' -f1 release/SHA256SUMS)" = "${{ needs.package.outputs.sha256 }}"
+          (cd release && sha256sum -- *.deb | tee SHA256SUMS && sha256sum --check SHA256SUMS)
+          grep -q "^${{ needs.package.outputs.sha256 }}  nomos-cell_.*_amd64\.deb$" release/SHA256SUMS
+          grep -q "^${{ needs.package.outputs.loom_sha256 }}  nomos-loom_.*_amd64\.deb$" release/SHA256SUMS
           {
             cat "docs/releases/${GITHUB_REF_NAME}.md"
-            printf '\n## Artifact\n\nThe package attached to this release is the file the Debian 12 and 13 suites installed, built once from commit `%s`. Its SHA-256 is `%s`. `RELEASE-EVIDENCE.json` ties the tag, the commit, that digest, and both suites'"'"' records together, and the release carries a provenance attestation for it, which `gh attestation verify` checks.\n' "$GITHUB_SHA" "${{ needs.package.outputs.sha256 }}"
+            printf '\n## Artifacts\n\nThe `nomos-cell` and `nomos-loom` Debian packages attached to this release were built once from commit `%s`.\n\n- `nomos-cell` SHA-256: `%s` (installed and verified by the Debian 12 and 13 suites; tied via `RELEASE-EVIDENCE.json`).\n- `nomos-loom` SHA-256: `%s`.\n\nEach `.deb` carries a GitHub SLSA build provenance attestation verified via `gh attestation verify`.\n' "$GITHUB_SHA" "${{ needs.package.outputs.sha256 }}" "${{ needs.package.outputs.loom_sha256 }}"
           } > release/NOTES.md
       - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
