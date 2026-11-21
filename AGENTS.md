@@ -27,7 +27,7 @@ If a task conflicts with these documents, stop and report the conflict. Do not s
 
 ## Commands
 
-The toolchain is pinned to Rust 1.98.1 in `rust-toolchain.toml`.
+The toolchain is pinned to Rust 1.100.0 in `rust-toolchain.toml`.
 
 ```sh
 cargo fmt    --all --check
@@ -92,7 +92,7 @@ You are the generator. The specification and the verifier judge what you write, 
 - **Counterexamples become fixtures.** A failing input a property test, model, or mutation run finds is minimized and committed with its provenance: what found it, the seed or trace, the input, the property, and the fixing commit.
 - **Record what ran.** A check counts when a receipt exists: `cargo xtask receipts record <check-id> --out verification/receipts/<file>.ndjson -- <command>`. Never write a receipt by hand. Never report a command you did not run as passing; a check that did not run is `not run`, a timeout is `inconclusive`.
 - **No thresholds, no scores.** A mutation score, a coverage number, or a pass rate is never a target and never a claim.
-- **Merge with merge commits.** A squash loses the declarations.
+- **Merge with merge commits.** A squash loses the declarations, including across stacked `jj` pull requests.
 
 ## Process Invariants
 
@@ -103,7 +103,8 @@ Hold these across every task, whatever it asks:
 - A gate that cannot run reports failure, not success.
 - A result about a model is reported as a model result; a result about a mock as a mock result; a paper's result as the paper's.
 - No implementation lands ahead of its milestone; a task that names a milestone or an experiment is the ask, and only for the crates it names.
-- Milestone work is on a branch named `milestone/<nn>-<name>` from the grounding plan, never `claude/*`, `agent/*`, `pr-*`, or `feature/pr-*`.
+- Milestone work is on a branch named `milestone/<nn>-<name>` from the grounding plan or a stacked `jj` bookmark named `stack/<release>/<nn>-<name>`, never `claude/*`, `agent/*`, `pr-*`, or `feature/pr-*`.
+- Stacked `jj` pull requests target `main` off the prior bookmark in the stack; write collaborator `@kennmosoti-maker` contributes changes, and `.github/CODEOWNERS` requires owner review from `@kmosoti`.
 
 ## Completion Report
 
