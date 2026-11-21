@@ -51,14 +51,14 @@ A crate's layer is visible from its path. Every new crate belongs in exactly one
 
 The `Cargo.toml` manifests encode these edges. The build checks the edges that exist; it does not check that a new edge is allowed (amended 2026-09-28, see Consequences).
 
-### 4. Rust Is Pinned to 1.98.1
+### 4. Rust Is Pinned to 1.100.0
 
-- `rust-toolchain.toml` pins `channel = "1.98.1"` with `rustfmt` and `clippy`.
-- The workspace declares `rust-version = "1.98.1"`.
+- `rust-toolchain.toml` pins `channel = "1.100.0"` with `rustfmt` and `clippy`.
+- The workspace declares `rust-version = "1.100.0"`.
 - CI installs the same version explicitly.
 - The edition is 2024.
 
-Upgrades are deliberate: one change updates all three places and records why. A pinned toolchain keeps `clippy -D warnings` and formatting stable, and a new compiler release cannot quietly change the build.
+Upgrades are deliberate: one change updates all three places and records why (originally 1.98.1, amended 2026-11-21, see Consequences). A pinned toolchain keeps `clippy -D warnings` and formatting stable, and a new compiler release cannot quietly change the build.
 
 ## Consequences
 
@@ -67,3 +67,4 @@ Upgrades are deliberate: one change updates all three places and records why. A 
 - There are more crates than a flat layout would need. That is the price of boundaries the compiler enforces, and it is worth paying.
 - Contributors need rustup. The pinned toolchain then installs itself.
 - **Amended 2026-09-28.** The manifests express the edges that exist today. Nothing stops a future manifest from adding a forbidden one, and `cargo check` would accept it. The rule therefore needs a policy check over `cargo metadata`, covering feature and target-specific dependencies as well as plain ones. It exists as `cargo xtask check-layers` ([ADR 0003](0003-xtask-tooling-crate.md)), which checks the declared graph, so a forbidden edge behind an inactive feature is caught, and the resolved graph under each supported feature set and target, so the paths real builds see are caught. Declared dependencies are matched by package name, so an alias does not hide one. The check makes three policy points explicit: an adapter implements the port whose name prefixes its own and depends on no other port; nothing depends on a `bin/` crate, which keeps composition roots and the `nomos-xtask` tooling crate out of the production graph; and dev and build dependencies follow the same rule as normal ones, with no exemptions. Its fixtures under `tests/fixtures/layer-policy/` include an allowed workspace, so the check cannot pass by rejecting everything.
+- **Amended 2026-11-21.** Uplifted the pinned Rust toolchain from 1.98.1 to 1.100.0 across `rust-toolchain.toml`, `Cargo.toml`, and CI so the workspace tracks the active 1.100.x release line under a single synchronized pin.
