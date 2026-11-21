@@ -322,6 +322,8 @@ mod tests {
             .env("GIT_AUTHOR_EMAIL", "t@example.invalid")
             .env("GIT_COMMITTER_NAME", "t")
             .env("GIT_COMMITTER_EMAIL", "t@example.invalid")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
             .output()
             .unwrap();
         assert!(

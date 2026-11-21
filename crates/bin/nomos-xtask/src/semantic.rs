@@ -270,6 +270,7 @@ fn run_one(
     cmd.arg(&mutant.test)
         .args(["--", "--exact"])
         .env("CARGO_TARGET_DIR", &opts.target_dir)
+        .env("CARGO_BUILD_TARGET_DIR", &opts.target_dir)
         .current_dir(&scratch);
     let out = cmd.output().map_err(|e| format!("cargo test: {e}"))?;
     let _ = std::fs::remove_dir_all(&scratch);
