@@ -117,6 +117,7 @@ mod hermeticity;
 mod layers;
 mod manifest;
 mod package;
+mod package_loom;
 mod pins;
 mod purity;
 mod receipt;
@@ -370,9 +371,18 @@ fn package(rest: &[&str]) -> Result<(), String> {
     let out = root.join(option(rest, "--out")?.unwrap_or("target/deb"));
     std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
     let binary = package::binary(&root)?;
-    let deb = package::assemble(&root, &binary, &out, &version)?;
-    package::write_checksums(&deb)?;
-    println!("{} {}", deb.display(), package::sha256(&deb)?);
+    let cell_deb = package::assemble(&root, &binary, &out, &version)?;
+    let mut debs = vec![cell_deb.clone()];
+    if !rest.contains(&"--cell-only") {
+        let loom_bin = package_loom::loom_binary(&root)?;
+        let loom_deb = package_loom::assemble_loom(&root, &loom_bin, &out, &version)?;
+        debs.push(loom_deb);
+    }
+    let refs: Vec<&Path> = debs.iter().map(PathBuf::as_path).collect();
+    package_loom::write_checksums_multi(&refs)?;
+    for deb in &debs {
+        println!("{} {}", deb.display(), package::sha256(deb)?);
+    }
     // The upgrade fixture is the same binary at a later version, for the
     // install test; it is validated, never published.
     if let Some(dir) = option(rest, "--upgrade-fixture")? {
