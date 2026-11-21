@@ -1,0 +1,23 @@
+[package]
+name = "nomos-cipher-age-vtpm"
+description = "Cipher adapter implementing age X25519 encrypted vaults, data-driven secret sync, and vTPM 2.0 posture."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+age.workspace = true
+blake3.workspace = true
+hex.workspace = true
+nomos-cipher.workspace = true
+nomos-core.workspace = true
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zeroize.workspace = true
