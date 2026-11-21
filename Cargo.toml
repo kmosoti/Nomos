@@ -20,6 +20,8 @@ members = [
     "crates/adapters/nomos-cipher-vault",
     "crates/adapters/nomos-cipher-age-vtpm",
     "crates/adapters/nomos-mesh-headscale",
+    "crates/adapters/nomos-mesh-wireguard",
+    "crates/adapters/nomos-protocol-quic",
     # Driving adapters and composition roots.
     "crates/bin/nomos-cell",
     "crates/bin/nomos-loom",
@@ -64,6 +66,8 @@ nomos-store-fs = { path = "crates/adapters/nomos-store-fs" }
 nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
 nomos-cipher-age-vtpm = { path = "crates/adapters/nomos-cipher-age-vtpm" }
 nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
+nomos-mesh-wireguard = { path = "crates/adapters/nomos-mesh-wireguard" }
+nomos-protocol-quic = { path = "crates/adapters/nomos-protocol-quic" }
 # Tooling. Used by nomos-xtask; never as a normal dependency of a domain, port,
 # app, or adapter crate. `serde` is also the typed-validation negative control's
 # derive, a dev-dependency of nomos-canon (milestone 06).
@@ -75,6 +79,16 @@ blake3 = "1.8"
 hex = "0.4"
 ring = "0.17"
 zeroize = "1.9"
+arc-swap = "1.9"
+bytes = "1.12"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+quinn-proto = { version = "0.11", default-features = false, features = ["rustls-ring"] }
+quinn-udp = "0.5"
+rayon = "1.12"
+rcgen = "0.14"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+stats_alloc = "0.1"
+tokio = { version = "1", features = ["full"] }
 jsonschema = { version = "0.58", default-features = false }
 toml = "1"
 # Testing. Dev-dependencies only; exempt from the core purity policy (ADR 0016).
