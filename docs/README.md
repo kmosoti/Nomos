@@ -17,7 +17,7 @@
 
 ## Building
 
-The toolchain is pinned to Rust 1.98.1 in `rust-toolchain.toml`, and rustup installs it automatically.
+The toolchain is pinned to Rust 1.100.0 in `rust-toolchain.toml`, and rustup installs it automatically.
 
 ```sh
 cargo check  --workspace
