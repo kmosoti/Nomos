@@ -18,6 +18,7 @@ members = [
     "crates/adapters/nomos-substrate-mock",
     "crates/adapters/nomos-store-fs",
     "crates/adapters/nomos-cipher-vault",
+    "crates/adapters/nomos-cipher-age-vtpm",
     "crates/adapters/nomos-mesh-headscale",
     # Driving adapters and composition roots.
     "crates/bin/nomos-cell",
@@ -61,6 +62,7 @@ nomos-substrate-linux = { path = "crates/adapters/nomos-substrate-linux" }
 nomos-substrate-mock = { path = "crates/adapters/nomos-substrate-mock" }
 nomos-store-fs = { path = "crates/adapters/nomos-store-fs" }
 nomos-cipher-vault = { path = "crates/adapters/nomos-cipher-vault" }
+nomos-cipher-age-vtpm = { path = "crates/adapters/nomos-cipher-age-vtpm" }
 nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
 # Tooling. Used by nomos-xtask; never as a normal dependency of a domain, port,
 # app, or adapter crate. `serde` is also the typed-validation negative control's
@@ -68,6 +70,11 @@ nomos-mesh-headscale = { path = "crates/adapters/nomos-mesh-headscale" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
+age = "0.12"
+blake3 = "1.8"
+hex = "0.4"
+ring = "0.17"
+zeroize = "1.9"
 jsonschema = { version = "0.58", default-features = false }
 toml = "1"
 # Testing. Dev-dependencies only; exempt from the core purity policy (ADR 0016).
