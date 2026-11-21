@@ -23,6 +23,7 @@
 | [0018](0018-age-vtpm-cipher-adapter.md) | Age and vTPM Cipher adapter | Accepted |
 | [0019](0019-wireguard-mesh-and-quic-protocol.md) | WireGuard Mesh and QUIC Control Protocol adapters | Accepted |
 | [0020](0020-reusable-nixos-modules.md) | Reusable parameterized NixOS modules | Accepted |
+| [0021](0021-cloud-substrate-port-and-gcp-adapter.md) | Cloud substrate port, GCP adapter, predictive governor, and headless Loom | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
