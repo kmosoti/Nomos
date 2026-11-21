@@ -138,7 +138,7 @@ Description: host-state convergence for Debian
     )
 }
 
-fn ok(cmd: &mut Command) -> Result<String, String> {
+pub(crate) fn ok(cmd: &mut Command) -> Result<String, String> {
     let out = cmd.output().map_err(|e| format!("{cmd:?}: {e}"))?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
@@ -173,7 +173,7 @@ pub(crate) fn binary(root: &Path) -> Result<PathBuf, String> {
         .ok_or_else(|| "cargo built no nomos-cell executable".to_string())
 }
 
-fn write(path: &Path, text: &str, mode: u32) -> Result<(), String> {
+pub(crate) fn write_file(path: &Path, text: &str, mode: u32) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -211,19 +211,19 @@ pub(crate) fn assemble_with(
     std::fs::copy(binary, &bin).map_err(|e| format!("{}: {e}", binary.display()))?;
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))
         .map_err(|e| e.to_string())?;
-    write(
+    write_file(
         &stage.join("usr/lib/systemd/system/nomos-cell.service"),
         SERVICE,
         0o644,
     )?;
-    write(
+    write_file(
         &stage.join("usr/lib/systemd/system/nomos-cell.timer"),
         TIMER,
         0o644,
     )?;
     std::fs::create_dir_all(stage.join("etc/nomos/bundle")).map_err(|e| e.to_string())?;
     let license = std::fs::read_to_string(root.join("LICENSE")).map_err(|e| e.to_string())?;
-    write(
+    write_file(
         &stage.join("usr/share/doc/nomos-cell/copyright"),
         &format!(
             "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n\
@@ -233,14 +233,14 @@ pub(crate) fn assemble_with(
         0o644,
     )?;
     let size = std::fs::metadata(&bin).map_err(|e| e.to_string())?.len();
-    write(
+    write_file(
         &stage.join("DEBIAN/control"),
         &control_with(version, size.div_ceil(1024) + 8, depends),
         0o644,
     )?;
-    write(&stage.join("DEBIAN/postinst"), POSTINST, 0o755)?;
-    write(&stage.join("DEBIAN/prerm"), PRERM, 0o755)?;
-    write(&stage.join("DEBIAN/postrm"), POSTRM, 0o755)?;
+    write_file(&stage.join("DEBIAN/postinst"), POSTINST, 0o755)?;
+    write_file(&stage.join("DEBIAN/prerm"), PRERM, 0o755)?;
+    write_file(&stage.join("DEBIAN/postrm"), POSTRM, 0o755)?;
     let deb = out.join(format!("nomos-cell_{version}_amd64.deb"));
     ok(Command::new("dpkg-deb")
         .args(["--build", "--root-owner-group"])
@@ -274,16 +274,9 @@ pub(crate) fn base_and_upgrade(root: &Path, out: &Path) -> Result<(PathBuf, Path
 
 /// Writes `SHA256SUMS` beside `deb`: the digest `sha256sum --check` reads,
 /// of the package as it was built.
+#[cfg(test)]
 pub(crate) fn write_checksums(deb: &Path) -> Result<PathBuf, String> {
-    let dir = deb.parent().ok_or("a package has a directory")?;
-    let name = deb
-        .file_name()
-        .ok_or("a package has a name")?
-        .to_string_lossy();
-    let sums = dir.join("SHA256SUMS");
-    std::fs::write(&sums, format!("{}  {name}\n", sha256(deb)?))
-        .map_err(|e| format!("{}: {e}", sums.display()))?;
-    Ok(sums)
+    crate::package_loom::write_checksums_multi(&[deb])
 }
 
 /// The one file in `dir` named `nomos-cell_*_amd64.deb`.
