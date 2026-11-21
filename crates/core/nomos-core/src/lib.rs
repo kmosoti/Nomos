@@ -49,6 +49,7 @@ pub mod cipher;
 pub mod condition;
 pub mod effect;
 pub mod footprint;
+pub mod governor;
 pub mod observation;
 pub mod plan;
 pub mod resource;

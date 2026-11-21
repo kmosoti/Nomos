@@ -20,6 +20,7 @@ nomos-store.workspace = true
 nomos-cipher.workspace = true
 nomos-mesh.workspace = true
 nomos-protocol.workspace = true
+nomos-cloud.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true
