@@ -1,6 +1,6 @@
 [package]
 name = "nomos-cipher"
-description = "Cipher port: resolution of protected secret references."
+description = "Cipher port: resolution, policy, and posture of protected secret references."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 nomos-core.workspace = true
+serde.workspace = true
