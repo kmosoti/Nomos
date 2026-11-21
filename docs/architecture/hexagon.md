@@ -23,12 +23,18 @@ flowchart TB
         pcip["nomos-cipher"]
         pmesh["nomos-mesh"]
         pproto["nomos-protocol"]
+        pcloud["nomos-cloud"]
     end
     subgraph adapters["adapters/ · driven adapters"]
         alinux["nomos-substrate-linux"]
         amock["nomos-substrate-mock"]
+        astorfs["nomos-store-fs"]
         avault["nomos-cipher-vault"]
+        aage["nomos-cipher-age-vtpm"]
         ahs["nomos-mesh-headscale"]
+        awg["nomos-mesh-wireguard"]
+        aquic["nomos-protocol-quic"]
+        agcp["nomos-cloud-gcp"]
     end
 
     cell & loom --> napp
@@ -37,10 +43,13 @@ flowchart TB
     ports --> ncore
     canon & warp --> ncore
     alinux & amock -.-> psub
-    avault -.-> pcip
-    ahs -.-> pmesh
-    cell --> alinux & avault & ahs
-    loom --> avault & ahs
+    astorfs -.-> pstore
+    avault & aage -.-> pcip
+    ahs & awg -.-> pmesh
+    aquic -.-> pproto
+    agcp -.-> pcloud
+    cell --> alinux & astorfs & aage & awg & aquic
+    loom --> aage & awg & aquic & agcp
 ```
 
 Solid arrows are Cargo dependencies. Dotted arrows mean "implements". Every arrow points toward the domain.
@@ -50,9 +59,9 @@ Solid arrows are Cargo dependencies. Dotted arrows mean "implements". Every arro
 | Layer | Path | Crates |
 | --- | --- | --- |
 | Domain | `crates/core/` | `nomos-core`, `nomos-canon`, `nomos-warp` |
-| Driven ports | `crates/ports/` | `nomos-substrate`, `nomos-store`, `nomos-cipher`, `nomos-mesh`, `nomos-protocol` |
+| Driven ports | `crates/ports/` | `nomos-substrate`, `nomos-store`, `nomos-cipher`, `nomos-mesh`, `nomos-protocol`, `nomos-cloud` |
 | Application | `crates/app/` | `nomos-app` |
-| Driven adapters | `crates/adapters/` | `nomos-substrate-linux`, `nomos-substrate-mock`, `nomos-cipher-vault`, `nomos-mesh-headscale` |
+| Driven adapters | `crates/adapters/` | `nomos-substrate-linux`, `nomos-substrate-mock`, `nomos-store-fs`, `nomos-cipher-vault`, `nomos-cipher-age-vtpm`, `nomos-mesh-headscale`, `nomos-mesh-wireguard`, `nomos-protocol-quic`, `nomos-cloud-gcp` |
 | Driving adapters and composition roots | `crates/bin/` | `nomos-cell`, `nomos-loom`, and the tooling crate `nomos-xtask` ([ADR 0003](../adr/0003-xtask-tooling-crate.md)) |
 
 ## Dependency Rule
@@ -89,9 +98,10 @@ The kernel is one function, $\mathrm{step}(\mathit{KernelSnapshot}, \mathit{Inpu
 | Port | Concept | Adapters |
 | --- | --- | --- |
 | `nomos-substrate` | Operating-system evidence and effects: `observe` and `apply` | `linux` (Debian reference), `mock` (deterministic, first-class) |
-| `nomos-cipher` | Secret-reference resolution | `vault` (HashiCorp Vault) |
-| `nomos-mesh` | Control-network enrollment, identity, and reachability | `headscale` |
-| `nomos-store` | Event Log and materialized state | None yet; waiting on the persistence ablation |
-| `nomos-protocol` | Loom ↔ Cell control protocol | None yet; gRPC is the candidate |
+| `nomos-cipher` | Secret-reference resolution, data-driven policy, and virtual Trusted Platform Module (vTPM) posture | `age-vtpm` (`age` X25519 + vTPM 2.0), `vault` (HashiCorp Vault) |
+| `nomos-mesh` | Pure-IPv6 control-network enrollment, identity, and reachability | `wireguard` (pure-IPv6 zero-alloc Sans-I/O tunnel), `headscale` |
+| `nomos-store` | Event Log and materialized state | `fs` (local content store and append-only journal) |
+| `nomos-protocol` | Loom ↔ Cell control protocol | `quic` (`quinn` Ed25519 SHA-256 pinned remote procedure call (RPC) and datagrams) |
+| `nomos-cloud` | Config-driven cloud topology, auth posture, and Spot Batch orchestration | `gcp` (pure-IPv6 Google Cloud Platform (GCP) HTTP JSON and long-running operation (LRO) driver) |
 
 Adapter crates are named `nomos-<port>-<technology>`.

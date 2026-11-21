@@ -832,7 +832,7 @@ Recovery must be deterministic. This is how the Event Log earns its existence in
 
 The workspace follows a hexagonal layout. See [architecture/hexagon.md](architecture/hexagon.md) and architecture decision record (ADR) [0000](adr/0000-foundations.md).
 
-Crates beyond the four components (`nomos-canon`, `nomos-store`, `nomos-protocol`, and the port and adapter crates) are implementation boundaries, not user-facing concepts.
+Crates beyond the four components (`nomos-canon`, `nomos-store`, `nomos-protocol`, `nomos-cloud`, and the port and adapter crates) are implementation boundaries, not user-facing concepts. Pure domain governor logic for Pressure Stall Information (PSI) and cgroup headroom lives inside `nomos-core`, while `nomos-app` orchestrates governor state transitions and lease or fleet coordination across ports.
 
 ## 51. CLI
 
@@ -842,6 +842,7 @@ Loom:
 nomos-loom compile --canon artifacts/base-system
 nomos-loom trace   --target 'traits.os == "debian"' --canon artifacts/hardened-host
 nomos-loom enforce --target 'traits.tier == "edge"' --canon artifacts/telemetry-stack
+nomos-loom serve   --listen '[fd00:db8::1]:7440' [--web-assets-dir /var/lib/nomos/web]
 ```
 
 | Command | Effect |
@@ -849,6 +850,7 @@ nomos-loom enforce --target 'traits.tier == "edge"' --canon artifacts/telemetry-
 | `compile` | Validate a Canon artifact and report its `CanonID` |
 | `trace` | Distributed, non-mutating evaluation |
 | `enforce` | Coordinate fleet convergence |
+| `serve` | Run the headless IPv6 HTTP, lease broker, PSI governor, and pinned QUIC RPC coordinator |
 
 Cell:
 
