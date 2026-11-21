@@ -1,0 +1,25 @@
+[package]
+name = "nomos-protocol-quic"
+description = "Protocol adapter implementing Ed25519 SHA-256 pinned QUIC RPC streams and RFC 9221 datagrams."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes.workspace = true
+hex.workspace = true
+nomos-core.workspace = true
+nomos-protocol.workspace = true
+quinn.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true

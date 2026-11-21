@@ -1,0 +1,25 @@
+[package]
+name = "nomos-mesh-wireguard"
+description = "Mesh adapter implementing a pure-IPv6 zero-alloc Sans-I/O WireGuard tunnel with adaptive AEAD and quinn-udp GSO/GRO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+arc-swap.workspace = true
+nomos-core.workspace = true
+nomos-mesh.workspace = true
+quinn-proto.workspace = true
+quinn-udp.workspace = true
+rayon.workspace = true
+ring.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+stats_alloc.workspace = true
