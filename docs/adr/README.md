@@ -20,6 +20,7 @@
 | [0015](0015-generator-verifier-development-model.md) | Generator-verifier development model | Accepted |
 | [0016](0016-core-purity.md) | Core purity | Accepted |
 | [0017](0017-local-store.md) | The Cell's local store: content and a durable Event Log | Accepted |
+| [0018](0018-age-vtpm-cipher-adapter.md) | Age and vTPM Cipher adapter | Accepted |
 
 A new ADR takes the next number and uses the same layout: Status, Date, Context, Decision, Consequences.
 
