@@ -1,6 +1,6 @@
 [package]
 name = "nomos-protocol"
-description = "Protocol port: transport-neutral Loom/Cell control protocol contract."
+description = "Protocol port: transport-neutral Loom/Cell RPC and unreliable datagram contracts."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 nomos-core.workspace = true
+serde.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "nomos-mesh"
-description = "Mesh port: node enrollment, identity and reachability on the control network."
+description = "Mesh port: pure-IPv6 tunnel configuration, PMTU framing bounds, and peer posture contracts."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 nomos-core.workspace = true
+serde.workspace = true
