@@ -1,6 +1,6 @@
 # Operator Guide
 
-This guide takes a Debian host from nothing to converged with the Nomos Cell `0.1.0-alpha.2`: install it, author a Canon, trace it, enforce it, read the events, and uninstall. Every claim below is checked by a test, named beside it; the release notes say what this alpha does and does not establish.
+This guide takes a Debian host from nothing to converged with the Nomos Cell `0.1.0-alpha.2`: install it, author a Canon, trace it, enforce it, read the events, and uninstall. Every Cell claim below is checked by a test, named beside it; the release notes say what this alpha does and does not establish. For fleet coordination on the `v0.2.0-alpha.1` development line, see [Headless Loom Coordinator](#headless-loom-coordinator) and [Reusable NixOS Modules](#reusable-nixos-modules).
 
 The Cell runs on Debian 12 and 13, amd64, with systemd as the init system. It needs root, as the tools it drives do.
 
@@ -119,11 +119,79 @@ prints every Event of every run, numbered, from the journal: each Plan accepted,
 
 `nomos-cell traits` prints what the Cell knows about the host, each fact with its source and how long it holds.
 
+## Headless Loom Coordinator
+
+On the `v0.2.0-alpha.1` development line, `nomos-loom` provides a headless pure-IPv6 coordinator binary packaged as `nomos-loom_<version>_amd64.deb` alongside `nomos-cell`. It embeds the SQLite Write-Ahead Log (WAL) credential lease broker, the Pressure Stall Information (PSI) and control group (`cgroup`) resource governor, HTTP and Server-Sent Events (SSE) endpoints, a SHA-256 Ed25519 fingerprint-pinned QUIC Remote Procedure Call (RPC) listener, and optional static web asset serving.
+
+Install the Debian package built by `cargo xtask package` (or download both packages from a tagged release after checking `SHA256SUMS`):
+
+```sh
+sha256sum --check SHA256SUMS
+sudo dpkg -i nomos-loom_*_amd64.deb
+```
+
+The package installs `/usr/bin/nomos-loom` and enables `nomos-loom.service`, which runs headless on `[::1]:7440` (HTTP) and `[::1]:7443` (QUIC) with state under `/var/lib/nomos-loom/leases.sqlite`. Inspect `nomos-loom --help` or run it explicitly with static web assets when needed:
+
+```sh
+nomos-loom serve \
+  --listen '[::1]:7440' \
+  --quic-listen '[::1]:7443' \
+  --db-path /var/lib/nomos-loom/leases.sqlite \
+  --vault-dir /var/lib/nomos/vault \
+  --web-assets-dir /usr/share/nomos/web
+```
+
+When `--web-assets-dir` is omitted, HTTP fallback requests return a compact JSON status summary instead of static HTML, and `/health` reports `"headless": true`. Available HTTP routes are `/health`, `/v1/leases`, `/v1/leases/{id}`, `/v1/leases/verify`, `/v1/governor`, `/v1/governor/sample`, `/v1/telemetry`, and `/v1/events`.
+
+## Reusable NixOS Modules
+
+`flake.nix` exports parameterized NixOS modules under `nixosModules` (`default`, `base-ipv6`, `wireguard-wg0`, `secrets`, and `deadman-rollback`) using RFC 3849 and RFC 4193 IPv6 defaults. Import `nomos.nixosModules.default` and configure host-specific endpoints and keys in your own flake:
+
+```nix
+{
+  imports = [ nomos.nixosModules.default ];
+
+  services.nomos = {
+    ipv6 = {
+      enable = true;
+      primaryInterface = "eth0";
+    };
+    wireguard = {
+      enable = true;
+      outerPmtu = 1460;
+      addresses = [ "fd00:db8::1/64" ];
+      privateKeyFile = "/run/credentials/wireguard-wg0/private.key";
+      peers = [
+        {
+          publicKey = "<base64-peer-public-key>";
+          allowedIPs = [ "fd00:db8::2/128" ];
+          endpoint = "[2001:db8::2]:51820";
+        }
+      ];
+    };
+    secrets = {
+      enable = true;
+      enableTpm2 = true;
+    };
+    deadmanRollback = {
+      enable = true;
+      healthUrl = "http://[::1]:7440/health";
+      probePeerIpv6 = "fd00:db8::2";
+    };
+  };
+}
+```
+
+The `wireguard-wg0` module derives the tunnel Maximum Transmission Unit (MTU) as `outerPmtu - 80` and fails evaluation if the resulting MTU falls below `1200` or if non-IPv6 addresses are supplied.
+
 ## Uninstall
 
 ```sh
 sudo apt-get remove nomos-cell    # the binary and the timer go; the state stays
 sudo apt-get purge nomos-cell     # the state in /var/lib/nomos goes too
+
+sudo apt-get remove nomos-loom    # stops nomos-loom.service; lease database stays
+sudo apt-get purge nomos-loom     # removes /var/lib/nomos-loom too
 ```
 
-Your Canon in `/etc/nomos` is yours and stays in both cases. Nothing the Cell changed on the host is undone: removing Nomos does not reverse what it enforced. `package_install` checks removal and purge on Debian 12 and 13.
+Your Canon in `/etc/nomos` is yours and stays in both cases. Nothing the Cell changed on the host is undone: removing Nomos does not reverse what it enforced. `package_install` checks Cell installation, removal, and purge on Debian 12 and 13.
