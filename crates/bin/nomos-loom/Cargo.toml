@@ -1,6 +1,6 @@
 [package]
 name = "nomos-loom"
-description = "Nomos Loom: fleet coordinator."
+description = "Nomos Loom: headless IPv6 fleet coordinator, SQLite WAL lease broker, PSI governor, kernel/Warp/FsStore runtime, and mandatory-mTLS QUIC RPC server."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,6 +12,31 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+axum.workspace = true
+blake3.workspace = true
+hex.workspace = true
 nomos-app.workspace = true
+nomos-canon.workspace = true
+nomos-cipher.workspace = true
+nomos-cipher-age-vtpm.workspace = true
 nomos-cipher-vault.workspace = true
+nomos-cloud.workspace = true
+nomos-cloud-gcp.workspace = true
+nomos-core.workspace = true
+nomos-mesh.workspace = true
 nomos-mesh-headscale.workspace = true
+nomos-mesh-wireguard.workspace = true
+nomos-protocol.workspace = true
+nomos-protocol-quic.workspace = true
+nomos-store.workspace = true
+nomos-store-fs.workspace = true
+nomos-warp.workspace = true
+ring.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
