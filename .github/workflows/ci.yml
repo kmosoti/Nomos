@@ -17,10 +17,10 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
           components: rustfmt, clippy
           # The semantic mutants of the systemd adapter run their named test
           # in a Debian container, built as a static binary.
@@ -75,17 +75,17 @@ jobs:
     outputs:
       sha256: ${{ steps.digest.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
           targets: x86_64-unknown-linux-musl
       # The package, with SHA256SUMS beside it, and the later version the
       # upgrade test installs, which is validated and never published.
       - run: cargo xtask package --out dist --upgrade-fixture dist/upgrade
       - id: digest
         run: echo "sha256=$(sha256sum dist/nomos-cell_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: package
           path: dist
@@ -104,19 +104,19 @@ jobs:
       matrix:
         release: ["12", "13"]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
           targets: x86_64-unknown-linux-musl
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: package
           path: dist
       # The harness refuses a package whose digest is not the one the build
       # job reported, and records the digest it installed.
       - run: cargo xtask debian --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-${{ matrix.release }}.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: debian-${{ matrix.release }}
           path: debian-${{ matrix.release }}.json
@@ -135,18 +135,18 @@ jobs:
       matrix:
         release: ["12", "13"]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
           targets: x86_64-unknown-linux-musl
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: package
           path: dist
       - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-minimal-${{ matrix.release }}.json
       - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --control omit-systemd
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: debian-minimal-${{ matrix.release }}
           path: debian-minimal-${{ matrix.release }}.json
@@ -160,12 +160,12 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
       - name: Oracle changes are declared
         env:
           DEFAULT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
@@ -197,12 +197,12 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
       - name: Accepted research snapshots are unchanged
         env:
           DEFAULT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || (github.ref_name == github.event.repository.default_branch && github.event.before || format('origin/{0}', github.event.repository.default_branch)) }}
@@ -230,7 +230,7 @@ jobs:
       matrix:
         shard: ${{ github.event_name == 'schedule' && fromJSON('[0]') || fromJSON('[0, 1, 2, 3]') }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Choose what to mutate
@@ -253,14 +253,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         if: steps.scope.outputs.skip != 'true'
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
       - name: Install cargo-mutants
         if: steps.scope.outputs.skip != 'true'
         run: cargo install cargo-mutants --version 27.1.0 --locked
       - name: Mutate
         if: steps.scope.outputs.skip != 'true'
         run: cargo mutants --workspace --no-shuffle -j 2 ${{ steps.scope.outputs.args }} --output target/mutants
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && steps.scope.outputs.skip != 'true'
         with:
           name: mutants-out-${{ matrix.shard }}
@@ -271,7 +271,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Prebuilt release binary, checksum-verified: about a second, versus
       # minutes to compile from source. Too quick to be worth caching.
       - name: Install Vale
@@ -338,17 +338,17 @@ jobs:
       id-token: write # the provenance attestation
       attestations: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, 2026-10-01
         with:
-          toolchain: 1.98.1 # keep in sync with rust-toolchain.toml
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+          toolchain: 1.100.0 # keep in sync with rust-toolchain.toml
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: package
           path: dist
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: debian-*
           path: records
@@ -376,10 +376,10 @@ jobs:
             cat "docs/releases/${GITHUB_REF_NAME}.md"
             printf '\n## Artifact\n\nThe package attached to this release is the file the Debian 12 and 13 suites installed, built once from commit `%s`. Its SHA-256 is `%s`. `RELEASE-EVIDENCE.json` ties the tag, the commit, that digest, and both suites'"'"' records together, and the release carries a provenance attestation for it, which `gh attestation verify` checks.\n' "$GITHUB_SHA" "${{ needs.package.outputs.sha256 }}"
           } > release/NOTES.md
-      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*.deb
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           prerelease: true
           body_path: release/NOTES.md
