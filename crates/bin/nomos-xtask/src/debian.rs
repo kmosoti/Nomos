@@ -268,6 +268,7 @@ fn build_tests(
         let mut cargo = Command::new("cargo");
         if let Some(dir) = target_dir {
             cargo.env("CARGO_TARGET_DIR", dir);
+            cargo.env("CARGO_BUILD_TARGET_DIR", dir);
         }
         let messages = ok(cargo
             .current_dir(root)

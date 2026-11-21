@@ -795,6 +795,7 @@ fn cargo_test(opts: &Options, args: &[&str]) -> Result<(TestRun, String), String
         .args(["test", "-p", PACKAGE, "--locked", "--offline"])
         .args(args)
         .env("CARGO_TARGET_DIR", &opts.target_dir)
+        .env("CARGO_BUILD_TARGET_DIR", &opts.target_dir)
         .current_dir(&opts.scratch)
         .output()
         .map_err(|e| format!("cargo test: {e}"))?;
