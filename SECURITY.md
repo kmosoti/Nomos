@@ -4,13 +4,13 @@ Nomos changes files, packages, services, users, and kernel parameters on the mac
 
 ## Supported Versions
 
-Nomos is in alpha. The `0.1` line is the masterless Cell on one Debian host, and only the latest release of it receives security fixes: an alpha is replaced by the next, not patched. What the `0.1` line protects, and what it does not, is in the [security model](docs/security-model.md).
+Nomos is in alpha. The `0.2` line includes the masterless Cell (`nomos-cell`) and headless Loom coordinator (`nomos-loom`) on Debian 12 and 13, and only the latest release receives security fixes: an alpha is replaced by the next, not patched. What the Cell protects, and what it does not, is in the [security model](docs/security-model.md).
 
 | Version | Supported |
 | --- | --- |
 | `main` | Yes |
-| The latest `0.1` release | Yes |
-| Any earlier `0.1` release | No: upgrade to the latest |
+| The latest `0.2` release | Yes |
+| Earlier `0.2` and `0.1` releases | No: upgrade to the latest |
 | Any other branch or fork | No |
 
 ## Reporting a Vulnerability
@@ -37,15 +37,16 @@ Include:
 In scope:
 
 - the Cell and its privilege boundary, including its state directory and the release package
+- the headless Loom coordinator package, its lease broker, and its pinned QUIC listener
 - the release process: how a release is admitted, built, and published ([release-process.md](docs/release-process.md))
 - the Event Log's append-only guarantees
 
 Designed, and in scope once they are in a release:
 
-- the Loom ↔ Cell protocol, including authentication, fencing, replay, and stale-Plan handling
-- the Cipher port and its adapters, including any path by which secret plaintext could leak
+- the full Loom ↔ Cell convergence protocol, including fleet-wide fencing, replay, and stale-Plan handling
+- production secret-store integrations beyond the alpha `age` and Virtual Trusted Platform Module (vTPM) adapter
 
-The `0.1` line has neither: no Loom, no network protocol, and no secrets. Its [security model](docs/security-model.md) lists what it assumes and what it does not try to defend.
+The `0.1` line had no Loom, no network protocol, and no secrets. Its [security model](docs/security-model.md) lists what the Phase 1 Cell assumes and what it does not try to defend.
 
 Out of scope:
 
