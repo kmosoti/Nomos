@@ -85,3 +85,7 @@ zbus = { version = "5.19", default-features = false, features = ["async-io", "bl
 # only: the encoders and the hash under test are written without them.
 ciborium = "0.2"
 serde_json_canonicalizer = "0.3"
+# Post-quantum hybrid KEM and static X25519 primitives (pure Rust, adapters only).
+ml-kem = { version = "0.2", features = ["zeroize"] }
+rand_core = "0.6"
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
