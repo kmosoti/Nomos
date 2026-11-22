@@ -96,3 +96,4 @@ serde_json_canonicalizer = "0.3"
 ml-kem = { version = "0.2", features = ["zeroize"] }
 rand_core = "0.6"
 x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
+socket2 = "0.6"
