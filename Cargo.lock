@@ -2444,7 +2444,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-app"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-canon",
  "nomos-cipher",
@@ -2460,7 +2460,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-canon"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "ciborium",
  "nomos-core",
@@ -2474,7 +2474,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cell"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-app",
  "nomos-canon",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cipher"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "serde",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cipher-age-vtpm"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "age",
  "blake3",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cipher-vault"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-cipher",
  "nomos-core",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cloud"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "blake3",
  "nomos-core",
@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-cloud-gcp"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "axum",
  "blake3",
@@ -2552,7 +2552,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-core"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "proptest",
  "serde",
@@ -2562,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-loom"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "axum",
  "blake3",
@@ -2594,7 +2594,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-mesh"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "serde",
@@ -2602,7 +2602,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-mesh-headscale"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "nomos-mesh",
@@ -2610,7 +2610,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-mesh-wireguard"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "arc-swap",
  "blake3",
@@ -2629,7 +2629,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-protocol"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "serde",
@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-protocol-quic"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "bytes",
  "ciborium",
@@ -2655,14 +2655,14 @@ dependencies = [
 
 [[package]]
 name = "nomos-store"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
 ]
 
 [[package]]
 name = "nomos-store-fs"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-canon",
  "nomos-core",
@@ -2672,14 +2672,14 @@ dependencies = [
 
 [[package]]
 name = "nomos-substrate"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
 ]
 
 [[package]]
 name = "nomos-substrate-linux"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-canon",
  "nomos-core",
@@ -2690,7 +2690,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-substrate-mock"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "nomos-substrate",
@@ -2698,7 +2698,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-warp"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
  "proptest",
@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "nomos-xtask"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "jsonschema",
  "serde",

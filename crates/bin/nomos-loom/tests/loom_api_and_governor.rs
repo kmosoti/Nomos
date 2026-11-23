@@ -249,17 +249,19 @@ async fn quic_handler_executes_real_kernel_warp_fence_and_fsstore_persistence() 
     let state_dir = tmp.0.join("state");
     let db_path = tmp.0.join("leases.sqlite");
 
+    let authority_pin = [0xA1u8; 32];
     let kernel = KernelService::open(&state_dir).unwrap();
     let leases = LeaseBroker::open(&db_path, 4).unwrap();
     let governor = GovernorService::new(GovernorConfig::default());
-    let handler =
-        LoomQuicHandler::new("coord-0".to_owned(), governor, leases).with_kernel(kernel.clone());
+    let handler = LoomQuicHandler::new("coord-0".to_owned(), governor, leases)
+        .with_kernel(kernel.clone())
+        .with_authority_pin(authority_pin);
 
     let (canon_bytes, digest) = sample_canon_jcs();
     let canon_json = String::from_utf8(canon_bytes).unwrap();
     let plan = PlanId::new("plan-real-1").unwrap();
 
-    // 1. Valid Canon + monotonically advancing generation accepted & persisted to FsStore.
+    // 0. Unauthenticated handle() MUST fail closed.
     let req = ControlEnvelope::new(
         ControlOp::SubmitPlan,
         Some(&plan),
@@ -267,7 +269,11 @@ async fn quic_handler_executes_real_kernel_warp_fence_and_fsstore_persistence() 
         &digest,
         canon_json.clone(),
     );
-    let reply = handler.handle(req).await;
+    let unauth = handler.handle(req.clone()).await;
+    assert!(!unauth.ok, "unauthenticated SubmitPlan must fail closed");
+
+    // 1. Valid Canon + monotonically advancing generation from Authority pin succeeds.
+    let reply = handler.handle_authenticated(authority_pin, req).await;
     assert!(reply.ok, "valid plan must succeed: {}", reply.message);
     assert_eq!(reply.generation, 10);
     assert_eq!(kernel.journal_len(), 1);
@@ -282,7 +288,7 @@ async fn quic_handler_executes_real_kernel_warp_fence_and_fsstore_persistence() 
         &digest,
         canon_json,
     );
-    let stale_reply = handler.handle(stale_req).await;
+    let stale_reply = handler.handle_authenticated(authority_pin, stale_req).await;
     assert!(!stale_reply.ok, "stale generation behind Fence must fail");
 
     // 3. Unknown/bogus VerifyReceipt MUST be rejected (no stub ok: true).
@@ -293,7 +299,9 @@ async fn quic_handler_executes_real_kernel_warp_fence_and_fsstore_persistence() 
         &digest,
         r#"{"resource_path":"/etc/nomos/demo.conf","iteration":0,"outcome":"completed"}"#,
     );
-    let receipt_reply = handler.handle(bogus_receipt).await;
+    let receipt_reply = handler
+        .handle_authenticated(authority_pin, bogus_receipt)
+        .await;
     assert!(
         !receipt_reply.ok,
         "unmatched receipt must be rejected by kernel::step"
