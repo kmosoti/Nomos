@@ -23,7 +23,10 @@ pub use handshake::{
     MSG_TYPE_INITIATION, MSG_TYPE_RESPONSE, RESPONSE_LEN, ResponderOutcome, StaticKeypair,
     consume_cookie_reply, initiate_handshake, respond_handshake,
 };
-pub use inner_ip::{InnerEndpoint, InnerIpv6UdpHeader, udp_v6_checksum};
+pub use inner_ip::{
+    InnerDestinationPolicy, InnerEndpoint, InnerIpv6UdpHeader, udp_v6_checksum,
+    validate_inner_endpoints,
+};
 pub use quic_adapter::TunnelQuicBudget;
 pub use sanstun::{PeerTunnelState, ReplayWindow, ipv6_in_prefix};
 pub use timer_wheel::{TimerAction, TimerEntry, TimerWheel};
@@ -116,6 +119,32 @@ impl CoreEngine {
             .get_mut(peer_slot as usize)
             .ok_or_else(|| MeshError::InvalidConfig("peer_slot out of range".into()))?;
         peer.allowed_prefix = Some((prefix, prefix_len.min(128)));
+        Ok(())
+    }
+
+    /// Configures an authorized inner destination IPv6 prefix and optional UDP port range for `peer_slot`.
+    pub fn set_peer_allowed_destination(
+        &mut self,
+        peer_slot: u16,
+        dst_prefix: Ipv6Addr,
+        dst_prefix_len: u8,
+        port_range: Option<(u16, u16)>,
+    ) -> MeshResult<()> {
+        if let Some((min_p, max_p)) = port_range
+            && (min_p == 0 || min_p > max_p)
+        {
+            return Err(MeshError::InvalidConfig(
+                "invalid inner destination UDP port range".into(),
+            ));
+        }
+        let peer = self
+            .peers
+            .get_mut(peer_slot as usize)
+            .ok_or_else(|| MeshError::InvalidConfig("peer_slot out of range".into()))?;
+        peer.allowed_dst = Some(InnerDestinationPolicy {
+            prefix: (dst_prefix, dst_prefix_len.min(128)),
+            port_range,
+        });
         Ok(())
     }
 

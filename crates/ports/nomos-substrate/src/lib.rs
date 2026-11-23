@@ -36,6 +36,11 @@ pub trait Mutate {
     /// and changes nothing (fencing-and-idempotency.md). The effect can
     /// cause no change after `request.settle_by`.
     fn apply(&mut self, request: &Apply) -> Vec<Receipt>;
+
+    /// Returns the adapter's current clock instant when observable (`None` relies on kernel clock).
+    fn current_instant(&self) -> Option<nomos_core::observation::Instant> {
+        None
+    }
 }
 
 /// Where an adapter gets the bytes an exact file requirement names by

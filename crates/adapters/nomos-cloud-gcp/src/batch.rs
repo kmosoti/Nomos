@@ -1,12 +1,16 @@
 //! Spot Batch runner (`e2-standard-4`, terminal state polling, scale-to-zero cleanup)
 //! over GCP Batch REST v1.
 
-use nomos_cloud::{BatchJobHandle, CloudError, CloudResult, SpotBatchConfig};
+use nomos_cloud::{
+    BatchJobHandle, CloudError, CloudResult, SpotBatchConfig, validate_gcp_project_id,
+    validate_gcp_resource_name,
+};
 use nomos_core::cipher::Secret;
 use serde::{Deserialize, Serialize};
 
 use crate::lro::jittered_backoff;
 use crate::rest::GcpEndpointConfig;
+use crate::url_guard::build_gcp_url;
 
 #[derive(Serialize)]
 struct BatchJobRequest<'a> {
@@ -99,10 +103,15 @@ pub async fn wait_batch_job_terminal(
     region: &str,
     job_id: &str,
 ) -> CloudResult<BatchJobHandle> {
-    let url = format!(
-        "{}/projects/{project_id}/locations/{region}/jobs/{job_id}",
-        cfg.batch_base_url
-    );
+    validate_gcp_project_id(project_id)?;
+    validate_gcp_resource_name("region", region)?;
+    validate_gcp_resource_name("job_id", job_id)?;
+    let url = build_gcp_url(
+        &cfg.batch_base_url,
+        "batch_base_url",
+        &["projects", project_id, "locations", region, "jobs", job_id],
+        &[],
+    )?;
     for poll_idx in 0..cfg.lro_max_polls {
         let resp = client
             .get(&url)
@@ -160,18 +169,19 @@ pub async fn submit_spot_batch(
     token: &Secret<String>,
     job: &SpotBatchConfig,
 ) -> CloudResult<BatchJobHandle> {
-    if job.project_id.trim().is_empty()
-        || job.region.trim().is_empty()
-        || job.job_id.trim().is_empty()
-    {
-        return Err(CloudError::InvalidSpec(
-            "Batch job project_id, region, and job_id must be non-empty".into(),
-        ));
-    }
-    let url = format!(
-        "{}/projects/{}/locations/{}/jobs?jobId={}",
-        cfg.batch_base_url, job.project_id, job.region, job.job_id
-    );
+    job.validate()?;
+    let url = build_gcp_url(
+        &cfg.batch_base_url,
+        "batch_base_url",
+        &[
+            "projects",
+            &job.project_id,
+            "locations",
+            &job.region,
+            "jobs",
+        ],
+        &[("jobId", &job.job_id)],
+    )?;
     let body = BatchJobRequest {
         task_groups: [TaskGroup {
             task_spec: TaskSpec {
@@ -265,10 +275,15 @@ pub async fn delete_batch_job(
     region: &str,
     job_id: &str,
 ) -> CloudResult<()> {
-    let url = format!(
-        "{}/projects/{project_id}/locations/{region}/jobs/{job_id}",
-        cfg.batch_base_url
-    );
+    validate_gcp_project_id(project_id)?;
+    validate_gcp_resource_name("region", region)?;
+    validate_gcp_resource_name("job_id", job_id)?;
+    let url = build_gcp_url(
+        &cfg.batch_base_url,
+        "batch_base_url",
+        &["projects", project_id, "locations", region, "jobs", job_id],
+        &[],
+    )?;
     let resp = client
         .delete(&url)
         .bearer_auth(token.expose())

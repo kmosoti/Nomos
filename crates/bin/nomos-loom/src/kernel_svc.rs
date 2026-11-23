@@ -1,5 +1,6 @@
 //! Real transition-kernel, Warp graph, Fence, and `FsContentStore`/`FileLog` coordinator service.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -12,6 +13,12 @@ use nomos_store::{ContentStore, EventLog};
 use nomos_store_fs::{FileLog, FsContentStore};
 use nomos_warp::graph::{Graph, Vertex};
 use serde::{Deserialize, Serialize};
+
+/// Maximum single-step generation increment accepted above the current Fence watermark.
+///
+/// Rejects extreme generation jumps (such as `u64::MAX`) that would permanently wedge
+/// downstream monotonicity unless wiped.
+pub const MAX_GENERATION_LEAP: u64 = 1_000_000;
 
 /// Non-secret summary returned when evaluating (`trace`) or enforcing a Canon plan.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,6 +69,7 @@ struct KernelInner {
     snapshot: KernelSnapshot,
     store: FsContentStore,
     journal: FileLog<Input>,
+    accepted_digests: BTreeMap<(String, u64), String>,
 }
 
 impl core::fmt::Debug for KernelService {
@@ -80,14 +88,27 @@ impl KernelService {
         let (journal, _recovery) = FileLog::<Input>::open(&log_path)
             .map_err(|e| format!("open FileLog `{}`: {e}", log_path.display()))?;
         let mut snapshot = KernelSnapshot::new();
+        let mut accepted_digests = BTreeMap::new();
         for input in journal.events() {
-            snapshot = step(&snapshot, input).snapshot;
+            let decision = step(&snapshot, input.clone());
+            if let Input::Enforce(plan) = &input {
+                for ev in &decision.events {
+                    if let Event::PlanAccepted(_) = ev {
+                        accepted_digests.insert(
+                            (plan.id.as_str().to_owned(), plan.generation.0),
+                            canon_model_digest(&plan.canon),
+                        );
+                    }
+                }
+            }
+            snapshot = decision.snapshot;
         }
         Ok(Self {
             inner: Arc::new(Mutex::new(KernelInner {
                 snapshot,
                 store,
                 journal,
+                accepted_digests,
             })),
         })
     }
@@ -133,6 +154,11 @@ impl KernelService {
             ));
         }
 
+        if generation == 0 || generation == u64::MAX {
+            return Err(format!(
+                "invalid generation {generation} (must be within 1..u64::MAX)"
+            ));
+        }
         let kernel_canon = KernelCanon::try_from(&decoded.canon)
             .map_err(|e| format!("convert Canon to kernel model: {e:?}"))?;
         let vertices: Vec<Vertex> = kernel_canon
@@ -145,6 +171,7 @@ impl KernelService {
         let warp_vertices = compiled_graph.vertices().count();
         let warp_edges = kernel_canon.edges().len();
 
+        let canon_fingerprint = canon_model_digest(&kernel_canon);
         let plan = Plan {
             id: plan_id,
             generation: Generation(generation),
@@ -159,11 +186,40 @@ impl KernelService {
             .inner
             .lock()
             .map_err(|_| "kernel mutex poisoned".to_owned())?;
+        let current_gen = guard
+            .snapshot
+            .fence()
+            .accepted()
+            .map_or(0, |(gen_val, _)| gen_val.0);
+        if generation > current_gen.saturating_add(MAX_GENERATION_LEAP) {
+            return Err(format!(
+                "generation leap {generation} exceeds MAX_GENERATION_LEAP ({MAX_GENERATION_LEAP}) above {current_gen}"
+            ));
+        }
+        if let Some(prev_canon) = guard
+            .accepted_digests
+            .get(&(plan_id_str.to_owned(), generation))
+        {
+            if prev_canon != &canon_fingerprint {
+                return Err(format!(
+                    "divergent payload rejected for already-accepted plan `{plan_id_str}` gen {generation}"
+                ));
+            }
+            return Err(format!(
+                "replayed plan `{plan_id_str}` gen {generation} already accepted"
+            ));
+        }
         let decision = step(&guard.snapshot, input.clone());
         for ev in &decision.events {
             if let Event::PlanRejected { reason, .. } = ev {
                 return Err(format!(
                     "kernel rejected plan under Fence/policy: {reason:?}"
+                ));
+            }
+            if let Event::PlanRedelivered { plan } = ev {
+                return Err(format!(
+                    "replayed plan `{}` gen {generation} rejected by Fence",
+                    plan.as_str()
                 ));
             }
         }
@@ -180,6 +236,9 @@ impl KernelService {
                 .append(&[input])
                 .map_err(|_| "FileLog append failed (log full or poisoned)".to_owned())?;
             guard.snapshot = decision.snapshot;
+            guard
+                .accepted_digests
+                .insert((plan_id_str.to_owned(), generation), canon_fingerprint);
         }
 
         Ok(PlanSummary {
@@ -265,4 +324,9 @@ fn decode_canon_auto(bytes: &[u8]) -> Result<(nomos_canon::artifact::Decoded, Pr
             .map(|d| (d, Profile::Cbor))
             .map_err(|e| format!("decode Canon CBOR: {e:?}"))
     }
+}
+
+fn canon_model_digest(canon: &KernelCanon) -> String {
+    let encoded = format!("{canon:?}");
+    blake3::hash(encoded.as_bytes()).to_hex().to_string()
 }

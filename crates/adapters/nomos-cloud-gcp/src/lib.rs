@@ -6,6 +6,7 @@ pub mod lro;
 pub mod rest;
 mod rest_diff;
 mod rest_types;
+mod url_guard;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -41,6 +42,7 @@ impl GcpCloudAdapter {
     ) -> CloudResult<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| nomos_cloud::CloudError::Http(format!("build HTTP client: {e}")))?;
         Ok(Self {

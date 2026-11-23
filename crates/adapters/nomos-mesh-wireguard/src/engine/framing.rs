@@ -8,7 +8,9 @@ use crate::boundary::{
     BufPool, CipherDirection, CipherTask, CoreOutput, DecryptedRx, EcnCodepoint, FixedRing,
     PacketLayout, SliceWriter,
 };
-use crate::engine::inner_ip::{InnerEndpoint, InnerIpv6UdpHeader, udp_v6_checksum};
+use crate::engine::inner_ip::{
+    InnerEndpoint, InnerIpv6UdpHeader, udp_v6_checksum, validate_inner_endpoints,
+};
 use crate::engine::sanstun::{PeerTunnelState, ipv6_in_prefix};
 
 const WG_TYPE_TRANSPORT: u32 = 4;
@@ -103,8 +105,16 @@ pub(crate) fn verify_and_deliver_rx(
     if hdr.payload_len as usize != payload_len {
         return Ok(false);
     }
+    if !validate_inner_endpoints(hdr.src, hdr.dst) {
+        return Ok(false);
+    }
     if let Some((prefix, prefix_len)) = peer.allowed_prefix
         && !ipv6_in_prefix(hdr.src.addr, prefix, prefix_len)
+    {
+        return Ok(false);
+    }
+    if let Some(dst_policy) = peer.allowed_dst
+        && !dst_policy.allows(hdr.dst)
     {
         return Ok(false);
     }

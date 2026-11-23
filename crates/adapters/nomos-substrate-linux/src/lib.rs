@@ -27,6 +27,7 @@
 //! [substrate-contract.md]: ../../../../docs/formal/substrate-contract.md
 
 pub mod accounts;
+pub mod boot_clock;
 pub mod host_traits;
 pub mod packages;
 pub mod units;
@@ -86,6 +87,8 @@ pub struct LinuxHost {
     systemd: Option<Systemd>,
     ledger: BTreeMap<EffectKey, Vec<Receipt>>,
     executions: usize,
+    clock_offset_ns: u64,
+    strict_deadline: bool,
 }
 
 impl std::fmt::Debug for LinuxHost {
@@ -141,6 +144,8 @@ impl LinuxHost {
             systemd: None,
             ledger: BTreeMap::new(),
             executions: 0,
+            clock_offset_ns: 0,
+            strict_deadline: false,
         })
     }
 
@@ -155,6 +160,23 @@ impl LinuxHost {
     pub fn with_systemd(mut self, systemd: Systemd) -> Self {
         self.systemd = Some(systemd);
         self
+    }
+
+    /// Configures a monotonic boot-epoch offset added to [`now`] for [`Self::host_now`].
+    pub fn with_clock_offset_ns(mut self, clock_offset_ns: u64) -> Self {
+        self.clock_offset_ns = clock_offset_ns;
+        self
+    }
+
+    /// Enables pre-execution refusal when `self.host_now() >= request.settle_by`.
+    pub fn with_strict_deadline(mut self, strict: bool) -> Self {
+        self.strict_deadline = strict;
+        self
+    }
+
+    /// Returns this host's effective monotonic instant (`CLOCK_MONOTONIC` plus boot epoch offset).
+    pub fn host_now(&self) -> Instant {
+        Instant(now().0.saturating_add(self.clock_offset_ns))
     }
 
     /// Adds `bytes` to the host's own content and returns their digest,
@@ -492,6 +514,9 @@ impl LinuxHost {
     }
 
     fn execute(&self, request: &Apply) -> Receipt {
+        if self.strict_deadline && self.host_now() >= request.settle_by {
+            return Receipt::Refused;
+        }
         let Operation::Converge(requirement) = &request.operation else {
             return Receipt::Refused;
         };
@@ -841,11 +866,11 @@ impl Observe for LinuxHost {
         resources
             .iter()
             .filter_map(|key| {
-                let start = now();
+                let start = self.host_now();
                 let collection = self.collect(key);
                 // The monotonic clock does not go backwards; `max` makes the
                 // window valid by construction rather than by that promise.
-                let end = now().max(start);
+                let end = self.host_now().max(start);
                 Observation::new(key.clone(), collection, self.provenance(start, end))
             })
             .collect()
@@ -860,7 +885,7 @@ impl Mutate for LinuxHost {
         let done = match (request.key.resource(), &self.systemd) {
             (ResourceKey::Unit(name), Some(systemd)) => {
                 let settle_by = request.settle_by;
-                systemd.execute(name, &request.operation, || now() >= settle_by)
+                systemd.execute(name, &request.operation, || self.host_now() >= settle_by)
             }
             _ => Some(self.execute(request)),
         };
@@ -879,5 +904,9 @@ impl Mutate for LinuxHost {
         };
         self.ledger.insert(request.key.clone(), receipts.clone());
         receipts
+    }
+
+    fn current_instant(&self) -> Option<Instant> {
+        Some(self.host_now())
     }
 }

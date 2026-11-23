@@ -3,6 +3,10 @@
 use nomos_core::resource::Digest;
 use serde::{Deserialize, Serialize};
 
+use crate::validation::{
+    validate_firewall_rule, validate_gcp_path_or_uri, validate_gcp_project_id,
+    validate_gcp_resource_name, validate_ipv6_cidr,
+};
 use crate::{CloudError, CloudResult};
 
 /// Desired pure-IPv6 cloud VM node specification supplied by operator config.
@@ -59,46 +63,25 @@ pub struct TopologySpec {
 }
 
 impl TopologySpec {
-    /// Validates project, IPv6 subnet/node fields, and returns deterministic specification digest.
+    /// Validates project, GCP resource naming grammars, IPv6 CIDRs, paths, and returns digest.
     pub fn validate(&self) -> CloudResult<Digest> {
-        if self.project_id.trim().is_empty()
-            || self.region.trim().is_empty()
-            || self.network_name.trim().is_empty()
-            || self.subnet_name.trim().is_empty()
-        {
-            return Err(CloudError::InvalidSpec(
-                "project_id, region, network_name, and subnet_name must be non-empty".into(),
-            ));
-        }
-        if !self.subnet_ipv6_cidr.contains(':') {
-            return Err(CloudError::InvalidSpec(format!(
-                "subnet_ipv6_cidr `{}` must be IPv6",
-                self.subnet_ipv6_cidr
-            )));
-        }
+        validate_gcp_project_id(&self.project_id)?;
+        validate_gcp_resource_name("region", &self.region)?;
+        validate_gcp_resource_name("network_name", &self.network_name)?;
+        validate_gcp_resource_name("subnet_name", &self.subnet_name)?;
+        validate_ipv6_cidr("subnet_ipv6_cidr", &self.subnet_ipv6_cidr)?;
         for node in &self.nodes {
-            if node.name.trim().is_empty() || node.zone.trim().is_empty() {
-                return Err(CloudError::InvalidSpec(
-                    "node name and zone must be non-empty".into(),
-                ));
-            }
-            if !node.ipv6_cidr.contains(':') {
-                return Err(CloudError::InvalidSpec(format!(
-                    "node `{}` ipv6_cidr `{}` must be IPv6",
-                    node.name, node.ipv6_cidr
-                )));
+            validate_gcp_resource_name("node.name", &node.name)?;
+            validate_gcp_resource_name("node.zone", &node.zone)?;
+            validate_gcp_resource_name("node.machine_type", &node.machine_type)?;
+            validate_ipv6_cidr("node.ipv6_cidr", &node.ipv6_cidr)?;
+            validate_gcp_path_or_uri("node.source_image", &node.source_image)?;
+            for tag in &node.tags {
+                validate_gcp_resource_name("node.tag", tag)?;
             }
         }
         for fw in &self.firewall_rules {
-            if fw.name.trim().is_empty()
-                || fw.source_ranges_v6.is_empty()
-                || fw.source_ranges_v6.iter().any(|r| !r.contains(':'))
-            {
-                return Err(CloudError::InvalidSpec(format!(
-                    "firewall `{}` must define pure-IPv6 source ranges",
-                    fw.name
-                )));
-            }
+            validate_firewall_rule(fw)?;
         }
         Ok(self.spec_digest())
     }
@@ -223,6 +206,33 @@ pub struct SpotBatchConfig {
 }
 
 impl SpotBatchConfig {
+    /// Validates Spot Batch project/region/job identifiers and network/container specs.
+    pub fn validate(&self) -> CloudResult<()> {
+        validate_gcp_project_id(&self.project_id)?;
+        validate_gcp_resource_name("region", &self.region)?;
+        validate_gcp_resource_name("job_id", &self.job_id)?;
+        validate_gcp_resource_name("machine_type", &self.machine_type)?;
+        validate_gcp_path_or_uri("network_uri", &self.network_uri)?;
+        validate_gcp_path_or_uri("subnetwork_uri", &self.subnetwork_uri)?;
+        if self.container_image.is_empty()
+            || self
+                .container_image
+                .bytes()
+                .any(|b| b.is_ascii_whitespace() || b.is_ascii_control())
+        {
+            return Err(CloudError::InvalidSpec(format!(
+                "invalid container_image `{}`",
+                self.container_image
+            )));
+        }
+        if self.max_run_secs == 0 {
+            return Err(CloudError::InvalidSpec(
+                "max_run_secs must be greater than zero".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Builds an `e2-standard-4` Spot Batch configuration defaulting to `scale_to_zero = true`.
     pub fn e2_standard_4(
         project_id: impl Into<String>,

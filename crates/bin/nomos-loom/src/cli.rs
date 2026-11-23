@@ -24,8 +24,14 @@ pub struct ServeArgs {
     pub max_active_leases: usize,
     /// Mandatory mTLS client SPKI/cert SHA-256 hex pins allowed to connect over QUIC.
     pub allowed_client_pins: Vec<String>,
+    /// Authority peer SPKI SHA-256 hex pins authorized for `SubmitPlan`.
+    pub authority_client_pins: Vec<String>,
+    /// Cell peer SPKI SHA-256 pins (`<NODE>:<HEX>` or `<HEX>`) limited to status/telemetry/receipts.
+    pub cell_client_pins: Vec<String>,
     /// Explicit `--allow-plaintext-key` opt-in for non-TPM2 dev/CI vault keys.
     pub allow_plaintext_key: bool,
+    /// Explicit `--behind-tls-proxy` acknowledgment when binding HTTP on non-loopback interfaces.
+    pub behind_tls_proxy: bool,
 }
 
 impl Default for ServeArgs {
@@ -40,7 +46,10 @@ impl Default for ServeArgs {
             node_name: "nomos-loom".to_owned(),
             max_active_leases: 64,
             allowed_client_pins: Vec::new(),
+            authority_client_pins: Vec::new(),
+            cell_client_pins: Vec::new(),
             allow_plaintext_key: false,
+            behind_tls_proxy: false,
         }
     }
 }
@@ -87,8 +96,9 @@ Commands:
   enforce --target <EXPR> --canon <PATH> [--state-dir <DIR>]
   serve   [--listen <[v6]:port>] [--quic-listen <[v6]:port>] [--db-path <PATH>]
           [--vault-dir <PATH>] [--state-dir <DIR>] [--web-assets-dir <DIR>]
-          [--node-name <NAME>] [--max-leases <N>] [--allowed-client-pin <SHA256_HEX>]...
-          [--allow-plaintext-key]
+          [--node-name <NAME>] [--max-leases <N>] [--allowed-client-pin <SPEC>]...
+          [--authority-pin <SHA256_HEX>]... [--cell-pin <SPEC>]...
+          [--allow-plaintext-key] [--behind-tls-proxy]
 ";
 
 /// Parses command-line arguments without external dependencies.
@@ -185,12 +195,32 @@ where
                 args.allowed_client_pins
                     .push(next_val(&mut iter, "--allowed-client-pin")?);
             }
+            "--authority-pin" => {
+                args.authority_client_pins
+                    .push(next_val(&mut iter, "--authority-pin")?);
+            }
+            "--cell-pin" => {
+                args.cell_client_pins
+                    .push(next_val(&mut iter, "--cell-pin")?);
+            }
             "--allow-plaintext-key" => args.allow_plaintext_key = true,
+            "--behind-tls-proxy" => args.behind_tls_proxy = true,
             "--help" | "-h" => return Ok(LoomCommand::Help),
             other => return Err(format!("unknown serve flag `{other}`")),
         }
     }
     Ok(LoomCommand::Serve(args))
+}
+
+/// Validates safety invariants for `serve` options before binding sockets.
+pub fn validate_serve_args(args: &ServeArgs) -> Result<(), String> {
+    if !args.listen.ip().is_loopback() && !args.behind_tls_proxy {
+        return Err(format!(
+            "refusing plain HTTP bind on non-loopback `{}`; use `[::1]:port` or pass `--behind-tls-proxy` behind terminating TLS",
+            args.listen
+        ));
+    }
+    Ok(())
 }
 
 fn next_val<I>(iter: &mut I, flag: &str) -> Result<String, String>

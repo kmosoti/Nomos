@@ -5,7 +5,7 @@ use std::path::Path;
 
 use age::secrecy::ExposeSecret;
 use nomos_cipher::{CipherError, CipherResult};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::pq_hybrid::{HybridIdentity, HybridRecipient};
 use crate::sealer::{CredSealer, VaultCipherMode, VaultKeyStorage};
@@ -116,37 +116,33 @@ pub fn init_vault_dir(
         return load_recipient(vault_dir, storage, sealer);
     }
 
-    let (recipient, mut secret_bytes) = match mode {
+    let (recipient, secret_bytes) = match mode {
         VaultCipherMode::HybridMlKem768X25519 => {
             let identity = HybridIdentity::generate()?;
             let recipient = VaultRecipient::Hybrid(identity.to_public());
-            let encoded = format!("{}\n", identity.encode_secret());
-            (recipient, encoded.into_bytes())
+            let encoded = identity.encode_secret();
+            let mut buf = Zeroizing::new(Vec::with_capacity(encoded.len() + 1));
+            buf.extend_from_slice(encoded.as_bytes());
+            buf.push(b'\n');
+            (recipient, buf)
         }
         VaultCipherMode::ClassicalX25519 => {
             let identity = age::x25519::Identity::generate();
             let recipient = VaultRecipient::Classical(identity.to_public());
             let encoded = identity.to_string();
-            let bytes = format!("{}\n", encoded.expose_secret()).into_bytes();
-            (recipient, bytes)
+            let raw = encoded.expose_secret().as_bytes();
+            let mut buf = Zeroizing::new(Vec::with_capacity(raw.len() + 1));
+            buf.extend_from_slice(raw);
+            buf.push(b'\n');
+            (recipient, buf)
         }
     };
 
-    let mut to_write = match storage {
-        VaultKeyStorage::Tpm2Sealed => {
-            let sealed = sealer.seal_tpm2(&secret_bytes);
-            secret_bytes.zeroize();
-            sealed?
-        }
-        VaultKeyStorage::PlaintextDev => {
-            let out = secret_bytes.clone();
-            secret_bytes.zeroize();
-            out
-        }
+    let to_write = match storage {
+        VaultKeyStorage::Tpm2Sealed => Zeroizing::new(sealer.seal_tpm2(&secret_bytes)?),
+        VaultKeyStorage::PlaintextDev => secret_bytes,
     };
-    let write_res = write_atomic(&id_file, &to_write, 0o600);
-    to_write.zeroize();
-    write_res?;
+    write_atomic(&id_file, &to_write, 0o600)?;
 
     write_atomic(
         &recipient_path(vault_dir),

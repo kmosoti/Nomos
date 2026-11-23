@@ -5,6 +5,37 @@ use std::net::Ipv6Addr;
 use nomos_mesh::{INNER_IPV6_UDP_LEN, MeshError, MeshResult};
 
 use crate::boundary::SliceWriter;
+use crate::engine::sanstun::ipv6_in_prefix;
+
+/// Authorized inner destination `(IPv6 prefix, optional inclusive UDP port range)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InnerDestinationPolicy {
+    /// Allowed destination IPv6 network `(prefix, prefix_len)`.
+    pub prefix: (Ipv6Addr, u8),
+    /// Optional inclusive UDP destination port range `(min_port, max_port)`.
+    pub port_range: Option<(u16, u16)>,
+}
+
+impl InnerDestinationPolicy {
+    /// Returns true if `endpoint` satisfies the IPv6 destination prefix and port range.
+    pub fn allows(&self, endpoint: InnerEndpoint) -> bool {
+        if !ipv6_in_prefix(endpoint.addr, self.prefix.0, self.prefix.1) {
+            return false;
+        }
+        self.port_range
+            .is_none_or(|(min_p, max_p)| (min_p..=max_p).contains(&endpoint.port))
+    }
+}
+
+/// Rejects unspecified (`::`), multicast (`ff00::/8`), and port-0 inner endpoints.
+pub fn validate_inner_endpoints(src: InnerEndpoint, dst: InnerEndpoint) -> bool {
+    src.port != 0
+        && dst.port != 0
+        && !src.addr.is_unspecified()
+        && !src.addr.is_multicast()
+        && !dst.addr.is_unspecified()
+        && !dst.addr.is_multicast()
+}
 
 /// Endpoint `(IPv6, UDP port)` for inner tunnel traffic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

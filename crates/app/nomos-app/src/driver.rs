@@ -12,11 +12,29 @@
 
 use std::collections::VecDeque;
 
-use nomos_core::effect::EffectRequest;
+use nomos_core::effect::{EffectRequest, Receipt};
+use nomos_core::observation::Instant;
 use nomos_store::{EventLog, Full};
 use nomos_substrate::{Mutate, Observe};
 
 use crate::kernel::{Event, Input, KernelSnapshot, replay, step};
+
+fn effect_deadline_reached<S: Mutate>(
+    snapshot: &KernelSnapshot,
+    substrate: &S,
+    settle_by: Instant,
+) -> bool {
+    let kernel_now = snapshot.now();
+    if kernel_now >= settle_by {
+        return true;
+    }
+    if kernel_now > Instant(0)
+        && let Some(live_now) = substrate.current_instant()
+    {
+        return live_now >= settle_by;
+    }
+    false
+}
 
 /// A kernel, its Event Log, and nothing else.
 #[derive(Debug)]
@@ -60,8 +78,12 @@ impl<L: EventLog<Event>> Cell<L> {
                     next.push(Input::Observed(substrate.observe(&paths)));
                 }
                 EffectRequest::Apply(request) => {
-                    for receipt in substrate.apply(&request) {
-                        next.push(Input::Receipt(request.key.clone(), receipt));
+                    if effect_deadline_reached(&self.snapshot, substrate, request.settle_by) {
+                        next.push(Input::Receipt(request.key.clone(), Receipt::Refused));
+                    } else {
+                        for receipt in substrate.apply(&request) {
+                            next.push(Input::Receipt(request.key.clone(), receipt));
+                        }
                     }
                 }
             }
@@ -149,8 +171,12 @@ impl<J: EventLog<Input>> JournaledCell<J> {
                     next.push(Input::Observed(substrate.observe(&keys)));
                 }
                 EffectRequest::Apply(request) => {
-                    for receipt in substrate.apply(&request) {
-                        next.push(Input::Receipt(request.key.clone(), receipt));
+                    if effect_deadline_reached(&self.snapshot, substrate, request.settle_by) {
+                        next.push(Input::Receipt(request.key.clone(), Receipt::Refused));
+                    } else {
+                        for receipt in substrate.apply(&request) {
+                            next.push(Input::Receipt(request.key.clone(), receipt));
+                        }
                     }
                 }
             }
