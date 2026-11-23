@@ -12,11 +12,11 @@ dependencies = [
 
 [[package]]
 name = "nomos-canon"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
 dependencies = [
  "nomos-core",
 ]
 
 [[package]]
 name = "nomos-core"
-version = "0.2.0-alpha.1"
+version = "0.2.1-alpha.1"
