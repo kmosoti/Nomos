@@ -9,8 +9,8 @@ Nomos is in alpha. The `0.2` line includes the masterless Cell (`nomos-cell`) an
 | Version | Supported |
 | --- | --- |
 | `main` | Yes |
-| The latest `0.2` release | Yes |
-| Earlier `0.2` and `0.1` releases | No: upgrade to the latest |
+| `0.2.1-alpha.1` (latest `0.2` release) | Yes |
+| `0.2.0-alpha.1` and earlier `0.1` releases | No: upgrade to `0.2.1-alpha.1` |
 | Any other branch or fork | No |
 
 ## Reporting a Vulnerability

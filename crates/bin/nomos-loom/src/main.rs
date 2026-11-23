@@ -18,10 +18,13 @@ use nomos_mesh_wireguard::WireGuardMeshAdapter;
 use nomos_protocol::ControlTransportMetrics;
 use nomos_protocol_quic::{PinnedIdentity, QuicControlNode, parse_sha256_hex};
 
-use nomos_loom::cli::{HELP_TEXT, LoomCommand, ServeArgs, parse_args};
+use nomos_loom::cli::{HELP_TEXT, LoomCommand, ServeArgs, parse_args, validate_serve_args};
 use nomos_loom::governor_svc::{GovernorService, spawn_psi_reader};
 use nomos_loom::kernel_svc::KernelService;
 use nomos_loom::lease::LeaseBroker;
+use nomos_loom::peer_policy::{
+    AuthorizedPeer, PeerRole, parse_cell_pin_spec, parse_client_pin_spec,
+};
 use nomos_loom::quic_svc::{LoomQuicHandler, spawn_quic_server};
 use nomos_loom::server::{LoomState, build_router};
 
@@ -117,19 +120,47 @@ fn run_plan_command(target: &str, canon: &Path, state_dir: &Path, enforce: bool)
 }
 
 fn run_serve(args: ServeArgs) -> ExitCode {
-    let mut client_pins = Vec::with_capacity(args.allowed_client_pins.len());
-    for pin_hex in &args.allowed_client_pins {
-        match parse_sha256_hex(pin_hex) {
-            Ok(pin) => client_pins.push(pin),
+    if let Err(err) = validate_serve_args(&args) {
+        eprintln!("{err}");
+        return ExitCode::from(2);
+    }
+
+    let mut authorized_peers = Vec::new();
+    for spec in &args.allowed_client_pins {
+        match parse_client_pin_spec(spec) {
+            Ok(peer) => authorized_peers.push(peer),
             Err(err) => {
-                eprintln!("invalid --allowed-client-pin `{pin_hex}`: {err}");
+                eprintln!("{err}");
                 return ExitCode::from(2);
             }
         }
     }
+    for hex in &args.authority_client_pins {
+        match parse_sha256_hex(hex) {
+            Ok(pin) => authorized_peers.push(AuthorizedPeer {
+                pin,
+                role: PeerRole::Authority,
+                node_id: None,
+            }),
+            Err(err) => {
+                eprintln!("invalid --authority-pin `{hex}`: {err}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    for spec in &args.cell_client_pins {
+        match parse_cell_pin_spec(spec) {
+            Ok(peer) => authorized_peers.push(peer),
+            Err(err) => {
+                eprintln!("{err}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let client_pins: Vec<[u8; 32]> = authorized_peers.iter().map(|p| p.pin).collect();
     if client_pins.is_empty() {
         eprintln!(
-            "serve requires at least one --allowed-client-pin <SHA256_HEX> for mandatory mTLS"
+            "serve requires at least one --allowed-client-pin / --authority-pin / --cell-pin for mandatory mTLS"
         );
         return ExitCode::from(2);
     }
@@ -181,7 +212,8 @@ fn run_serve(args: ServeArgs) -> ExitCode {
         let quic_metrics = quic_node.clone();
         let handler = Arc::new(
             LoomQuicHandler::new(args.node_name.clone(), governor.clone(), leases.clone())
-                .with_kernel(kernel),
+                .with_kernel(kernel)
+                .with_authorized_peers(authorized_peers),
         );
         let _quic_task = spawn_quic_server(quic_node, handler);
 

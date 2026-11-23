@@ -202,6 +202,7 @@ impl MeshPort for WireGuardMeshAdapter {
                 let (prefix, len) = parse_ipv6_prefix(first_cidr)?;
                 engine.set_peer_allowed_prefix(idx as u16, prefix, len)?;
             }
+            engine.set_peer_allowed_destination(idx as u16, local_ip, 128, None)?;
         }
 
         let rt = AdapterRuntime {

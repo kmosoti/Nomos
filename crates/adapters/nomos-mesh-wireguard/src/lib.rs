@@ -16,11 +16,11 @@ pub use boundary::{
 };
 pub use engine::{
     COOKIE_REPLY_LEN, CookieGenerator, CoreEngine, DEFAULT_REKEY_AFTER_BYTES, INITIATION_LEN,
-    InitiatorHandshake, InnerEndpoint, InnerIpv6UdpHeader, MSG_TYPE_COOKIE_REPLY,
-    MSG_TYPE_INITIATION, MSG_TYPE_RESPONSE, REJECT_AFTER_TIME_NS, REKEY_AFTER_TIME_NS,
-    RESPONSE_LEN, ReplayWindow, ResponderOutcome, StaticKeypair, TimerAction, TimerEntry,
-    TimerWheel, TunnelQuicBudget, consume_cookie_reply, initiate_handshake, ipv6_in_prefix,
-    respond_handshake,
+    InitiatorHandshake, InnerDestinationPolicy, InnerEndpoint, InnerIpv6UdpHeader,
+    MSG_TYPE_COOKIE_REPLY, MSG_TYPE_INITIATION, MSG_TYPE_RESPONSE, REJECT_AFTER_TIME_NS,
+    REKEY_AFTER_TIME_NS, RESPONSE_LEN, ReplayWindow, ResponderOutcome, StaticKeypair, TimerAction,
+    TimerEntry, TimerWheel, TunnelQuicBudget, consume_cookie_reply, initiate_handshake,
+    ipv6_in_prefix, respond_handshake,
 };
 pub use shell::{
     AdaptiveCipher, CryptoDispatchMode, DEFAULT_RAYON_THRESHOLD, KeyStore,

@@ -276,13 +276,15 @@ fn trace(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32,
         }
         None => (KernelSnapshot::new(), false),
     };
-    let mut host = host(None)?;
+    let offset_ns =
+        nomos_substrate_linux::boot_clock::read_boot_clock_offset(&args.state, start.now().0);
+    let mut host = host(None)?.with_clock_offset_ns(offset_ns);
     let (report, actions) = trace_with(
         &mut host,
         start,
         recovered,
         canon,
-        nomos_substrate_linux::now(),
+        nomos_substrate_linux::boot_clock::instant_with_offset(offset_ns),
     )?;
     let (text, status) = render::trace(&report, &actions);
     let _ = write!(out, "{text}");
@@ -324,9 +326,22 @@ fn enforce(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i3
         );
     }
     let recovered = !log.events().is_empty();
-    let mut host = host(Some(store))?;
+    let max_persisted_ns = max_journal_instant(&log.events());
+    let offset_ns =
+        nomos_substrate_linux::boot_clock::reconcile_boot_clock(&args.state, max_persisted_ns)?;
+    let mut host = host(Some(store))?
+        .with_clock_offset_ns(offset_ns)
+        .with_strict_deadline(true);
     let mut cell = JournaledCell::open(log);
     let full = |_| "the journal refused an append".to_string();
+    if offset_ns > 0 {
+        if recovered {
+            cell.settle(Input::Recovered, &mut host).map_err(full)?;
+        }
+        cell.settle(Input::Tick(host.host_now()), &mut host)
+            .map_err(full)?;
+    }
+    let recovered = recovered && offset_ns == 0;
     if recovered {
         cell.settle(Input::Recovered, &mut host).map_err(full)?;
     }
@@ -357,13 +372,34 @@ fn enforce(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i3
             return Err("the run did not end before the Plan's timeouts".into());
         }
         std::thread::sleep(Duration::from_secs(1));
-        cell.settle(Input::Tick(nomos_substrate_linux::now()), &mut host)
+        cell.settle(Input::Tick(host.host_now()), &mut host)
             .map_err(full)?;
     };
     let (text, status) = render::outcome(&outcome);
     let _ = write!(out, "{text}");
     let _ = writeln!(out, "executions: {}", host.executions());
     Ok(status)
+}
+
+fn max_journal_instant(events: &[Input]) -> u64 {
+    let mut max_ns = 0u64;
+    for input in events {
+        match input {
+            Input::Tick(t) => max_ns = max_ns.max(t.0),
+            Input::Enforce(p) => {
+                if let Some(exp) = p.expires {
+                    max_ns = max_ns.max(exp.0);
+                }
+            }
+            Input::Observed(obs) => {
+                for o in obs {
+                    max_ns = max_ns.max(o.provenance().window().end().0);
+                }
+            }
+            _ => {}
+        }
+    }
+    max_ns
 }
 
 fn events(args: &Args, out: &mut impl Write, err: &mut impl Write) -> Result<i32, String> {

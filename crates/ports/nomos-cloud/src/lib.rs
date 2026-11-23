@@ -1,6 +1,7 @@
 //! Cloud substrate port: config-driven topology convergence, auth posture, and Spot Batch.
 
 pub mod spec;
+pub mod validation;
 
 use core::fmt;
 use std::future::Future;
@@ -12,6 +13,10 @@ use serde::{Deserialize, Serialize};
 pub use spec::{
     BatchJobHandle, CloudDriftItem, CloudFirewallRule, CloudNodeSpec, CloudPlan, DriftStatus,
     SpotBatchConfig, TopologySpec,
+};
+pub use validation::{
+    validate_firewall_rule, validate_gcp_path_or_uri, validate_gcp_project_id,
+    validate_gcp_resource_name, validate_ipv6_cidr,
 };
 
 /// Result alias for cloud port operations.

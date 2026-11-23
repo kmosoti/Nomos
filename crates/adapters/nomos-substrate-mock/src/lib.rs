@@ -611,9 +611,18 @@ impl Observe for MockHost {
 }
 
 impl Mutate for MockHost {
+    fn current_instant(&self) -> Option<Instant> {
+        Some(self.now)
+    }
+
     fn apply(&mut self, request: &Apply) -> Vec<Receipt> {
         if let Some(receipts) = self.ledger.get(&request.key) {
             return receipts.clone();
+        }
+        if self.now >= request.settle_by {
+            self.ledger
+                .insert(request.key.clone(), vec![Receipt::Refused]);
+            return vec![Receipt::Refused];
         }
         let key = request.key.resource().clone();
         if self.refusal(&key, &request.operation) {

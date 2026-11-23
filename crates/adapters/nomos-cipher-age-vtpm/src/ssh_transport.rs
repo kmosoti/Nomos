@@ -2,11 +2,10 @@
 //!
 //! Enforces strict host-key pinning (`StrictHostKeyChecking=yes` +
 //! `UserKnownHostsFile=<pinned>`), POSIX single-quoting on all remote arguments,
-//! `umask 077`, and CSPRNG staging suffixes to eliminate injection and TOCTOU.
+//! `umask 077`, CSPRNG staging suffixes, bounded pipe reads, and process deadlines.
 
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use nomos_cipher::{
     CipherError, CipherResult, NodeTarget, RemoteSecretState, SecretPolicyEntry, TargetTransport,
@@ -14,6 +13,9 @@ use nomos_cipher::{
 };
 use nomos_core::cipher::Secret;
 
+pub use crate::bounded_proc::{
+    BoundedCommandOutput, DEFAULT_SSH_TIMEOUT, MAX_SSH_OUTPUT_BYTES, run_command_bounded,
+};
 use crate::transport::probe_local_vtpm;
 use crate::vault_io::csprng_hex_suffix;
 
@@ -56,8 +58,8 @@ impl SshTargetTransport {
         self
     }
 
-    /// Builds validated SSH CLI arguments enforcing `StrictHostKeyChecking=yes`
-    /// and a pinned `UserKnownHostsFile`.
+    /// Builds validated SSH CLI arguments enforcing `StrictHostKeyChecking=yes`,
+    /// keepalive dead-peer detection, and a pinned `UserKnownHostsFile`.
     pub fn build_ssh_args(&self, target: &NodeTarget) -> CipherResult<Vec<String>> {
         target.validate()?;
         let known_hosts = self.known_hosts_file.as_deref().ok_or_else(|| {
@@ -72,6 +74,10 @@ impl SshTargetTransport {
             "BatchMode=yes".to_owned(),
             "-o".to_owned(),
             "ConnectTimeout=8".to_owned(),
+            "-o".to_owned(),
+            "ServerAliveInterval=10".to_owned(),
+            "-o".to_owned(),
+            "ServerAliveCountMax=2".to_owned(),
             "-o".to_owned(),
             "StrictHostKeyChecking=yes".to_owned(),
             "-o".to_owned(),
@@ -144,9 +150,13 @@ impl TargetTransport for SshTargetTransport {
         cmd.arg(format!(
             "if test -e {q_dest}; then stat -c '%a' {q_dest} && b3sum {q_dest} | cut -d' ' -f1; else echo ABSENT; fi"
         ));
-        let out = cmd
-            .output()
-            .map_err(|e| CipherError::Transport(format!("ssh inspect `{}`: {e}", target.name)))?;
+        let out = run_command_bounded(
+            cmd,
+            None,
+            &format!("ssh inspect `{}`", target.name),
+            DEFAULT_SSH_TIMEOUT,
+            MAX_SSH_OUTPUT_BYTES,
+        )?;
         if !out.status.success() {
             return Err(CipherError::Transport(format!(
                 "ssh inspect `{}` exited {}: {}",
@@ -187,22 +197,14 @@ impl TargetTransport for SshTargetTransport {
         let nonce = csprng_hex_suffix()?;
         let script = Self::build_write_remote_script(target, entry, &nonce)?;
         let mut cmd = self.ssh_command(target)?;
-        cmd.arg(script)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| CipherError::Transport(format!("ssh spawn `{}`: {e}", target.name)))?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(payload.expose()).map_err(|e| {
-                CipherError::Transport(format!("ssh write payload `{}`: {e}", target.name))
-            })?;
-        }
-        let out = child
-            .wait_with_output()
-            .map_err(|e| CipherError::Transport(format!("ssh wait `{}`: {e}", target.name)))?;
+        cmd.arg(script);
+        let out = run_command_bounded(
+            cmd,
+            Some(payload.expose()),
+            &format!("ssh write `{}`", target.name),
+            DEFAULT_SSH_TIMEOUT,
+            MAX_SSH_OUTPUT_BYTES,
+        )?;
         if !out.status.success() {
             return Err(CipherError::Transport(format!(
                 "ssh write `{}` exited {}: {}",
@@ -225,9 +227,13 @@ impl TargetTransport for SshTargetTransport {
         }
         let mut cmd = self.ssh_command(target)?;
         cmd.arg(format!("sudo systemctl restart {}", quoted_units.join(" ")));
-        let out = cmd
-            .output()
-            .map_err(|e| CipherError::Transport(format!("ssh restart `{}`: {e}", target.name)))?;
+        let out = run_command_bounded(
+            cmd,
+            None,
+            &format!("ssh restart `{}`", target.name),
+            DEFAULT_SSH_TIMEOUT,
+            MAX_SSH_OUTPUT_BYTES,
+        )?;
         if !out.status.success() {
             return Err(CipherError::Transport(format!(
                 "ssh restart `{}` failed: {}",
@@ -246,9 +252,13 @@ impl TargetTransport for SshTargetTransport {
         cmd.arg(
             "command -v systemd-creds >/dev/null 2>&1 && echo CREDS=1 || echo CREDS=0; systemd-creds has-tpm2 >/dev/null 2>&1 && echo TPM2=1 || echo TPM2=0; (ldconfig -p 2>/dev/null | grep -q libtss2-esys.so.0 || test -e /usr/lib/libtss2-esys.so.0) && echo ESYS=1 || echo ESYS=0; (ldconfig -p 2>/dev/null | grep -q libtss2-tcti-device.so.0 || test -e /usr/lib/libtss2-tcti-device.so.0) && echo TCTI=1 || echo TCTI=0",
         );
-        let out = cmd.output().map_err(|e| {
-            CipherError::Transport(format!("ssh vtpm probe `{}`: {e}", target.name))
-        })?;
+        let out = run_command_bounded(
+            cmd,
+            None,
+            &format!("ssh vtpm probe `{}`", target.name),
+            DEFAULT_SSH_TIMEOUT,
+            MAX_SSH_OUTPUT_BYTES,
+        )?;
         if !out.status.success() {
             return Err(CipherError::Transport(format!(
                 "ssh vtpm probe `{}` exited {}",

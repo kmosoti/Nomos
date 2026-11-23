@@ -6,6 +6,7 @@
 //! buffers, while status, sync plans, and [`nomos_cipher::SecretsPosture`]
 //! surface metadata and digests only.
 
+pub mod bounded_proc;
 pub mod pq_hybrid;
 mod pq_types;
 pub mod sealer;

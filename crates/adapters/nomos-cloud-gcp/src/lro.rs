@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::rest::GcpEndpointConfig;
 use crate::rest_types::GceOperationResponse;
+use crate::url_guard::resolve_lro_poll_url;
 
 const MAX_TRANSIENT_RETRIES: u32 = 5;
 
@@ -49,6 +50,12 @@ pub fn deterministic_request_id(namespace: &str, key: &str) -> String {
 
 /// Appends `?requestId=<uuid-v5>` (or `&requestId=`) to a GCE mutation URL.
 pub fn with_request_id(url: &str, request_id: &str) -> String {
+    if let Ok(mut parsed) = reqwest::Url::parse(url) {
+        parsed
+            .query_pairs_mut()
+            .append_pair("requestId", request_id);
+        return parsed.into();
+    }
     let sep = if url.contains('?') { '&' } else { '?' };
     format!("{url}{sep}requestId={request_id}")
 }
@@ -138,20 +145,11 @@ async fn mutate_and_wait_lro<B: Serialize>(
         }
         return Ok(());
     }
-    let poll_url = match (op.self_link, op.name) {
-        (Some(link), _) if link.starts_with("http") => link,
-        (Some(link), _) => format!(
-            "{}/{}",
-            cfg.compute_base_url.trim_end_matches('/'),
-            link.trim_start_matches('/')
-        ),
-        (None, Some(name)) => format!("{}/{name}", cfg.compute_base_url),
-        (None, None) => {
-            return Err(CloudError::OperationFailed(
-                "LRO missing selfLink and name".into(),
-            ));
-        }
-    };
+    let poll_url = resolve_lro_poll_url(
+        &cfg.compute_base_url,
+        op.self_link.as_deref(),
+        op.name.as_deref(),
+    )?;
     wait_lro(client, cfg, token, &poll_url).await
 }
 

@@ -8,7 +8,7 @@ use nomos_cipher::{CipherError, CipherResult};
 use rand_core::{CryptoRng, Error as RandError, RngCore};
 use ring::rand::{SecureRandom, SystemRandom};
 use x25519_dalek::{PublicKey as X25519Public, StaticSecret as X25519Static};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 const IDENTITY_PREFIX: &str = "NOMOS-HYBRID-MLKEM768-X25519-V1:";
 const RECIPIENT_PREFIX: &str = "nomos1pq1:";
@@ -160,14 +160,22 @@ impl HybridIdentity {
         }
     }
 
-    /// Encodes the identity to a single-line secret representation.
-    pub fn encode_secret(&self) -> String {
-        let mut raw = Vec::with_capacity(MLKEM768_DK_LEN + MLKEM768_EK_LEN + X25519_KEY_LEN);
+    /// Encodes the identity to a single-line zeroizing secret representation.
+    pub fn encode_secret(&self) -> Zeroizing<String> {
+        const HEX_LUT: &[u8; 16] = b"0123456789abcdef";
+        let raw_len = MLKEM768_DK_LEN + MLKEM768_EK_LEN + X25519_KEY_LEN;
+        let mut raw = Zeroizing::new(Vec::with_capacity(raw_len));
         raw.extend_from_slice(&self.mlkem_dk);
         raw.extend_from_slice(&self.mlkem_ek);
         raw.extend_from_slice(&self.x25519_sk);
-        let encoded = format!("{IDENTITY_PREFIX}{}", hex::encode(&raw));
-        raw.zeroize();
+        let mut encoded = Zeroizing::new(String::with_capacity(
+            IDENTITY_PREFIX.len() + raw_len.saturating_mul(2),
+        ));
+        encoded.push_str(IDENTITY_PREFIX);
+        for &b in raw.iter() {
+            encoded.push(HEX_LUT[(b >> 4) as usize] as char);
+            encoded.push(HEX_LUT[(b & 0x0f) as usize] as char);
+        }
         encoded
     }
 
@@ -177,11 +185,12 @@ impl HybridIdentity {
             .trim()
             .strip_prefix(IDENTITY_PREFIX)
             .ok_or_else(|| CipherError::Crypto("missing hybrid identity prefix".into()))?;
-        let mut raw = hex::decode(body)
-            .map_err(|e| CipherError::Crypto(format!("invalid hybrid identity hex: {e}")))?;
+        let raw = Zeroizing::new(
+            hex::decode(body)
+                .map_err(|e| CipherError::Crypto(format!("invalid hybrid identity hex: {e}")))?,
+        );
         let expected = MLKEM768_DK_LEN + MLKEM768_EK_LEN + X25519_KEY_LEN;
         if raw.len() != expected {
-            raw.zeroize();
             return Err(CipherError::Crypto(format!(
                 "invalid hybrid identity length: {}",
                 raw.len()
@@ -189,12 +198,10 @@ impl HybridIdentity {
         }
         let mut x25519_sk = [0u8; X25519_KEY_LEN];
         x25519_sk.copy_from_slice(&raw[MLKEM768_DK_LEN + MLKEM768_EK_LEN..]);
-        let id = Self {
+        Ok(Self {
             mlkem_dk: raw[..MLKEM768_DK_LEN].to_vec(),
             mlkem_ek: raw[MLKEM768_DK_LEN..MLKEM768_DK_LEN + MLKEM768_EK_LEN].to_vec(),
             x25519_sk,
-        };
-        raw.zeroize();
-        Ok(id)
+        })
     }
 }

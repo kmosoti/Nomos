@@ -13,6 +13,8 @@ pub(crate) struct GceOperationResponse {
 
 #[derive(Deserialize)]
 pub(crate) struct GceSubnetResource {
+    pub id: Option<String>,
+    pub fingerprint: Option<String>,
     #[serde(rename = "ipv6CidrRange")]
     pub ipv6_cidr_range: Option<String>,
 }
@@ -27,6 +29,8 @@ pub(crate) struct GceFirewallAllowedResp {
 
 #[derive(Deserialize)]
 pub(crate) struct GceFirewallResource {
+    pub id: Option<String>,
+    pub fingerprint: Option<String>,
     pub direction: Option<String>,
     #[serde(rename = "sourceRanges", default)]
     pub source_ranges: Vec<String>,
@@ -43,6 +47,7 @@ pub(crate) struct GceInstanceTagsResp {
 
 #[derive(Deserialize)]
 pub(crate) struct GceInstanceResource {
+    pub id: Option<String>,
     #[serde(rename = "machineType")]
     pub machine_type: Option<String>,
     pub tags: Option<GceInstanceTagsResp>,

@@ -246,12 +246,15 @@ impl Systemd {
         operation: &Operation,
         deadline: impl Fn() -> bool,
     ) -> Option<Receipt> {
+        if deadline() {
+            return Some(Receipt::Refused);
+        }
         let (refresh, condition) = match operation {
             Operation::Converge(Requirement::Unit(c)) => (false, c),
             Operation::Refresh(Requirement::Unit(c)) => (true, c),
             _ => return Some(Receipt::Refused),
         };
-        let Collection::Collected(before) = self.examine(name) else {
+        let Collection::Collected(before) = self.examine_checked(name, &deadline) else {
             return Some(Receipt::Refused);
         };
         let wanted = asked(condition.enablement);
@@ -271,6 +274,13 @@ impl Systemd {
         }
         let job = job(refresh, condition, &before);
         if let Some(job) = job {
+            if deadline() {
+                return if enable.is_some() {
+                    None
+                } else {
+                    Some(Receipt::Refused)
+                };
+            }
             match self.run_job(name, job, &deadline) {
                 Ok(true) => {}
                 Ok(false) => return None,
@@ -333,6 +343,18 @@ impl Systemd {
             }
             std::thread::sleep(POLL);
         }
+    }
+
+    fn examine_checked(
+        &self,
+        name: &UnitName,
+        deadline: &impl Fn() -> bool,
+    ) -> Collection<UnitEvidence> {
+        let before = self.examine(name);
+        if deadline() {
+            return Collection::Failed(CollectionFailure::Unavailable);
+        }
+        before
     }
 }
 

@@ -4,7 +4,7 @@
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use axum::extract::{Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode, Uri};
@@ -12,26 +12,27 @@ use axum::response::Response;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use nomos_cipher::{CipherPort, SecretPolicy, SecretsPosture};
-use nomos_cipher_age_vtpm::{AgeVtpmVault, MemoryTargetTransport};
+use nomos_cipher::SecretsPosture;
 use nomos_cloud::{AuthPosture, CloudSubstrate};
 use nomos_core::cipher::Secret;
 use nomos_core::plan::Generation;
 use nomos_mesh::MeshPort;
 use nomos_protocol::QuicStats;
-use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::Semaphore;
 use tokio_stream::StreamExt as _;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::governor_svc::GovernorService;
 use crate::lease::{IssueLeaseRequest, LeaseBroker, LeaseRecord, staged_credential_names};
-use crate::server_auth::{authorize_bearer, serve_web_asset_impl};
+use crate::posture_cache::{
+    GuardedSseStream, HealthResponse, LeaseIssuedResponse, PostureCache, VerifyLeaseRequest,
+    VerifyLeaseResponse, resolve_cloud_auth_posture, resolve_secrets_posture,
+};
+use crate::server_auth::{authorize_bearer, authorize_control_admin, serve_web_asset_impl};
 use crate::telemetry::{GovernorStatusDto, SampleInputDto, TelemetryResponse};
 
 const DEFAULT_POSTURE_CACHE_TTL: Duration = Duration::from_secs(30);
-
-type CachedPosture<T> = Arc<RwLock<Option<(Instant, Option<T>)>>>;
+const MAX_SSE_SUBSCRIBERS: usize = 16;
 
 /// Shared composition-root state backing HTTP routes.
 #[derive(Clone)]
@@ -58,8 +59,9 @@ pub struct LoomState {
     control_token_hash: Option<blake3::Hash>,
     /// TTL for off-worker vTPM and GCP posture caches.
     pub posture_cache_ttl: Duration,
-    cached_secrets: CachedPosture<SecretsPosture>,
-    cached_cloud_auth: CachedPosture<AuthPosture>,
+    cached_secrets: PostureCache<SecretsPosture>,
+    cached_cloud_auth: PostureCache<AuthPosture>,
+    sse_permits: Arc<Semaphore>,
 }
 
 impl LoomState {
@@ -83,8 +85,9 @@ impl LoomState {
             web_assets_dir,
             control_token_hash: None,
             posture_cache_ttl: DEFAULT_POSTURE_CACHE_TTL,
-            cached_secrets: Arc::new(RwLock::new(None)),
-            cached_cloud_auth: Arc::new(RwLock::new(None)),
+            cached_secrets: PostureCache::default(),
+            cached_cloud_auth: PostureCache::default(),
+            sse_permits: Arc::new(Semaphore::new(MAX_SSE_SUBSCRIBERS)),
         }
     }
 
@@ -101,33 +104,8 @@ impl LoomState {
     }
 }
 
-#[derive(Serialize)]
-struct HealthResponse {
-    status: &'static str,
-    node: String,
-    generation: u64,
-    headless: bool,
-}
-
-#[derive(Serialize)]
-struct LeaseIssuedResponse {
-    lease: LeaseRecord,
-    token: String,
-}
-
-#[derive(Deserialize)]
-struct VerifyLeaseRequest {
-    token: String,
-}
-
-#[derive(Serialize)]
-struct VerifyLeaseResponse {
-    valid: bool,
-    lease: Option<LeaseRecord>,
-}
-
-/// Builds the Axum router with scoped bearer auth on mutating routes, SSE `/v1/events`,
-/// and optional `--web-assets-dir`.
+/// Builds the Axum router with scoped bearer auth on control/observability routes,
+/// minimal public `/health`, bounded SSE `/v1/events`, and safe `--web-assets-dir`.
 pub fn build_router(state: LoomState) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -145,18 +123,25 @@ pub fn build_router(state: LoomState) -> Router {
 async fn health(State(state): State<LoomState>) -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok",
-        node: state.node_name.clone(),
-        generation: state.governor.generation(),
         headless: state.web_assets_dir.is_none(),
     })
 }
 
-async fn list_leases(State(state): State<LoomState>) -> Result<Json<Vec<LeaseRecord>>, StatusCode> {
+async fn list_leases(
+    State(state): State<LoomState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<LeaseRecord>>, (StatusCode, String)> {
+    authorize_bearer(
+        state.control_token_hash,
+        &state.leases,
+        &headers,
+        &["admin", "control", "observer"],
+    )?;
     state
         .leases
         .list_active()
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
 async fn issue_lease(
@@ -164,12 +149,7 @@ async fn issue_lease(
     headers: HeaderMap,
     Json(req): Json<IssueLeaseRequest>,
 ) -> Result<(StatusCode, Json<LeaseIssuedResponse>), (StatusCode, String)> {
-    authorize_bearer(
-        state.control_token_hash,
-        &state.leases,
-        &headers,
-        &["admin", "control"],
-    )?;
+    authorize_control_admin(state.control_token_hash, &state.leases, &headers)?;
     if req.scope == "batch" && !state.governor.status().admit_batch {
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
@@ -202,12 +182,7 @@ async fn revoke_lease(
     headers: HeaderMap,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    authorize_bearer(
-        state.control_token_hash,
-        &state.leases,
-        &headers,
-        &["admin", "control"],
-    )?;
+    authorize_control_admin(state.control_token_hash, &state.leases, &headers)?;
     match state.leases.revoke(id) {
         Ok(true) => {
             state
@@ -222,21 +197,37 @@ async fn revoke_lease(
 
 async fn verify_lease(
     State(state): State<LoomState>,
+    headers: HeaderMap,
     Json(req): Json<VerifyLeaseRequest>,
-) -> Result<Json<VerifyLeaseResponse>, StatusCode> {
+) -> Result<Json<VerifyLeaseResponse>, (StatusCode, String)> {
+    authorize_bearer(
+        state.control_token_hash,
+        &state.leases,
+        &headers,
+        &["admin", "control", "observer"],
+    )?;
     let wrapped = Secret::new(req.token);
     let record = state
         .leases
         .verify_token(&wrapped)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(VerifyLeaseResponse {
         valid: record.is_some(),
         lease: record,
     }))
 }
 
-async fn get_governor(State(state): State<LoomState>) -> Json<GovernorStatusDto> {
-    Json(state.governor.status())
+async fn get_governor(
+    State(state): State<LoomState>,
+    headers: HeaderMap,
+) -> Result<Json<GovernorStatusDto>, (StatusCode, String)> {
+    authorize_bearer(
+        state.control_token_hash,
+        &state.leases,
+        &headers,
+        &["admin", "control", "governor", "observer"],
+    )?;
+    Ok(Json(state.governor.status()))
 }
 
 async fn post_governor_sample(
@@ -257,60 +248,38 @@ async fn post_governor_sample(
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }
 
-async fn resolve_secrets_posture(state: &LoomState) -> Option<SecretsPosture> {
-    let dir = state.vault_dir.clone()?;
-    let now = Instant::now();
-    {
-        let guard = state.cached_secrets.read().await;
-        if let Some((fetched_at, cached)) = guard.as_ref()
-            && now.duration_since(*fetched_at) < state.posture_cache_ttl
-        {
-            return cached.clone();
-        }
-    }
-    let allow_plain = state.allow_plaintext_key;
-    let fresh = tokio::task::spawn_blocking(move || {
-        let vault = AgeVtpmVault::new(dir).allow_plaintext_key(allow_plain);
-        let policy = SecretPolicy::default();
-        let transport = MemoryTargetTransport::new();
-        vault.posture(&policy, &transport, None).ok()
-    })
-    .await
-    .ok()
-    .flatten();
-    let mut guard = state.cached_secrets.write().await;
-    *guard = Some((Instant::now(), fresh.clone()));
-    fresh
-}
-
-async fn resolve_cloud_auth_posture(state: &LoomState, generation: u64) -> Option<AuthPosture> {
-    let cloud = state.cloud.as_ref()?;
-    let now = Instant::now();
-    {
-        let guard = state.cached_cloud_auth.read().await;
-        if let Some((fetched_at, cached)) = guard.as_ref()
-            && now.duration_since(*fetched_at) < state.posture_cache_ttl
-        {
-            return cached.clone();
-        }
-    }
-    let fresh = cloud.auth_posture(Generation(generation)).await.ok();
-    let mut guard = state.cached_cloud_auth.write().await;
-    *guard = Some((Instant::now(), fresh.clone()));
-    fresh
-}
-
-async fn get_telemetry(State(state): State<LoomState>) -> Json<TelemetryResponse> {
+async fn get_telemetry(
+    State(state): State<LoomState>,
+    headers: HeaderMap,
+) -> Result<Json<TelemetryResponse>, (StatusCode, String)> {
+    authorize_bearer(
+        state.control_token_hash,
+        &state.leases,
+        &headers,
+        &["admin", "control", "governor", "observer"],
+    )?;
     let generation = state.governor.generation();
     let active_leases = state.leases.list_active().map(|l| l.len()).unwrap_or(0);
-    let secrets = resolve_secrets_posture(&state).await;
+    let secrets = resolve_secrets_posture(
+        state.vault_dir.as_ref(),
+        state.allow_plaintext_key,
+        state.posture_cache_ttl,
+        &state.cached_secrets,
+    )
+    .await;
     let mesh = state
         .mesh
         .as_ref()
         .and_then(|m| m.posture(Generation(generation)).ok());
-    let cloud_auth = resolve_cloud_auth_posture(&state, generation).await;
+    let cloud_auth = resolve_cloud_auth_posture(
+        state.cloud.as_ref(),
+        generation,
+        state.posture_cache_ttl,
+        &state.cached_cloud_auth,
+    )
+    .await;
 
-    Json(TelemetryResponse {
+    Ok(Json(TelemetryResponse {
         node: state.node_name.clone(),
         generation,
         active_leases,
@@ -320,21 +289,38 @@ async fn get_telemetry(State(state): State<LoomState>) -> Json<TelemetryResponse
         cloud_auth,
         governor: state.governor.status(),
         staged_credentials: staged_credential_names(),
-    })
+    }))
 }
 
 async fn events_sse(
     State(state): State<LoomState>,
-) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    headers: HeaderMap,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)>
+{
+    authorize_bearer(
+        state.control_token_hash,
+        &state.leases,
+        &headers,
+        &["admin", "control", "governor", "observer"],
+    )?;
+    let permit = Arc::clone(&state.sse_permits)
+        .try_acquire_owned()
+        .map_err(|_| {
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many concurrent SSE subscribers".to_owned(),
+            )
+        })?;
     let rx = state.governor.subscribe();
-    let stream = BroadcastStream::new(rx).filter_map(|msg| match msg {
+    let inner = BroadcastStream::new(rx).filter_map(|msg| match msg {
         Ok(ev) => Some(Ok(Event::default()
             .event(ev.kind.clone())
             .json_data(&ev)
             .unwrap_or_else(|_| Event::default().data("event")))),
         Err(_) => None,
     });
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    let stream = GuardedSseStream { inner, permit };
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 async fn serve_web_asset(State(state): State<LoomState>, uri: Uri) -> Response {

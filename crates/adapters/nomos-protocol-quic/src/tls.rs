@@ -3,6 +3,8 @@
 use std::sync::Arc;
 
 use nomos_protocol::{ProtocolError, ProtocolResult};
+use quinn::IdleTimeout;
+use quinn::VarInt;
 use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
@@ -11,6 +13,7 @@ use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 use rustls::{CertificateError, DigitallySignedStruct, DistinguishedName, SignatureScheme};
 
 use crate::cert::{PinnedIdentity, sha256_der_bytes, spki_sha256_bytes};
+use crate::limits::{DEFAULT_IDLE_TIMEOUT, DEFAULT_QUIC_MAX_BIDI_STREAMS};
 
 /// Constant-time 32-byte equality check resistant to short-circuit timing leaks.
 fn ct_eq_32(a: &[u8; 32], b: &[u8; 32]) -> bool {
@@ -176,7 +179,15 @@ pub fn build_server_config(
 
     let quic_crypto = QuicServerConfig::try_from(crypto)
         .map_err(|e| ProtocolError::Certificate(format!("QUIC server TLS config: {e}")))?;
-    Ok(quinn::ServerConfig::with_crypto(Arc::new(quic_crypto)))
+    let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_crypto));
+    let mut transport = quinn::TransportConfig::default();
+    if let Ok(idle) = IdleTimeout::try_from(DEFAULT_IDLE_TIMEOUT) {
+        transport.max_idle_timeout(Some(idle));
+    }
+    transport.max_concurrent_bidi_streams(VarInt::from_u32(DEFAULT_QUIC_MAX_BIDI_STREAMS));
+    transport.max_concurrent_uni_streams(VarInt::from_u32(0));
+    server_config.transport_config(Arc::new(transport));
+    Ok(server_config)
 }
 
 /// Builds a mutual-TLS Quinn client configuration presenting `client_identity` and

@@ -4,6 +4,8 @@ use std::net::Ipv6Addr;
 
 use nomos_mesh::{MeshError, MeshResult};
 
+use crate::engine::inner_ip::InnerDestinationPolicy;
+
 const WINDOW_WORDS: usize = 32; // 32 * 64 = 2048 sequence slots
 
 /// Checks whether `addr` falls within IPv6 CIDR `prefix/prefix_len` with zero allocation.
@@ -111,6 +113,8 @@ pub struct PeerTunnelState {
     pub last_handshake_ns: u64,
     /// Optional inner IPv6 `AllowedIPs` source prefix enforced on RX.
     pub allowed_prefix: Option<(Ipv6Addr, u8)>,
+    /// Optional inner IPv6 + UDP destination authorization policy enforced on RX.
+    pub allowed_dst: Option<InnerDestinationPolicy>,
     /// True once a rekey request has been emitted for the current epoch.
     pub rekey_pending: bool,
     /// Bytes transferred in the current key epoch (for byte-counter rekeying).
@@ -137,6 +141,7 @@ impl PeerTunnelState {
             replay: ReplayWindow::new(),
             last_handshake_ns: 0,
             allowed_prefix: None,
+            allowed_dst: None,
             rekey_pending: false,
             session_bytes: 0,
             rx_bytes: 0,

@@ -106,6 +106,7 @@ pub fn plan_and_execute_sync_with_sealer(
 
     let mut actions = Vec::new();
     let mut warnings = Vec::new();
+    let mut target_errors = Vec::new();
     let mut pending_restarts: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
     for target in &targets {
@@ -128,7 +129,17 @@ pub fn plan_and_execute_sync_with_sealer(
 
             let rendered = render_entry_payload_with_sealer(entry, &plaintext, sealer)?;
             let mut desired_digest = blake3_hex(rendered.expose());
-            let remote = transport.inspect_remote(target, entry)?;
+            let remote = match transport.inspect_remote(target, entry) {
+                Ok(r) => r,
+                Err(err) => {
+                    desired_digest.zeroize();
+                    target_errors.push(format!(
+                        "target `{}` inspect `{}`: {err}",
+                        target.name, entry.key
+                    ));
+                    break;
+                }
+            };
 
             let kind = if !remote.exists {
                 SyncActionKind::Create
@@ -143,13 +154,23 @@ pub fn plan_and_execute_sync_with_sealer(
 
             let mut applied = false;
             if confirm_apply && matches!(kind, SyncActionKind::Create | SyncActionKind::Update) {
-                transport.write_remote(target, entry, &rendered)?;
-                applied = true;
-                for unit in &entry.restart_units {
-                    pending_restarts
-                        .entry(target.name.clone())
-                        .or_default()
-                        .insert(unit.clone());
+                match transport.write_remote(target, entry, &rendered) {
+                    Ok(()) => {
+                        applied = true;
+                        for unit in &entry.restart_units {
+                            pending_restarts
+                                .entry(target.name.clone())
+                                .or_default()
+                                .insert(unit.clone());
+                        }
+                    }
+                    Err(err) => {
+                        target_errors.push(format!(
+                            "target `{}` write `{}`: {err}",
+                            target.name, entry.key
+                        ));
+                        break;
+                    }
                 }
             }
 
@@ -175,11 +196,16 @@ pub fn plan_and_execute_sync_with_sealer(
         for (target_name, units_set) in pending_restarts {
             if let Some(target) = policy.find_target(&target_name)
                 && !units_set.is_empty()
+                && let Err(err) =
+                    transport.restart_units(target, &units_set.into_iter().collect::<Vec<_>>())
             {
-                let units: Vec<String> = units_set.into_iter().collect();
-                transport.restart_units(target, &units)?;
+                target_errors.push(format!("target `{target_name}` restart: {err}"));
             }
         }
+    }
+
+    if !target_errors.is_empty() {
+        return Err(CipherError::Transport(target_errors.join("; ")));
     }
 
     Ok(SyncPlan {
