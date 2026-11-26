@@ -88,7 +88,7 @@ jobs:
         run: |
           echo "sha256=$(sha256sum dist/nomos-cell_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "loom_sha256=$(sha256sum dist/nomos-loom_*_amd64.deb | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package
           path: dist
@@ -119,7 +119,7 @@ jobs:
       # The harness refuses a package whose digest is not the one the build
       # job reported, and records the digest it installed.
       - run: cargo xtask debian --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-${{ matrix.release }}.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debian-${{ matrix.release }}
           path: debian-${{ matrix.release }}.json
@@ -149,7 +149,7 @@ jobs:
           path: dist
       - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --expect-sha256 "${{ needs.package.outputs.sha256 }}" --out debian-minimal-${{ matrix.release }}.json
       - run: cargo xtask debian-minimal --release ${{ matrix.release }} --package dist --control omit-systemd
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debian-minimal-${{ matrix.release }}
           path: debian-minimal-${{ matrix.release }}.json
@@ -263,7 +263,7 @@ jobs:
       - name: Mutate
         if: steps.scope.outputs.skip != 'true'
         run: cargo mutants --workspace --no-shuffle -j 2 ${{ steps.scope.outputs.args }} --output target/mutants
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.scope.outputs.skip != 'true'
         with:
           name: mutants-out-${{ matrix.shard }}
